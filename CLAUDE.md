@@ -92,6 +92,10 @@ infra/
 
 ## Development Methodology & Coding Rules
 
+### Python Package Import Rule
+
+The current backend uses absolute imports such as `services.api...`. Run Python entrypoints that rely on those imports from the repository root, or set `PYTHONPATH` to the repository root first. Do not run `uvicorn main:app --reload` from `services/api/` without adjusting `PYTHONPATH`, because Python will not be able to resolve the top-level `services` package.
+
 ### Test-Driven Development (TDD) Workflow
 
 When implementing features from `DEVELOPMENT_PLAN.md`, follow this strict test-first approach:
@@ -116,8 +120,10 @@ When implementing features from `DEVELOPMENT_PLAN.md`, follow this strict test-f
 
 4. **Run Tests & Fix Loop**
    ```bash
+   # Run from the repository root so `services.*` imports resolve
+
    # Backend tests
-   pytest services/api/tests/ -v
+   PYTHONPATH=$(pwd) pytest services/api/tests/ -v
 
    # Frontend tests
    npm test --prefix apps/web
@@ -157,7 +163,7 @@ def test_list_notebooks_for_user():
     # ... test implementation
 
 # Step 2: Run tests (should fail - RED)
-pytest services/api/tests/test_notebooks.py -v
+PYTHONPATH=$(pwd) pytest services/api/tests/test_notebooks.py -v
 # ❌ FAILED - endpoint doesn't exist yet
 
 # Step 3: Implement minimal code
@@ -167,7 +173,7 @@ async def create_notebook(data: NotebookCreate):
     # ... implementation
 
 # Step 4: Run tests again
-pytest services/api/tests/test_notebooks.py -v
+PYTHONPATH=$(pwd) pytest services/api/tests/test_notebooks.py -v
 # ✅ PASSED - all acceptance criteria met
 
 # Step 5: Check off in TASK_CHECKLIST.md
@@ -690,6 +696,8 @@ JWT_EXPIRATION=86400  # 24 hours
 
 ### Common Commands
 ```bash
+# Run these from the repository root unless noted otherwise
+
 # Database migrations
 alembic upgrade head
 
@@ -700,21 +708,21 @@ uvicorn services.api.main:app --reload
 arq services.worker.main.WorkerSettings
 
 # Run tests (run these frequently!)
-pytest services/api/tests/ -v                    # All backend tests
-pytest services/api/tests/test_notebooks.py -v   # Specific module
-pytest services/api/tests/ --cov                 # With coverage
+PYTHONPATH=$(pwd) pytest services/api/tests/ -v                    # All backend tests
+PYTHONPATH=$(pwd) pytest services/api/tests/test_notebooks.py -v   # Specific module
+PYTHONPATH=$(pwd) pytest services/api/tests/ --cov                 # With coverage
 npm test --prefix apps/web                       # All frontend tests
 npm test --prefix apps/web -- NotebookList       # Specific component
 
 # Run tests in watch mode (during development)
-pytest services/api/tests/ -v --looponfail       # Auto-rerun on save
+PYTHONPATH=$(pwd) pytest services/api/tests/ -v --looponfail       # Auto-rerun on save
 npm test --prefix apps/web -- --watch            # Auto-rerun on save
 
 # Integration tests
-pytest services/api/tests/integration/ -v
+PYTHONPATH=$(pwd) pytest services/api/tests/integration/ -v
 
 # Check test coverage
-pytest --cov=services.api --cov-report=html
+PYTHONPATH=$(pwd) pytest services/api/tests/ --cov=services.api --cov-report=html
 open htmlcov/index.html                          # View coverage report
 ```
 

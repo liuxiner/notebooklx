@@ -34,7 +34,7 @@ Use the real commands from the current repo:
 
 - `cd services/api && pip install -r requirements.txt`
 - `cd services/api && alembic upgrade head`
-- `cd services/api && uvicorn main:app --reload`
+- `uvicorn services.api.main:app --reload`
 - `PYTHONPATH=$(pwd) pytest services/api/tests -v`
 
 ## Non-Goals

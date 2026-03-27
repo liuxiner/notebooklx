@@ -12,7 +12,7 @@ Use the commands that match the current repository state:
 - `cd services/api && python3 -m venv ../../venv && source ../../venv/bin/activate`
 - `cd services/api && pip install -r requirements.txt`
 - `cd services/api && alembic upgrade head`
-- `cd services/api && uvicorn main:app --reload`
+- `uvicorn services.api.main:app --reload`
 - `PYTHONPATH=$(pwd) pytest services/api/tests -v`
 - `PYTHONPATH=$(pwd) pytest services/api/tests --cov=services.api --cov-report=html`
 

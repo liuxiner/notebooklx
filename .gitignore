@@ -1,0 +1,62 @@
+# macOS and editor noise
+.DS_Store
+
+# Local AI/tool settings
+.claude/settings.local.json
+
+# Python / FastAPI artifacts
+**/__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.tox/
+.nox/
+.cache/
+
+# Coverage output
+.coverage
+.coverage.*
+htmlcov/
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+!.env.sample
+
+# Local SQLite development database
+*.db
+*.db-shm
+*.db-wal
+*.db-journal
+*.sqlite3
+
+# Frontend artifacts from the planned Next.js app
+node_modules/
+.next/
+coverage/
+dist/
+playwright-report/
+test-results/
+*.tsbuildinfo
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Local runtime artifacts for worker/storage services
+*.log
+*.pid
+tmp/
+temp/
+dump.rdb

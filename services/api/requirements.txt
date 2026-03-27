@@ -1,0 +1,15 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+pydantic
+pydantic-settings
+alembic
+python-jose[cryptography]
+passlib[bcrypt]
+python-multipart
+pytest
+pytest-asyncio
+httpx
+
+# PostgreSQL adapter (optional - only needed for production DB)
+# psycopg2-binary

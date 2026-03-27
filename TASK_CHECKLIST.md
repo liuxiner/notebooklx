@@ -7,9 +7,9 @@ Quick reference checklist for tracking development progress. Check off items as 
 ### Week 1 - Core Infrastructure
 
 **Notebook CRUD**
-- ⬜ Database schema & migrations
-- ⬜ API endpoints (POST, GET, PATCH, DELETE)
-- ⬜ Unit tests
+- ✓ Database schema & migrations
+- ✓ API endpoints (POST, GET, PATCH, DELETE)
+- ✓ Unit tests
 - ⬜ Frontend list page
 - ⬜ Create/edit/delete UI
 
