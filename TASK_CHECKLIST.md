@@ -13,13 +13,13 @@ Quick reference checklist for tracking development progress. Check off items as 
 - ✓ Frontend list page
 - ✓ Create/edit/delete UI
 
-**Source Upload**
-- ⬜ Sources table schema
-- ⬜ MinIO/S3 setup
-- ⬜ PDF upload endpoint
-- ⬜ URL upload endpoint
-- ⬜ Text upload endpoint
-- ⬜ File validation
+**Source Upload** ✓
+- ✓ Sources table schema
+- ✓ MinIO/S3 setup
+- ✓ PDF upload endpoint
+- ✓ URL upload endpoint
+- ✓ Text upload endpoint
+- ✓ File validation
 
 **Worker Pipeline**
 - ⬜ Redis setup
@@ -297,4 +297,3 @@ Quick reference checklist for tracking development progress. Check off items as 
 ## Notes
 
 _Use this section for development notes, decisions, and learnings._
-

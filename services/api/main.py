@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from services.api.core.database import initialize_database
 from services.api.modules.notebooks.routes import router as notebooks_router
+from services.api.modules.sources.routes import router as sources_router
 
 
 @asynccontextmanager
@@ -35,6 +36,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(notebooks_router)
+app.include_router(sources_router)
 
 
 @app.get("/")

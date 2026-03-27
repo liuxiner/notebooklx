@@ -67,18 +67,18 @@ This document outlines the detailed development plan, acceptance criteria, and t
 
 ---
 
-### Feature 1.3: Source Upload Endpoints
+### Feature 1.3: Source Upload Endpoints ✅
 
 **Acceptance Criteria:**
-- [ ] Upload PDF file (max 50MB)
-- [ ] Upload plain text content
-- [ ] Add URL source (validate URL format)
-- [ ] Return source ID and initial status (pending)
-- [ ] Store original file in MinIO/S3
-- [ ] Support multiple file types (PDF, TXT, DOCX)
-- [ ] Proper MIME type validation
-- [ ] File size limits enforced
-- [ ] Error handling for failed uploads
+- [x] Upload PDF file (max 50MB)
+- [x] Upload plain text content
+- [x] Add URL source (validate URL format)
+- [x] Return source ID and initial status (pending)
+- [x] Store original file in MinIO/S3
+- [x] Support multiple file types (PDF, TXT, DOCX)
+- [x] Proper MIME type validation
+- [x] File size limits enforced
+- [x] Error handling for failed uploads
 
 **Tasks:**
 1. Create sources table schema

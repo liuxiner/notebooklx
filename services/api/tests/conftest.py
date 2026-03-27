@@ -4,7 +4,7 @@ Test configuration and fixtures for NotebookLX API tests.
 import pytest
 from typing import Generator
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import StaticPool
 import uuid
@@ -22,6 +22,16 @@ engine = create_engine(
     connect_args={"check_same_thread": False},
     poolclass=StaticPool,
 )
+
+
+@event.listens_for(engine, "connect")
+def _set_sqlite_pragma(dbapi_connection, _connection_record) -> None:
+    """Ensure SQLite enforces foreign keys during tests."""
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.close()
+
+
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
@@ -35,6 +45,11 @@ def db() -> Generator[Session, None, None]:
     from services.api.core.database import Base
     # Import models to register them with Base
     from services.api.modules.notebooks.models import User, Notebook
+    # Import Source model for sources tests
+    try:
+        from services.api.modules.sources.models import Source  # noqa: F401
+    except ImportError:
+        pass  # Source module not yet created
 
     # Create all tables
     Base.metadata.create_all(bind=engine)

@@ -17,9 +17,10 @@ repo_root = services_dir.parent  # repository root
 sys.path.insert(0, str(repo_root))
 sys.path.insert(0, str(api_dir))
 
-# Import our Base and models
-from core.database import Base
-from modules.notebooks.models import User, Notebook
+# Import our Base and models using the repo's canonical absolute import paths.
+from services.api.core.database import Base
+from services.api.modules.notebooks.models import User, Notebook
+from services.api.modules.sources.models import Source
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

@@ -1,7 +1,7 @@
 """
 Database connection and session management.
 """
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.engine import Engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
@@ -26,6 +26,13 @@ if DATABASE_URL.startswith("sqlite"):
         DATABASE_URL,
         connect_args={"check_same_thread": False}  # Needed for SQLite
     )
+
+    @event.listens_for(engine, "connect")
+    def _set_sqlite_pragma(dbapi_connection, _connection_record) -> None:
+        """Keep SQLite foreign key constraints enabled across all connections."""
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
 else:
     # PostgreSQL or other databases
     engine = create_engine(DATABASE_URL)
@@ -52,6 +59,7 @@ def initialize_database(bind_engine: Engine | None = None) -> None:
     # Import models here so their tables are registered on Base.metadata before
     # create_all runs.
     from services.api.modules.notebooks.models import Notebook, User  # noqa: F401
+    from services.api.modules.sources.models import Source  # noqa: F401
 
     Base.metadata.create_all(bind=active_engine)
 
