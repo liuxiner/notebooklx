@@ -126,7 +126,7 @@ When implementing features from `DEVELOPMENT_PLAN.md`, follow this strict test-f
    PYTHONPATH=$(pwd) pytest services/api/tests/ -v
 
    # Frontend tests
-   npm test --prefix apps/web
+   pnpm test --prefix apps/web
 
    # Run until ALL tests pass
    ```
@@ -661,7 +661,7 @@ pending → processing → ready
 1. Read acceptance criteria from DEVELOPMENT_PLAN.md
 2. Write tests for each criterion (tests should fail)
 3. Implement feature code
-4. Run tests: pytest / npm test
+4. Run tests: pytest / pnpm test
 5. Fix until all tests pass ✅
 6. Check off in TASK_CHECKLIST.md with ✓
 7. Refactor if needed (keep tests green)
@@ -711,12 +711,12 @@ arq services.worker.main.WorkerSettings
 PYTHONPATH=$(pwd) pytest services/api/tests/ -v                    # All backend tests
 PYTHONPATH=$(pwd) pytest services/api/tests/test_notebooks.py -v   # Specific module
 PYTHONPATH=$(pwd) pytest services/api/tests/ --cov                 # With coverage
-npm test --prefix apps/web                       # All frontend tests
-npm test --prefix apps/web -- NotebookList       # Specific component
+pnpm test --prefix apps/web                       # All frontend tests
+pnpm test --prefix apps/web -- NotebookList       # Specific component
 
 # Run tests in watch mode (during development)
 PYTHONPATH=$(pwd) pytest services/api/tests/ -v --looponfail       # Auto-rerun on save
-npm test --prefix apps/web -- --watch            # Auto-rerun on save
+pnpm test --prefix apps/web -- --watch            # Auto-rerun on save
 
 # Integration tests
 PYTHONPATH=$(pwd) pytest services/api/tests/integration/ -v

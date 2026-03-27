@@ -10,8 +10,8 @@ Quick reference checklist for tracking development progress. Check off items as 
 - ✓ Database schema & migrations
 - ✓ API endpoints (POST, GET, PATCH, DELETE)
 - ✓ Unit tests
-- ⬜ Frontend list page
-- ⬜ Create/edit/delete UI
+- ✓ Frontend list page
+- ✓ Create/edit/delete UI
 
 **Source Upload**
 - ⬜ Sources table schema

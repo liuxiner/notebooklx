@@ -6,17 +6,17 @@ This document outlines the detailed development plan, acceptance criteria, and t
 
 ## Phase 1: Foundation (Week 1)
 
-### Feature 1.1: Notebook CRUD API
+### Feature 1.1: Notebook CRUD API ✅
 
 **Acceptance Criteria:**
-- [ ] Create notebook with name and optional description
-- [ ] List all notebooks for authenticated user
-- [ ] Get single notebook by ID with all metadata
-- [ ] Update notebook name and description
-- [ ] Delete notebook (soft delete with cascade to sources)
-- [ ] All endpoints return proper HTTP status codes (200, 201, 404, 400, 500)
-- [ ] API responses include creation/update timestamps
-- [ ] Proper error handling with meaningful error messages
+- [x] Create notebook with name and optional description
+- [x] List all notebooks for authenticated user
+- [x] Get single notebook by ID with all metadata
+- [x] Update notebook name and description
+- [x] Delete notebook (soft delete with cascade to sources)
+- [x] All endpoints return proper HTTP status codes (200, 201, 404, 400, 500)
+- [x] API responses include creation/update timestamps
+- [x] Proper error handling with meaningful error messages
 
 **Tasks:**
 1. Create database schema for notebooks table
@@ -38,18 +38,18 @@ This document outlines the detailed development plan, acceptance criteria, and t
 
 ---
 
-### Feature 1.2: Notebook UI (Frontend)
+### Feature 1.2: Notebook UI (Frontend) ✅
 
 **Acceptance Criteria:**
-- [ ] Notebook list page shows all user notebooks
-- [ ] Create notebook button opens modal/form
-- [ ] Can create notebook with name (required) and description (optional)
-- [ ] Notebook cards show name, description preview, and created date
-- [ ] Click notebook card navigates to notebook detail page
-- [ ] Edit/delete actions available on notebook cards
-- [ ] Loading states while fetching notebooks
-- [ ] Empty state when no notebooks exist
-- [ ] Responsive design works on mobile and desktop
+- [x] Notebook list page shows all user notebooks
+- [x] Create notebook button opens modal/form
+- [x] Can create notebook with name (required) and description (optional)
+- [x] Notebook cards show name, description preview, and created date
+- [x] Click notebook card navigates to notebook detail page
+- [x] Edit/delete actions available on notebook cards
+- [x] Loading states while fetching notebooks
+- [x] Empty state when no notebooks exist
+- [x] Responsive design works on mobile and desktop
 
 **Tasks:**
 1. Create notebooks list page component (apps/web/app/notebooks/page.tsx)

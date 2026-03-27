@@ -43,6 +43,7 @@ ENV/
 
 # Frontend artifacts from the planned Next.js app
 node_modules/
+.pnpm-store/
 .next/
 coverage/
 dist/
