@@ -14,7 +14,7 @@ Read these files instead of restating their contents:
 - `AGENTS.md`: concise repo guide and current commands.
 - `CLAUDE.md`: working rules, product principles, target architecture, TDD workflow, testing standards, and commit/PR expectations.
 - `DEVELOPMENT_PLAN.md`: feature roadmap, tasks, and acceptance criteria. Treat it as the delivery blueprint.
-- `TASK_CHECKLIST.md`: progress tracking after a feature is completed or materially advanced.
+- `TASK_CHECKLIST.md`: progress tracking when a feature starts (`⚡`), and again after a slice is truly complete (`✓`).
 
 ## Context Budget Rule
 
@@ -56,14 +56,15 @@ Follow this loop for every slice without skipping steps:
 2. Read only the relevant `DEVELOPMENT_PLAN.md` feature section.
 3. Pick the next unfinished feature item from `DEVELOPMENT_PLAN.md` and `TASK_CHECKLIST.md`.
 4. Shrink it into the smallest workable slice that fits the context budget.
-5. Write or update tests for the selected acceptance criteria first, or at minimum before closing the slice.
-6. Implement the minimum code required for those tests to pass.
-7. Run the slice verification loop:
+5. As soon as work starts on that feature, update the corresponding entry in `TASK_CHECKLIST.md` to `⚡` so in-progress work is visible.
+6. Write or update tests for the selected acceptance criteria first, or at minimum before closing the slice.
+7. Implement the minimum code required for those tests to pass.
+8. Run the slice verification loop:
    - run the focused test command(s)
    - if any acceptance-criteria test fails, fix the code and rerun
    - repeat until the selected acceptance criteria are green
    - then run any immediate regression tests needed for touched code
-8. Only mark the slice `finished` when every selected acceptance criterion passes.
+9. Only move `TASK_CHECKLIST.md` from `⚡` to `✓` and mark the slice `finished` when every selected acceptance criterion passes.
 
 Hard rule:
 
@@ -84,7 +85,7 @@ When the slice is green:
 
 After a slice reaches green and checklist updates are done, append a structured entry to the dedicated workflow log:
 
-- `.git/logs/notebooklx-workflow.log`
+- `.log/notebooklx-workflow.log`
 
 Use:
 
@@ -103,8 +104,7 @@ The log entry should capture at least:
 
 Important:
 
-- use a dedicated file under `.git/logs/`
-- do not modify git-managed reflog files such as `.git/logs/HEAD` or `.git/logs/refs/*`
+- use a dedicated file under `.log/`
 
 ## Compact And Continue
 
@@ -130,7 +130,7 @@ A slice is done only when all of the following are true:
 - selected acceptance criteria are passing
 - relevant `DEVELOPMENT_PLAN.md` items are checked
 - `TASK_CHECKLIST.md` is checked too
-- `.git/logs/notebooklx-workflow.log` has a changelog entry
+- `.log/notebooklx-workflow.log` has a changelog entry
 - the session has been compacted or reduced to a minimal handoff before starting the next slice
 
 ## Current Repo Reality
