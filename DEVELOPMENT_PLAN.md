@@ -170,14 +170,14 @@ This document outlines the detailed development plan, acceptance criteria, and t
 ### Feature 2.2: Semantic Chunking
 
 **Acceptance Criteria:**
-- [ ] Chunks are 300-800 tokens each
-- [ ] 50-120 token overlap between consecutive chunks
-- [ ] Preserve heading hierarchy in chunk metadata
-- [ ] Preserve page numbers in chunk metadata
-- [ ] Natural boundaries respected (paragraphs, sections)
-- [ ] Each chunk includes source title and chunk index
-- [ ] Chunks maintain character position offsets
-- [ ] No information loss between chunks
+- [x] Chunks are 300-800 tokens each
+- [x] 50-120 token overlap between consecutive chunks
+- [x] Preserve heading hierarchy in chunk metadata
+- [x] Preserve page numbers in chunk metadata
+- [x] Natural boundaries respected (paragraphs, sections)
+- [x] Each chunk includes source title and chunk index
+- [x] Chunks maintain character position offsets
+- [x] No information loss between chunks
 
 **Tasks:**
 1. Install tokenizer library (tiktoken for OpenAI models)

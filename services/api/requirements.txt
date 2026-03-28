@@ -22,5 +22,8 @@ trafilatura  # For clean web content extraction
 youtube-transcript-api  # For YouTube video transcripts
 requests  # For Google Docs export API
 
+# Semantic chunking
+tiktoken  # Token counting for OpenAI models
+
 # PostgreSQL adapter (optional - only needed for production DB)
 # psycopg2-binary

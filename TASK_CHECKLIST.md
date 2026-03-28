@@ -42,11 +42,11 @@ Quick reference checklist for tracking development progress. Check off items as 
 - ✓ Parser tests
 
 **Chunking**
-- ⬜ Semantic chunking algorithm
-- ⬜ Overlap implementation
-- ⬜ Metadata extraction
-- ⬜ SourceChunk model
-- ⬜ Chunking tests
+- ✓ Semantic chunking algorithm
+- ✓ Overlap implementation
+- ✓ Metadata extraction (page numbers, headings)
+- ✓ SourceChunk model
+- ✓ Chunking tests
 
 **Embeddings**
 - ⬜ Embedding model setup

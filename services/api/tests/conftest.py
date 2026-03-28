@@ -54,6 +54,10 @@ def db() -> Generator[Session, None, None]:
         from services.api.modules.ingestion.models import IngestionJob  # noqa: F401
     except ImportError:
         pass  # Ingestion module not yet created
+    try:
+        from services.api.modules.chunking.models import SourceChunk  # noqa: F401
+    except ImportError:
+        pass  # Chunking module not yet created
 
     # Create all tables
     Base.metadata.create_all(bind=engine)
@@ -111,3 +115,45 @@ def sample_notebook_data_no_description() -> dict:
     return {
         "name": "Test Notebook Without Description"
     }
+
+
+@pytest.fixture
+def sample_user(db: Session):
+    """Create and return a sample user for testing."""
+    from services.api.modules.notebooks.models import User
+    user = User(email="test@example.com")
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+@pytest.fixture
+def sample_notebook(db: Session, sample_user):
+    """Create and return a sample notebook for testing."""
+    from services.api.modules.notebooks.models import Notebook
+    notebook = Notebook(
+        user_id=sample_user.id,
+        name="Test Notebook",
+        description="Test description"
+    )
+    db.add(notebook)
+    db.commit()
+    db.refresh(notebook)
+    return notebook
+
+
+@pytest.fixture
+def sample_source(db: Session, sample_notebook):
+    """Create and return a sample source for testing."""
+    from services.api.modules.sources.models import Source, SourceType, SourceStatus
+    source = Source(
+        notebook_id=sample_notebook.id,
+        source_type=SourceType.TEXT,
+        title="Test Source",
+        status=SourceStatus.READY,
+    )
+    db.add(source)
+    db.commit()
+    db.refresh(source)
+    return source
