@@ -35,11 +35,11 @@ Quick reference checklist for tracking development progress. Check off items as 
 ### Week 2 - Document Processing
 
 **Parsers**
-- ⬜ PDF parser (with page numbers)
-- ⬜ Web/URL parser
-- ⬜ YouTube transcript parser
-- ⬜ Google Docs parser
-- ⬜ Parser tests
+- ✓ PDF parser (with page numbers)
+- ✓ Web/URL parser
+- ✓ YouTube transcript parser
+- ✓ Google Docs parser
+- ✓ Parser tests
 
 **Chunking**
 - ⬜ Semantic chunking algorithm

@@ -11,7 +11,16 @@ boto3
 arq
 pytest
 pytest-asyncio
+pytest-mock  # For mocking in tests
 httpx
+fpdf2  # For creating test PDFs
+
+# Document parsing
+pdfplumber
+chardet
+trafilatura  # For clean web content extraction
+youtube-transcript-api  # For YouTube video transcripts
+requests  # For Google Docs export API
 
 # PostgreSQL adapter (optional - only needed for production DB)
 # psycopg2-binary

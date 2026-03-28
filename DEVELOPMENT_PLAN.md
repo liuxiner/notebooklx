@@ -137,14 +137,14 @@ This document outlines the detailed development plan, acceptance criteria, and t
 ### Feature 2.1: Document Parsers
 
 **Acceptance Criteria:**
-- [ ] Extract text from PDF files preserving page numbers
-- [ ] Extract text from web URLs with clean HTML removal
+- [x] Extract text from PDF files preserving page numbers
+- [x] Extract text from web URLs with clean HTML removal
 - [ ] Handle PDF with images (OCR optional for v1)
-- [ ] Extract YouTube video transcripts via API
-- [ ] Support Google Docs public URLs
-- [ ] Return structured text with metadata (page numbers, headings)
-- [ ] Handle parsing errors gracefully
-- [ ] Character encoding handled correctly (UTF-8)
+- [x] Extract YouTube video transcripts via API
+- [x] Support Google Docs public URLs
+- [x] Return structured text with metadata (page numbers, headings)
+- [x] Handle parsing errors gracefully
+- [x] Character encoding handled correctly (UTF-8)
 
 **Tasks:**
 1. Install document parsing libraries (PyPDF2, pdfplumber, BeautifulSoup, youtube-transcript-api)
