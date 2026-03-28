@@ -49,11 +49,11 @@ Quick reference checklist for tracking development progress. Check off items as 
 - ✓ Chunking tests
 
 **Embeddings**
-- ⬜ Embedding model setup
-- ⬜ Batch generation
-- ⬜ Rate limiting
-- ⬜ Cost tracking
-- ⬜ Vector storage
+- ✓ Embedding model setup
+- ✓ Batch generation
+- ✓ Rate limiting
+- ✓ Cost tracking
+- ✓ Vector storage
 
 **Vector Search**
 - ⬜ pgvector installation

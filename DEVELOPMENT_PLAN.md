@@ -206,13 +206,13 @@ This document outlines the detailed development plan, acceptance criteria, and t
 ### Feature 2.3: Embedding Generation
 
 **Acceptance Criteria:**
-- [ ] Generate embeddings for all chunks
-- [ ] Use consistent embedding model (e.g., text-embedding-3-small)
-- [ ] Batch processing for efficiency (32-100 chunks per batch)
-- [ ] Store embeddings in database
-- [ ] Handle API rate limits and retries
-- [ ] Track embedding costs
-- [ ] Embeddings are normalized for cosine similarity
+- [x] Generate embeddings for all chunks
+- [x] Use consistent embedding model (e.g., text-embedding-3-small)
+- [x] Batch processing for efficiency (32-100 chunks per batch)
+- [x] Store embeddings in database
+- [x] Handle API rate limits and retries
+- [x] Track embedding costs
+- [x] Embeddings are normalized for cosine similarity
 
 **Tasks:**
 1. Choose and configure embedding model

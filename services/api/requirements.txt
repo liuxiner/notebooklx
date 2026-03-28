@@ -25,5 +25,9 @@ requests  # For Google Docs export API
 # Semantic chunking
 tiktoken  # Token counting for OpenAI models
 
+# Embeddings
+numpy  # Vector operations and normalization
+openai  # OpenAI-compatible API client (for BigModel/ZhipuAI)
+
 # PostgreSQL adapter (optional - only needed for production DB)
 # psycopg2-binary

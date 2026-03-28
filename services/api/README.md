@@ -189,4 +189,48 @@ DATABASE_URL=sqlite:///./notebooklx.db
 
 # For production PostgreSQL:
 # DATABASE_URL=postgresql://user:pass@localhost:5432/notebooklx
+
+# BigModel / ZhipuAI via the OpenAI-compatible SDK
+# Prefer these ZHIPUAI_* names; the code also accepts ZAI_* aliases.
+ZHIPUAI_API_KEY=your-zhipuai-key
+ZHIPUAI_API_BASE_URL=https://open.bigmodel.cn/api/paas/v4/
+ZHIPUAI_API_MODEL_ID=glm-4
+ZHIPUAI_API_EMBEDDING_MODEL_ID=embedding-2
+ZHIPUAI_API_EMBEDDING_MAX_RETRIES=3
+ZHIPUAI_API_EMBEDDING_RETRY_BASE_SECONDS=1.0
+ZHIPUAI_API_EMBEDDING_REQUESTS_PER_MINUTE=120
+ZHIPUAI_API_EMBEDDING_COST_PER_1K_TOKENS=0.0
+
+# Optional generic OpenAI-compatible fallbacks
+# OPENAI_API_KEY=your-zhipuai-key
+# OPENAI_BASE_URL=https://open.bigmodel.cn/api/paas/v4/
+# OPENAI_MODEL=glm-4
+# OPENAI_EMBEDDING_MODEL=embedding-2
+# OPENAI_EMBEDDING_MAX_RETRIES=3
+# OPENAI_EMBEDDING_RETRY_BASE_SECONDS=1.0
+# OPENAI_EMBEDDING_REQUESTS_PER_MINUTE=120
+# OPENAI_EMBEDDING_COST_PER_1K_TOKENS=0.0
 ```
+
+### BigModel-Compatible Usage
+
+The backend now exposes a shared OpenAI-compatible client path for BigModel:
+
+```python
+from services.api.core import BigModelChatProvider
+from services.api.modules.embeddings import BigModelEmbeddingProvider, EmbeddingService
+
+chat = BigModelChatProvider()
+reply = chat.chat([{"role": "user", "content": "Summarize this notebook"}])
+
+provider = BigModelEmbeddingProvider()
+embeddings = EmbeddingService(provider=provider)
+```
+
+`BigModelEmbeddingProvider` now retries retryable embedding failures with
+exponential backoff and applies a client-side request throttle between batched
+calls. Set `*_EMBEDDING_REQUESTS_PER_MINUTE=0` to disable the local throttle.
+
+`EmbeddingService` also estimates embedding cost from token counts and the
+configured `*_EMBEDDING_COST_PER_1K_TOKENS` rate. The most recent batch summary
+is available on `EmbeddingService.last_cost_summary`.

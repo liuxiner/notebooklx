@@ -32,6 +32,7 @@ class SourceChunk(Base):
     char_start = Column(Integer, nullable=False)  # Start position in source text
     char_end = Column(Integer, nullable=False)  # End position in source text
     chunk_metadata = Column(JSON, nullable=True, default=dict)  # Additional metadata (page, heading, etc.)
+    embedding = Column(JSON, nullable=True)  # Normalized embedding vector, persisted until pgvector indexing lands
 
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
