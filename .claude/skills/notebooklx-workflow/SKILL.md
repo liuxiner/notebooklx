@@ -1,6 +1,6 @@
 ---
 name: notebooklx-workflow
-description: Use when working in the NotebookLX repository to load the canonical workflow and planning docs without duplicating them. This skill tells Claude Code which repository files are authoritative for implementation order, acceptance criteria, testing, and local commands.
+description: User start asking vibe coding based on DEVELOPMENT_PLAN or start TASK_CHECKLIST, with keywords of feature, implement, task, coding
 ---
 
 # NotebookLX Workflow
