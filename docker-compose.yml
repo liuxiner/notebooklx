@@ -1,0 +1,23 @@
+version: "3.9"
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  worker:
+    image: python:3.14-slim
+    working_dir: /app
+    volumes:
+      - .:/app
+    environment:
+      PYTHONPATH: /app
+      DATABASE_URL: sqlite:////app/notebooklx.db
+      REDIS_URL: redis://redis:6379/0
+      INGESTION_QUEUE_NAME: notebooklx:ingestion
+    command: >
+      /bin/sh -lc "pip install -r services/api/requirements.txt &&
+      arq services.worker.main.WorkerSettings"
+    depends_on:
+      - redis

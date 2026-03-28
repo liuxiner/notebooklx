@@ -27,6 +27,12 @@ For production PostgreSQL:
 export DATABASE_URL="postgresql://user:pass@localhost:5432/notebooklx"
 ```
 
+For the async ingestion queue, set Redis as well:
+```bash
+export REDIS_URL="redis://127.0.0.1:6379/0"
+export INGESTION_QUEUE_NAME="notebooklx:ingestion"
+```
+
 ### 4. Run Database Migrations
 
 ```bash
@@ -47,6 +53,25 @@ uvicorn services.api.main:app --reload
 The API will be available at `http://localhost:8000`
 
 API docs at `http://localhost:8000/docs`
+
+## Running the Worker
+
+Start Redis locally, then run the Arq worker from the repository root:
+
+```bash
+redis-server --port 6379
+arq services.worker.main.WorkerSettings
+```
+
+Use `POST /api/sources/{source_id}/ingest` to enqueue a source, then inspect
+`GET /api/sources/{source_id}/status` or `GET /api/status/ingestion` for queue
+and job state.
+
+If you prefer Docker for the queue slice, run:
+
+```bash
+docker compose up redis worker
+```
 
 ## Running Tests
 
@@ -92,6 +117,15 @@ PYTHONPATH=$(pwd) pytest services/api/tests/ -v --looponfail
 - **GET** `/api/notebooks/{id}` - Get single notebook
 - **PATCH** `/api/notebooks/{id}` - Update notebook
 - **DELETE** `/api/notebooks/{id}` - Soft delete notebook
+
+### Sources & Ingestion
+
+- **POST** `/api/notebooks/{notebook_id}/sources/upload` - Upload a source file
+- **POST** `/api/notebooks/{notebook_id}/sources/url` - Create a URL source
+- **POST** `/api/notebooks/{notebook_id}/sources/text` - Create a text source
+- **POST** `/api/sources/{source_id}/ingest` - Enqueue background ingestion
+- **GET** `/api/sources/{source_id}/status` - Get source ingestion status
+- **GET** `/api/status/ingestion` - Get aggregate ingestion queue counts
 
 ## Project Structure
 
@@ -143,9 +177,9 @@ This project follows Test-Driven Development (TDD):
 
 ## Next Steps
 
-- [ ] Feature 1.2: Notebook UI (Frontend)
-- [ ] Feature 1.3: Source Upload Endpoints
-- [ ] Feature 1.4: Worker Pipeline
+- [ ] Feature 2.1: Document Parsers
+- [ ] Feature 2.2: Semantic Chunking
+- [ ] Feature 2.3: Embedding Generation
 
 ## Environment Variables
 

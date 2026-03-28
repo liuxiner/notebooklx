@@ -8,6 +8,7 @@ python-jose[cryptography]
 passlib[bcrypt]
 python-multipart
 boto3
+arq
 pytest
 pytest-asyncio
 httpx

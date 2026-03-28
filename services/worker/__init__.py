@@ -1,0 +1,1 @@
+"""NotebookLX background worker package."""

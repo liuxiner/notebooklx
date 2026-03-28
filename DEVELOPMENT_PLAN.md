@@ -105,16 +105,16 @@ This document outlines the detailed development plan, acceptance criteria, and t
 
 ---
 
-### Feature 1.4: Async Ingestion Pipeline Skeleton
+### Feature 1.4: Async Ingestion Pipeline Skeleton ✅
 
 **Acceptance Criteria:**
-- [ ] Arq worker process starts successfully
-- [ ] Can enqueue ingestion tasks
-- [ ] Tasks are processed asynchronously
-- [ ] Task status can be queried
-- [ ] Failed tasks are logged with error details
-- [ ] Redis connection is properly configured
-- [ ] Worker can be restarted without losing queued tasks
+- [x] Arq worker process starts successfully
+- [x] Can enqueue ingestion tasks
+- [x] Tasks are processed asynchronously
+- [x] Task status can be queried
+- [x] Failed tasks are logged with error details
+- [x] Redis connection is properly configured
+- [x] Worker can be restarted without losing queued tasks
 
 **Tasks:**
 1. Install and configure Redis

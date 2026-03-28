@@ -50,6 +50,10 @@ def db() -> Generator[Session, None, None]:
         from services.api.modules.sources.models import Source  # noqa: F401
     except ImportError:
         pass  # Source module not yet created
+    try:
+        from services.api.modules.ingestion.models import IngestionJob  # noqa: F401
+    except ImportError:
+        pass  # Ingestion module not yet created
 
     # Create all tables
     Base.metadata.create_all(bind=engine)

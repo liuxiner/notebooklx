@@ -60,6 +60,7 @@ def initialize_database(bind_engine: Engine | None = None) -> None:
     # create_all runs.
     from services.api.modules.notebooks.models import Notebook, User  # noqa: F401
     from services.api.modules.sources.models import Source  # noqa: F401
+    from services.api.modules.ingestion.models import IngestionJob  # noqa: F401
 
     Base.metadata.create_all(bind=active_engine)
 

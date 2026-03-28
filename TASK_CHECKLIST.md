@@ -21,12 +21,12 @@ Quick reference checklist for tracking development progress. Check off items as 
 - ✓ Text upload endpoint
 - ✓ File validation
 
-**Worker Pipeline**
-- ⬜ Redis setup
-- ⬜ Arq worker configuration
-- ⬜ Task queue implementation
-- ⬜ Status tracking
-- ⬜ Docker setup
+**Worker Pipeline** ✓
+- ✓ Redis setup
+- ✓ Arq worker configuration
+- ✓ Task queue implementation
+- ✓ Status tracking
+- ✓ Docker setup
 
 ---
 
