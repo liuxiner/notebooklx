@@ -13,6 +13,7 @@ from services.api.modules.chat.service import (
     GroundedQAService,
     build_grounded_messages,
     format_evidence_pack,
+    parse_grounded_answer_output,
 )
 from services.api.modules.retrieval.hybrid import HybridSearchResult
 
@@ -105,6 +106,95 @@ class TestGroundedMessages:
         assert "Cite claims inline with markers like [1][2]" in user_prompt
 
 
+class TestStructuredAnswerParsing:
+    def test_parse_grounded_answer_output_prefers_json_answer_and_citations(self):
+        evidence = format_evidence_pack(
+            [
+                make_result(
+                    chunk_id="chunk-1",
+                    source_title="Alpha Guide",
+                    content="Alpha content",
+                    score=0.91,
+                    page=12,
+                    quote="Alpha quote",
+                ),
+                make_result(
+                    chunk_id="chunk-2",
+                    source_title="Beta Guide",
+                    content="Beta content",
+                    score=0.84,
+                    page=13,
+                    quote="Beta quote",
+                ),
+            ]
+        )
+
+        parsed = parse_grounded_answer_output(
+            '{"answer": "Alpha is supported.", "citations": [2, 1]}',
+            evidence,
+        )
+
+        assert parsed.answer == "Alpha is supported."
+        assert parsed.citation_indices == [2, 1]
+        assert [chunk.citation_index for chunk in parsed.citations] == [2, 1]
+        assert parsed.missing_citation_indices == []
+
+    def test_parse_grounded_answer_output_aligns_inline_markers(self):
+        evidence = format_evidence_pack(
+            [
+                make_result(
+                    chunk_id="chunk-1",
+                    source_title="Alpha Guide",
+                    content="Alpha content",
+                    score=0.91,
+                    page=12,
+                    quote="Alpha quote",
+                ),
+                make_result(
+                    chunk_id="chunk-2",
+                    source_title="Beta Guide",
+                    content="Beta content",
+                    score=0.84,
+                    page=13,
+                    quote="Beta quote",
+                ),
+            ]
+        )
+
+        parsed = parse_grounded_answer_output(
+            "Alpha is supported by [2], then clarified by [1] and [2] again.",
+            evidence,
+        )
+
+        assert parsed.answer == "Alpha is supported by [2], then clarified by [1] and [2] again."
+        assert parsed.citation_indices == [2, 1]
+        assert [chunk.citation_index for chunk in parsed.citations] == [2, 1]
+        assert parsed.missing_citation_indices == []
+
+    def test_parse_grounded_answer_output_reports_missing_citations(self):
+        evidence = format_evidence_pack(
+            [
+                make_result(
+                    chunk_id="chunk-1",
+                    source_title="Alpha Guide",
+                    content="Alpha content",
+                    score=0.91,
+                    page=12,
+                    quote="Alpha quote",
+                )
+            ]
+        )
+
+        parsed = parse_grounded_answer_output(
+            "Alpha is supported by [1] and [4].",
+            evidence,
+        )
+
+        assert parsed.citation_indices == [1, 4]
+        assert [chunk.citation_index for chunk in parsed.citations] == [1]
+        assert parsed.missing_citation_indices == [4]
+
+
 class TestGroundedQAService:
     @pytest.mark.asyncio
     async def test_answer_question_retrieves_evidence_and_calls_chat(self):
@@ -128,6 +218,7 @@ class TestGroundedQAService:
 
         assert response.answer == "Alpha is the primary topic."
         assert len(response.evidence) == 1
+        assert [chunk.citation_index for chunk in response.citations] == []
         embedding_provider.embed.assert_called_once_with("What is Alpha?")
         retriever.search.assert_awaited_once()
         chat_provider.chat.assert_called_once()
@@ -149,3 +240,38 @@ class TestGroundedQAService:
         assert response.answer == "I don't have enough information"
         assert response.evidence == []
         chat_provider.chat.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_answer_question_aligns_structured_citations(self):
+        retriever = AsyncMock()
+        retriever.search.return_value = [
+            make_result(
+                chunk_id="chunk-1",
+                source_title="Alpha Guide",
+                content="Alpha is the primary topic.",
+                score=0.93,
+                page=4,
+            ),
+            make_result(
+                chunk_id="chunk-2",
+                source_title="Beta Guide",
+                content="Beta provides a secondary detail.",
+                score=0.88,
+                page=5,
+            ),
+        ]
+        embedding_provider = MagicMock()
+        embedding_provider.embed.return_value = [0.1, 0.2, 0.3]
+        chat_provider = MagicMock()
+        chat_provider.chat.return_value = (
+            '{"answer": "Alpha is primary.", "citations": [2, 1, 9]}'
+        )
+
+        service = GroundedQAService(retriever, embedding_provider, chat_provider)
+        response = await service.answer_question("What is Alpha?", str(uuid4()))
+
+        assert response.answer == "Alpha is primary."
+        assert [chunk.citation_index for chunk in response.citations] == [2, 1]
+        assert response.citation_indices == [2, 1, 9]
+        assert response.missing_citation_indices == [9]
+        assert response.raw_answer == '{"answer": "Alpha is primary.", "citations": [2, 1, 9]}'

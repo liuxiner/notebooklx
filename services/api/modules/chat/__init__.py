@@ -9,6 +9,7 @@ from services.api.modules.chat.service import (
     GroundedQAService,
     build_grounded_messages,
     format_evidence_pack,
+    parse_grounded_answer_output,
 )
 
 __all__ = [
@@ -17,4 +18,5 @@ __all__ = [
     "GroundedQAService",
     "build_grounded_messages",
     "format_evidence_pack",
+    "parse_grounded_answer_output",
 ]

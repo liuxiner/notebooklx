@@ -85,8 +85,8 @@ Quick reference checklist for tracking development progress. Check off items as 
 **Grounded Q&A** ⚡
 - ✓ Evidence packing
 - ✓ LLM prompt templates
-- ⬜ Structured output parsing
-- ⬜ Citation extraction
+- ✓ Structured output parsing
+- ✓ Citation extraction
 - ⬜ SSE streaming
 - ⬜ Message storage
 

@@ -5,6 +5,8 @@ Feature 3.2: Grounded Q&A with Citations
 """
 from __future__ import annotations
 
+import json
+import re
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
@@ -58,7 +60,22 @@ class GroundedQAResponse:
 
     answer: str
     evidence: list[EvidenceChunk] = field(default_factory=list)
+    citations: list[EvidenceChunk] = field(default_factory=list)
+    citation_indices: list[int] = field(default_factory=list)
+    missing_citation_indices: list[int] = field(default_factory=list)
+    raw_answer: str = ""
     messages: list[dict[str, Any]] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class ParsedGroundedAnswer:
+    """Structured answer text and citation alignment."""
+
+    answer: str
+    citations: list[EvidenceChunk]
+    citation_indices: list[int]
+    missing_citation_indices: list[int]
+    raw_answer: str
 
 
 def _format_page(metadata: dict[str, Any]) -> str | None:
@@ -140,6 +157,96 @@ def build_grounded_messages(
     ]
 
 
+def _parse_citation_indices(value: Any) -> list[int]:
+    if not isinstance(value, list):
+        return []
+
+    indices: list[int] = []
+    for item in value:
+        candidate: int | None = None
+        if isinstance(item, int):
+            candidate = item
+        elif isinstance(item, str) and item.strip().isdigit():
+            candidate = int(item.strip())
+        elif isinstance(item, dict):
+            for key in ("citation_index", "index", "id", "chunk_index"):
+                candidate_value = item.get(key)
+                if isinstance(candidate_value, int):
+                    candidate = candidate_value
+                    break
+                if isinstance(candidate_value, str) and candidate_value.strip().isdigit():
+                    candidate = int(candidate_value.strip())
+                    break
+
+        if candidate is not None and candidate > 0 and candidate not in indices:
+            indices.append(candidate)
+
+    return indices
+
+
+def _extract_inline_citations(answer: str) -> list[int]:
+    found: list[int] = []
+    for match in re.finditer(r"\[(\d+)\]", answer):
+        index = int(match.group(1))
+        if index not in found:
+            found.append(index)
+    return found
+
+
+def parse_grounded_answer_output(
+    raw_output: str,
+    evidence: list[EvidenceChunk],
+) -> ParsedGroundedAnswer:
+    """Parse model output and align citation markers to retrieved evidence."""
+    stripped_output = raw_output.strip()
+    answer_text = stripped_output
+    citation_indices: list[int] = []
+
+    if stripped_output.startswith("{") and stripped_output.endswith("}"):
+        try:
+            payload = json.loads(stripped_output)
+        except json.JSONDecodeError:
+            payload = None
+        if isinstance(payload, dict):
+            for key in ("answer", "text", "response", "content"):
+                value = payload.get(key)
+                if isinstance(value, str) and value.strip():
+                    answer_text = value.strip()
+                    break
+
+            citation_indices = _parse_citation_indices(
+                payload.get("citations")
+                if "citations" in payload
+                else payload.get("citation_indices")
+            )
+
+    if not citation_indices:
+        citation_indices = _extract_inline_citations(answer_text)
+    else:
+        inline_indices = _extract_inline_citations(answer_text)
+        for index in inline_indices:
+            if index not in citation_indices:
+                citation_indices.append(index)
+
+    evidence_by_index = {chunk.citation_index: chunk for chunk in evidence}
+    citations = [
+        evidence_by_index[index]
+        for index in citation_indices
+        if index in evidence_by_index
+    ]
+    missing_citation_indices = [
+        index for index in citation_indices if index not in evidence_by_index
+    ]
+
+    return ParsedGroundedAnswer(
+        answer=answer_text,
+        citations=citations,
+        citation_indices=citation_indices,
+        missing_citation_indices=missing_citation_indices,
+        raw_answer=stripped_output,
+    )
+
+
 class GroundedQAService:
     """Orchestrate retrieval, evidence packing, and grounded answer generation."""
 
@@ -175,16 +282,34 @@ class GroundedQAService:
             return GroundedQAResponse(
                 answer="I don't have enough information",
                 evidence=[],
+                citations=[],
+                citation_indices=[],
+                missing_citation_indices=[],
+                raw_answer="",
                 messages=messages,
             )
 
         messages = build_grounded_messages(question, evidence)
-        answer = self.chat_provider.chat(messages)
-        if not answer.strip():
-            answer = "I don't have enough information"
+        raw_answer = self.chat_provider.chat(messages)
+        parsed = parse_grounded_answer_output(raw_answer, evidence)
+        answer = parsed.answer.strip()
+        if not answer:
+            return GroundedQAResponse(
+                answer="I don't have enough information",
+                evidence=evidence,
+                citations=[],
+                citation_indices=[],
+                missing_citation_indices=[],
+                raw_answer=parsed.raw_answer,
+                messages=messages,
+            )
 
         return GroundedQAResponse(
             answer=answer,
             evidence=evidence,
+            citations=parsed.citations,
+            citation_indices=parsed.citation_indices,
+            missing_citation_indices=parsed.missing_citation_indices,
+            raw_answer=parsed.raw_answer,
             messages=messages,
         )

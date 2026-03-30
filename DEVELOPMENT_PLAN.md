@@ -335,8 +335,8 @@ This document outlines the detailed development plan, acceptance criteria, and t
 2. [x] Design evidence packing prompt template
 3. [x] Implement question → retrieval flow
 4. [x] Create LLM prompt with evidence chunks
-5. Implement structured citation output parsing
-6. Create citation alignment logic (map chunk IDs to markers)
+5. [x] Implement structured citation output parsing
+6. [x] Create citation alignment logic (map chunk IDs to markers)
 7. Implement SSE streaming endpoint
 8. Create Message model and database table
 9. Create Citation model and database table
