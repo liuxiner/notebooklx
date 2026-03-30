@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from services.api.core.database import initialize_database
+from services.api.modules.chat.routes import router as chat_router
 from services.api.modules.ingestion.routes import router as ingestion_router
 from services.api.modules.notebooks.routes import router as notebooks_router
 from services.api.modules.sources.routes import router as sources_router
@@ -39,6 +40,7 @@ app.add_middleware(
 app.include_router(notebooks_router)
 app.include_router(sources_router)
 app.include_router(ingestion_router)
+app.include_router(chat_router)
 
 
 @app.get("/")

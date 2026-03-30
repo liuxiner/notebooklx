@@ -328,7 +328,7 @@ This document outlines the detailed development plan, acceptance criteria, and t
 - [ ] Citations are clickable and highlight source location
 - [ ] Answers stay grounded (no hallucination beyond sources)
 - [ ] If no relevant sources, respond "I don't have enough information"
-- [ ] Streaming response for better UX
+- [x] Streaming response for better UX
 
 **Tasks:**
 1. Create chat module (services/api/modules/chat/)
@@ -337,7 +337,7 @@ This document outlines the detailed development plan, acceptance criteria, and t
 4. [x] Create LLM prompt with evidence chunks
 5. [x] Implement structured citation output parsing
 6. [x] Create citation alignment logic (map chunk IDs to markers)
-7. Implement SSE streaming endpoint
+7. [x] Implement SSE streaming endpoint
 8. Create Message model and database table
 9. Create Citation model and database table
 10. Implement chat history storage

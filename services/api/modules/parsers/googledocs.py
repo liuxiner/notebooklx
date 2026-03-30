@@ -7,8 +7,6 @@ from pathlib import Path
 import re
 import logging
 
-import requests
-
 from services.api.modules.parsers.base import (
     BaseParser,
     ParseResult,
@@ -73,6 +71,8 @@ class GoogleDocsParser(BaseParser):
 
         # Build export URL for plain text
         export_url = f"https://docs.google.com/document/d/{doc_id}/export?format=txt"
+
+        import requests
 
         try:
             # Fetch the document as plain text

@@ -87,7 +87,7 @@ Quick reference checklist for tracking development progress. Check off items as 
 - ✓ LLM prompt templates
 - ✓ Structured output parsing
 - ✓ Citation extraction
-- ⬜ SSE streaming
+- ✓ SSE streaming
 - ⬜ Message storage
 
 **Citation System**
