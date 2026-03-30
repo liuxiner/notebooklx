@@ -332,9 +332,9 @@ This document outlines the detailed development plan, acceptance criteria, and t
 
 **Tasks:**
 1. Create chat module (services/api/modules/chat/)
-2. Design evidence packing prompt template
-3. Implement question → retrieval flow
-4. Create LLM prompt with evidence chunks
+2. [x] Design evidence packing prompt template
+3. [x] Implement question → retrieval flow
+4. [x] Create LLM prompt with evidence chunks
 5. Implement structured citation output parsing
 6. Create citation alignment logic (map chunk IDs to markers)
 7. Implement SSE streaming endpoint

@@ -82,9 +82,9 @@ Quick reference checklist for tracking development progress. Check off items as 
 - ✓ Notebook scoping
 - ✓ Performance benchmarks
 
-**Grounded Q&A**
-- ⬜ Evidence packing
-- ⬜ LLM prompt templates
+**Grounded Q&A** ⚡
+- ✓ Evidence packing
+- ✓ LLM prompt templates
 - ⬜ Structured output parsing
 - ⬜ Citation extraction
 - ⬜ SSE streaming
