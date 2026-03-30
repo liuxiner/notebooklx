@@ -1,12 +1,13 @@
 """
 SQLAlchemy models for semantic chunking.
 """
-from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Integer, JSON
+from sqlalchemy import Column, Text, DateTime, ForeignKey, Integer, JSON
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import uuid
 
 from services.api.core.database import Base
+from services.api.core.vector import EmbeddingVector
 from services.api.modules.notebooks.models import UUID
 
 
@@ -32,7 +33,7 @@ class SourceChunk(Base):
     char_start = Column(Integer, nullable=False)  # Start position in source text
     char_end = Column(Integer, nullable=False)  # End position in source text
     chunk_metadata = Column(JSON, nullable=True, default=dict)  # Additional metadata (page, heading, etc.)
-    embedding = Column(JSON, nullable=True)  # Normalized embedding vector, persisted until pgvector indexing lands
+    embedding = Column(EmbeddingVector(), nullable=True)  # JSON on SQLite, pgvector on PostgreSQL
 
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)

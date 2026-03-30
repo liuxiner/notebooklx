@@ -29,5 +29,8 @@ tiktoken  # Token counting for OpenAI models
 numpy  # Vector operations and normalization
 openai  # OpenAI-compatible API client (for BigModel/ZhipuAI)
 
+# Hybrid Retrieval
+rank_bm25  # BM25 keyword search
+
 # PostgreSQL adapter (optional - only needed for production DB)
 # psycopg2-binary

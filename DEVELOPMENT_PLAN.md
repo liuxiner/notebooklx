@@ -229,15 +229,15 @@ This document outlines the detailed development plan, acceptance criteria, and t
 
 ---
 
-### Feature 2.4: Vector Indexing with pgvector
+### Feature 2.4: Vector Indexing with pgvector ✅
 
 **Acceptance Criteria:**
-- [ ] pgvector extension installed in PostgreSQL
-- [ ] Vector similarity search returns relevant chunks
-- [ ] Index supports cosine similarity queries
-- [ ] Query performance < 200ms for typical notebook (< 1000 chunks)
-- [ ] Can filter by notebook_id for scoped search
-- [ ] HNSW or IVFFlat index created for performance
+- [x] pgvector extension installed in PostgreSQL
+- [x] Vector similarity search returns relevant chunks
+- [x] Index supports cosine similarity queries
+- [x] Query performance < 200ms for typical notebook (< 1000 chunks)
+- [x] Can filter by notebook_id for scoped search
+- [x] HNSW or IVFFlat index created for performance
 
 **Tasks:**
 1. Install pgvector extension in PostgreSQL
@@ -253,16 +253,16 @@ This document outlines the detailed development plan, acceptance criteria, and t
 
 ---
 
-### Feature 2.5: Complete Ingestion Workflow
+### Feature 2.5: Complete Ingestion Workflow ✅
 
 **Acceptance Criteria:**
-- [ ] Upload triggers async ingestion task
-- [ ] Source status updates: pending → processing → ready/failed
-- [ ] All steps execute in order (parse → chunk → embed → index)
-- [ ] Failed ingestion updates source with error message
-- [ ] Successful ingestion generates source summary
-- [ ] UI shows real-time status updates
-- [ ] Progress tracking (e.g., "5 of 10 chunks embedded")
+- [x] Upload triggers async ingestion task
+- [x] Source status updates: pending → processing → ready/failed
+- [x] All steps execute in order (parse → chunk → embed → index)
+- [x] Failed ingestion updates source with error message
+- [ ] Successful ingestion generates source summary (deferred to v2)
+- [ ] UI shows real-time status updates (deferred to frontend)
+- [x] Progress tracking (e.g., "5 of 10 chunks embedded")
 
 **Tasks:**
 1. Create main ingestion orchestrator function
@@ -287,16 +287,16 @@ This document outlines the detailed development plan, acceptance criteria, and t
 
 ## Phase 3: Retrieval & Chat (Week 3)
 
-### Feature 3.1: Hybrid Retrieval (BM25 + Vector)
+### Feature 3.1: Hybrid Retrieval (BM25 + Vector) ✅
 
 **Acceptance Criteria:**
-- [ ] Retrieve top K chunks using vector similarity (cosine)
-- [ ] Retrieve top K chunks using BM25 keyword search
-- [ ] Combine results with RRF (Reciprocal Rank Fusion)
-- [ ] Results scoped to current notebook only
-- [ ] Return chunks with scores and metadata
-- [ ] Typical query returns results in < 300ms
-- [ ] Handles empty results gracefully
+- [x] Retrieve top K chunks using vector similarity (cosine)
+- [x] Retrieve top K chunks using BM25 keyword search
+- [x] Combine results with RRF (Reciprocal Rank Fusion)
+- [x] Results scoped to current notebook only
+- [x] Return chunks with scores and metadata
+- [x] Typical query returns results in < 300ms
+- [x] Handles empty results gracefully
 
 **Tasks:**
 1. Install BM25 library (rank_bm25 or implement custom)
@@ -312,8 +312,8 @@ This document outlines the detailed development plan, acceptance criteria, and t
 5. Implement RRF fusion algorithm
 6. Create unified retrieval interface
 7. Add caching for frequently accessed chunks
-8. Add unit tests for each retrieval method
-9. Benchmark retrieval performance
+8. [x] Add unit tests for each retrieval method
+9. [x] Benchmark retrieval performance
 10. Add logging for retrieval analytics
 
 ---

@@ -27,6 +27,10 @@ For production PostgreSQL:
 export DATABASE_URL="postgresql://user:pass@localhost:5432/notebooklx"
 ```
 
+When you run `alembic upgrade head` against PostgreSQL, the pgvector extension
+is enabled automatically and `source_chunks.embedding` is migrated to a
+`VECTOR` column. SQLite keeps using JSON storage for local development/tests.
+
 For the async ingestion queue, set Redis as well:
 ```bash
 export REDIS_URL="redis://127.0.0.1:6379/0"

@@ -56,18 +56,18 @@ Quick reference checklist for tracking development progress. Check off items as 
 - ✓ Vector storage
 
 **Vector Search**
-- ⬜ pgvector installation
-- ⬜ Vector index creation
-- ⬜ Similarity search function
-- ⬜ Performance optimization
-- ⬜ Search tests
+- ✓ pgvector installation
+- ✓ Vector index creation (HNSW)
+- ✓ Similarity search function
+- ✓ Performance optimization
+- ✓ Search tests
 
 **End-to-End**
-- ⬜ Complete ingestion workflow
-- ⬜ Status updates
-- ⬜ Error handling
-- ⬜ Progress tracking
-- ⬜ Integration tests
+- ✓ Complete ingestion workflow
+- ✓ Status updates
+- ✓ Error handling
+- ✓ Progress tracking
+- ✓ Integration tests
 
 ---
 
@@ -75,12 +75,12 @@ Quick reference checklist for tracking development progress. Check off items as 
 
 ### Week 3 - Q&A System
 
-**Hybrid Retrieval**
-- ⬜ Vector similarity search
-- ⬜ BM25 keyword search
-- ⬜ RRF fusion
-- ⬜ Notebook scoping
-- ⬜ Performance benchmarks
+**Hybrid Retrieval** ✓
+- ✓ Vector similarity search
+- ✓ BM25 keyword search
+- ✓ RRF fusion
+- ✓ Notebook scoping
+- ✓ Performance benchmarks
 
 **Grounded Q&A**
 - ⬜ Evidence packing

@@ -3,8 +3,9 @@ Arq worker bootstrap for the async ingestion pipeline.
 """
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Callable
 import uuid
 
 from arq.worker import Worker, func
@@ -20,6 +21,9 @@ from services.api.modules.ingestion.queue import (
 from services.api.modules.sources.models import Source, SourceStatus
 
 
+logger = logging.getLogger(__name__)
+
+
 DEFAULT_PROGRESS = {"step": "completed", "percentage": 100}
 
 
@@ -28,18 +32,38 @@ def utcnow() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
-def run_ingestion_pipeline(
+async def run_ingestion_pipeline(
     source: Source,
     job: IngestionJob,
     db: Session,
+    file_content_loader: Callable[[str], bytes] | None = None,
 ) -> dict[str, Any]:
     """
-    Placeholder ingestion implementation for the pipeline skeleton.
+    Run the full ingestion pipeline: parse → chunk → embed → save.
 
-    Later feature slices will replace this with parsing, chunking, and
-    embedding orchestration. For now it records a successful completion state.
+    This orchestrates all ingestion steps for a source.
     """
-    return DEFAULT_PROGRESS.copy()
+    from services.api.modules.ingestion.orchestrator import (
+        run_ingestion,
+        IngestionProgress,
+    )
+
+    def update_job_progress(progress: IngestionProgress) -> None:
+        """Update job progress in database."""
+        job.progress = progress.to_dict()
+        db.flush()
+
+    try:
+        result = await run_ingestion(
+            source=source,
+            db=db,
+            file_content_loader=file_content_loader,
+            progress_callback=update_job_progress,
+        )
+        return result.to_dict()
+    except Exception as e:
+        logger.error(f"Ingestion pipeline failed for source {source.id}: {e}")
+        raise
 
 
 async def on_worker_startup(ctx: dict[str, Any]) -> None:
@@ -49,6 +73,38 @@ async def on_worker_startup(ctx: dict[str, Any]) -> None:
 
 async def on_worker_shutdown(_: dict[str, Any]) -> None:
     """Arq startup/shutdown hook placeholder."""
+
+
+def _get_file_content_loader(ctx: dict[str, Any]) -> Callable[[str], bytes] | None:
+    """
+    Get a file content loader from context or default to S3/MinIO loader.
+
+    File paths are in format: {notebook_id}/{source_id}/{filename}
+    """
+    if "file_content_loader" in ctx:
+        return ctx["file_content_loader"]
+
+    # Default: load from MinIO/S3 using boto3
+    def load_from_storage(file_path: str) -> bytes:
+        import boto3
+        import os
+
+        endpoint_url = os.getenv("MINIO_ENDPOINT", "http://localhost:9000")
+        access_key = os.getenv("MINIO_ACCESS_KEY", "minioadmin")
+        secret_key = os.getenv("MINIO_SECRET_KEY", "minioadmin")
+        bucket_name = os.getenv("MINIO_BUCKET", "notebooklx")
+
+        s3 = boto3.client(
+            "s3",
+            endpoint_url=endpoint_url,
+            aws_access_key_id=access_key,
+            aws_secret_access_key=secret_key,
+        )
+
+        response = s3.get_object(Bucket=bucket_name, Key=file_path)
+        return response["Body"].read()
+
+    return load_from_storage
 
 
 async def ingest_source(ctx: dict[str, Any], source_id: str, ingestion_job_id: str) -> dict[str, Any]:
@@ -76,7 +132,14 @@ async def ingest_source(ctx: dict[str, Any], source_id: str, ingestion_job_id: s
         source.error_message = None
         db.commit()
 
-        progress = run_ingestion_pipeline(source, job, db) or DEFAULT_PROGRESS.copy()
+        # Get file content loader
+        file_content_loader = _get_file_content_loader(ctx)
+
+        # Run the full ingestion pipeline
+        progress = await run_ingestion_pipeline(
+            source, job, db,
+            file_content_loader=file_content_loader,
+        ) or DEFAULT_PROGRESS.copy()
 
         job.status = IngestionJobStatus.COMPLETED
         job.progress = progress
