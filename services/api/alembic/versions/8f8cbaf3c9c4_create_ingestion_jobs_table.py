@@ -31,31 +31,38 @@ JOB_STATUS_ENUM = sa.Enum(
 def upgrade() -> None:
     """Upgrade schema."""
     bind = op.get_bind()
+    inspector = sa.inspect(bind)
     if bind.dialect.name != "sqlite":
         JOB_STATUS_ENUM.create(bind, checkfirst=True)
 
-    op.create_table(
-        "ingestion_jobs",
-        sa.Column("id", sa.String(36), nullable=False),
-        sa.Column("source_id", sa.String(36), nullable=False),
-        sa.Column(
-            "status",
-            JOB_STATUS_ENUM,
-            nullable=False,
-            server_default="queued",
-        ),
-        sa.Column("task_id", sa.String(length=255), nullable=True),
-        sa.Column("progress", sa.JSON(), nullable=True),
-        sa.Column("retry_count", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("error_message", sa.Text(), nullable=True),
-        sa.Column("started_at", sa.DateTime(), nullable=True),
-        sa.Column("completed_at", sa.DateTime(), nullable=True),
-        sa.Column("created_at", sa.DateTime(), nullable=False),
-        sa.ForeignKeyConstraint(["source_id"], ["sources.id"], ondelete="CASCADE"),
-        sa.PrimaryKeyConstraint("id"),
-    )
-    op.create_index(op.f("ix_ingestion_jobs_source_id"), "ingestion_jobs", ["source_id"], unique=False)
-    op.create_index(op.f("ix_ingestion_jobs_task_id"), "ingestion_jobs", ["task_id"], unique=False)
+    if not inspector.has_table("ingestion_jobs"):
+        op.create_table(
+            "ingestion_jobs",
+            sa.Column("id", sa.String(36), nullable=False),
+            sa.Column("source_id", sa.String(36), nullable=False),
+            sa.Column(
+                "status",
+                JOB_STATUS_ENUM,
+                nullable=False,
+                server_default="queued",
+            ),
+            sa.Column("task_id", sa.String(length=255), nullable=True),
+            sa.Column("progress", sa.JSON(), nullable=True),
+            sa.Column("retry_count", sa.Integer(), nullable=False, server_default="0"),
+            sa.Column("error_message", sa.Text(), nullable=True),
+            sa.Column("started_at", sa.DateTime(), nullable=True),
+            sa.Column("completed_at", sa.DateTime(), nullable=True),
+            sa.Column("created_at", sa.DateTime(), nullable=False),
+            sa.ForeignKeyConstraint(["source_id"], ["sources.id"], ondelete="CASCADE"),
+            sa.PrimaryKeyConstraint("id"),
+        )
+        inspector = sa.inspect(bind)
+
+    ingestion_indexes = {index["name"] for index in inspector.get_indexes("ingestion_jobs")} if inspector.has_table("ingestion_jobs") else set()
+    if op.f("ix_ingestion_jobs_source_id") not in ingestion_indexes:
+        op.create_index(op.f("ix_ingestion_jobs_source_id"), "ingestion_jobs", ["source_id"], unique=False)
+    if op.f("ix_ingestion_jobs_task_id") not in ingestion_indexes:
+        op.create_index(op.f("ix_ingestion_jobs_task_id"), "ingestion_jobs", ["task_id"], unique=False)
 
 
 def downgrade() -> None:

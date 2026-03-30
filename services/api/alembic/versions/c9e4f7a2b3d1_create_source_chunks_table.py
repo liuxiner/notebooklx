@@ -19,20 +19,28 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.create_table(
-        'source_chunks',
-        sa.Column('id', sa.String(36), primary_key=True),
-        sa.Column('source_id', sa.String(36), sa.ForeignKey('sources.id', ondelete='CASCADE'), nullable=False, index=True),
-        sa.Column('chunk_index', sa.Integer(), nullable=False),
-        sa.Column('content', sa.Text(), nullable=False),
-        sa.Column('token_count', sa.Integer(), nullable=False),
-        sa.Column('char_start', sa.Integer(), nullable=False),
-        sa.Column('char_end', sa.Integer(), nullable=False),
-        sa.Column('chunk_metadata', sa.JSON(), nullable=True),
-        sa.Column('created_at', sa.DateTime(), nullable=False, server_default=sa.func.now()),
-    )
-    # Create index for efficient source-based queries
-    op.create_index('ix_source_chunks_source_index', 'source_chunks', ['source_id', 'chunk_index'])
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+
+    if not inspector.has_table("source_chunks"):
+        op.create_table(
+            "source_chunks",
+            sa.Column("id", sa.String(36), primary_key=True),
+            sa.Column("source_id", sa.String(36), sa.ForeignKey("sources.id", ondelete="CASCADE"), nullable=False, index=True),
+            sa.Column("chunk_index", sa.Integer(), nullable=False),
+            sa.Column("content", sa.Text(), nullable=False),
+            sa.Column("token_count", sa.Integer(), nullable=False),
+            sa.Column("char_start", sa.Integer(), nullable=False),
+            sa.Column("char_end", sa.Integer(), nullable=False),
+            sa.Column("chunk_metadata", sa.JSON(), nullable=True),
+            sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
+        )
+        inspector = sa.inspect(bind)
+
+    indexes = {index["name"] for index in inspector.get_indexes("source_chunks")}
+    if "ix_source_chunks_source_index" not in indexes:
+        # Create index for efficient source-based queries.
+        op.create_index("ix_source_chunks_source_index", "source_chunks", ["source_id", "chunk_index"])
 
 
 def downgrade() -> None:

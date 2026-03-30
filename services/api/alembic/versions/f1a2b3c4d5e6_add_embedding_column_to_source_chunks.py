@@ -19,7 +19,14 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.add_column("source_chunks", sa.Column("embedding", sa.JSON(), nullable=True))
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    if not inspector.has_table("source_chunks"):
+        return
+
+    columns = {column["name"] for column in inspector.get_columns("source_chunks")}
+    if "embedding" not in columns:
+        op.add_column("source_chunks", sa.Column("embedding", sa.JSON(), nullable=True))
 
 
 def downgrade() -> None:
