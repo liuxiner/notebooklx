@@ -11,6 +11,7 @@ from urllib.parse import urlparse
 
 from arq import create_pool
 from arq.connections import RedisSettings
+from arq.worker import async_check_health
 
 
 DEFAULT_REDIS_URL = "redis://127.0.0.1:6379/0"
@@ -99,6 +100,13 @@ class ArqIngestionQueue:
 
         return bool(pong)
 
+    async def _worker_ping_async(self) -> bool:
+        exit_code = await async_check_health(
+            self.redis_settings,
+            queue_name=self.settings.queue_name,
+        )
+        return exit_code == 0
+
     def enqueue_ingestion(self, *, source_id: uuid.UUID, ingestion_job_id: uuid.UUID) -> str:
         """Enqueue an ingestion task and return the Arq task ID."""
         try:
@@ -117,6 +125,13 @@ class ArqIngestionQueue:
         """Check whether the queue backend is reachable."""
         try:
             return asyncio.run(self._ping_async())
+        except Exception as exc:  # pragma: no cover - health endpoint handles status mapping
+            raise IngestionQueueError(str(exc)) from exc
+
+    def worker_ping(self) -> bool:
+        """Check whether an ingestion worker heartbeat is present."""
+        try:
+            return asyncio.run(self._worker_ping_async())
         except Exception as exc:  # pragma: no cover - health endpoint handles status mapping
             raise IngestionQueueError(str(exc)) from exc
 

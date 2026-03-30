@@ -238,3 +238,175 @@ calls. Set `*_EMBEDDING_REQUESTS_PER_MINUTE=0` to disable the local throttle.
 `EmbeddingService` also estimates embedding cost from token counts and the
 configured `*_EMBEDDING_COST_PER_1K_TOKENS` rate. The most recent batch summary
 is available on `EmbeddingService.last_cost_summary`.
+
+---
+
+## Manual Testing Guide for Phase 2: Ingestion
+
+This section describes how to manually test the complete ingestion pipeline (document parsing, chunking, embedding generation, and vector indexing).
+
+### Quick Start
+
+Use the provided startup script to launch all services:
+
+```bash
+# From repository root
+./scripts/start-dev.sh
+```
+
+Or start services individually:
+
+```bash
+# Terminal 1: Start infrastructure (Redis + MinIO)
+./scripts/start-infra.sh
+
+# Terminal 2: Start API server
+./scripts/start-api.sh
+
+# Terminal 3: Start worker
+./scripts/start-worker.sh
+```
+
+### Prerequisites
+
+**Environment Variables** (create `.env` file in repository root):
+
+```bash
+# Database
+DATABASE_URL=postgresql://user:pass@localhost:5432/notebooklx
+
+# Redis
+REDIS_URL=redis://localhost:6379/0
+
+# MinIO/S3
+MINIO_ENDPOINT=http://localhost:9000
+MINIO_ACCESS_KEY=minioadmin
+MINIO_SECRET_KEY=minioadmin
+MINIO_BUCKET=notebooklx
+
+# AI Provider (ZhipuAI/BigModel)
+ZHIPUAI_API_KEY=your-api-key
+ZHIPUAI_API_BASE_URL=https://open.bigmodel.cn/api/paas/v4/
+ZHIPUAI_API_EMBEDDING_MODEL_ID=embedding-2
+```
+
+### Testing Individual Features
+
+#### Test 2.1: Document Parsers
+
+**Upload PDF:**
+```bash
+curl -X POST "http://localhost:8000/api/notebooks/{notebook_id}/sources/upload" \
+  -H "X-User-ID: 00000000-0000-0000-0000-000000000001" \
+  -F "file=@sample.pdf" \
+  -F "title=Test PDF"
+```
+
+**Add URL source:**
+```bash
+curl -X POST "http://localhost:8000/api/notebooks/{notebook_id}/sources/url" \
+  -H "Content-Type: application/json" \
+  -H "X-User-ID: 00000000-0000-0000-0000-000000000001" \
+  -d '{"url": "https://example.com/article", "title": "Test URL"}'
+```
+
+**Add text content:**
+```bash
+curl -X POST "http://localhost:8000/api/notebooks/{notebook_id}/sources/text" \
+  -H "Content-Type: application/json" \
+  -H "X-User-ID: 00000000-0000-0000-0000-000000000001" \
+  -d '{"content": "This is test content for ingestion...", "title": "Test Text"}'
+```
+
+#### Test 2.2-2.5: Full Ingestion Pipeline
+
+**Step 1: Create a notebook:**
+```bash
+curl -X POST "http://localhost:8000/api/notebooks" \
+  -H "Content-Type: application/json" \
+  -H "X-User-ID: 00000000-0000-0000-0000-000000000001" \
+  -d '{"name": "Ingestion Test Notebook"}'
+```
+
+**Step 2: Upload a source:**
+```bash
+curl -X POST "http://localhost:8000/api/notebooks/{notebook_id}/sources/upload" \
+  -H "X-User-ID: 00000000-0000-0000-0000-000000000001" \
+  -F "file=@test.pdf"
+```
+
+**Step 3: Trigger ingestion:**
+```bash
+curl -X POST "http://localhost:8000/api/sources/{source_id}/ingest" \
+  -H "X-User-ID: 00000000-0000-0000-0000-000000000001"
+```
+
+**Step 4: Check status:**
+```bash
+# Watch status: pending → processing → ready
+curl "http://localhost:8000/api/notebooks/{notebook_id}/sources" \
+  -H "X-User-ID: 00000000-0000-0000-0000-000000000001"
+
+# Check ingestion queue status
+curl "http://localhost:8000/api/status/ingestion"
+```
+
+### Database Verification Queries
+
+```sql
+-- sqlite3 services/api/notebooklx.db "select count(*), min(token_count), max(token_count) from source_chunks where...
+-- Check source status
+SELECT id, title, status, error_message
+FROM sources WHERE notebook_id = '{notebook_id}';
+
+-- Check chunks created
+SELECT COUNT(*), AVG(token_count), MIN(token_count), MAX(token_count)
+FROM source_chunks WHERE source_id = '{source_id}';
+
+-- Verify embeddings exist
+SELECT id, chunk_index,
+       CASE WHEN embedding IS NOT NULL THEN 'has embedding' ELSE 'missing' END
+FROM source_chunks WHERE source_id = '{source_id}';
+
+-- Test vector search performance
+EXPLAIN ANALYZE
+SELECT id, content, embedding <=> '[...]'::vector as distance
+FROM source_chunks
+WHERE source_id = '{source_id}'
+ORDER BY distance LIMIT 5;
+```
+
+### Success Criteria Checklist
+
+| Feature | How to Verify |
+|---------|---------------|
+| **2.1 Parsers** | Check logs for "Parsed source ... N pages" |
+| **2.2 Chunking** | Query `source_chunks` table, verify 300-800 tokens per chunk |
+| **2.3 Embeddings** | Verify `embedding` column is populated (1536 dimensions) |
+| **2.4 Vector Index** | Run `EXPLAIN ANALYZE` on vector search query, should be <200ms |
+| **2.5 Workflow** | Source status changes: `pending → processing → ready` |
+
+### Troubleshooting
+
+**Redis connection errors:**
+```bash
+# Check Redis is running
+redis-cli ping  # Should return PONG
+```
+
+**MinIO connection errors:**
+```bash
+# Check MinIO health
+curl http://localhost:9000/minio/health/live
+
+# Ensure bucket exists
+mc alias set local http://localhost:9000 minioadmin minioadmin
+mc mb local/notebooklx --ignore-existing
+```
+
+**Ingestion failures:**
+```bash
+# Check worker logs in Terminal 3
+# Check source error_message field
+curl "http://localhost:8000/api/sources/{source_id}/status"
+```

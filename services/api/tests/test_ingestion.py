@@ -263,6 +263,9 @@ class TestIngestionHealth:
             def ping(self) -> bool:
                 return True
 
+            def worker_ping(self) -> bool:
+                return True
+
         monkeypatch.setattr(ingestion_routes, "get_ingestion_queue", lambda: HealthyQueue())
 
         response = client.get("/api/status/ingestion/health")
@@ -271,7 +274,66 @@ class TestIngestionHealth:
         assert response.json() == {
             "status": "healthy",
             "redis": "connected",
+            "worker": "connected",
         }
+
+    def test_ingestion_health_reports_missing_worker_when_redis_is_connected(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ):
+        """
+        AC: Worker health check identifies a queue with no active consumer.
+        """
+        from services.api.modules.ingestion import routes as ingestion_routes
+
+        class QueueWithoutWorker:
+            def ping(self) -> bool:
+                return True
+
+            def worker_ping(self) -> bool:
+                return False
+
+        monkeypatch.setattr(
+            ingestion_routes, "get_ingestion_queue", lambda: QueueWithoutWorker()
+        )
+
+        response = client.get("/api/status/ingestion/health")
+
+        assert response.status_code == 200
+        assert response.json() == {
+            "status": "degraded",
+            "redis": "connected",
+            "worker": "disconnected",
+        }
+
+
+class TestWorkerBootstrap:
+    def test_worker_bootstrap_installs_event_loop_when_missing(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """
+        AC: Worker CLI startup is compatible with Python 3.14 event loop behavior.
+        """
+        from services.worker import main as worker_main
+
+        installed = {}
+        sentinel_loop = object()
+
+        def fail_get_event_loop():
+            raise RuntimeError("There is no current event loop in thread 'MainThread'.")
+
+        def build_loop():
+            return sentinel_loop
+
+        def install_loop(loop):
+            installed["loop"] = loop
+
+        monkeypatch.setattr(worker_main.asyncio, "get_event_loop", fail_get_event_loop)
+        monkeypatch.setattr(worker_main.asyncio, "new_event_loop", build_loop)
+        monkeypatch.setattr(worker_main.asyncio, "set_event_loop", install_loop)
+
+        worker_main.ensure_main_thread_event_loop()
+
+        assert installed["loop"] is sentinel_loop
 
 
 @pytest.mark.skipif(

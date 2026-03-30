@@ -94,7 +94,14 @@ async def stream_grounded_chat(
     AC: Streaming response for better UX
     """
     notebook = _get_notebook_for_user(notebook_id, db, user_id)
-    grounded_qa_service = get_grounded_qa_service(db)
+    try:
+        grounded_qa_service = get_grounded_qa_service(db)
+    except (ImportError, ValueError) as exc:
+        raise build_error(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "ai_not_configured",
+            str(exc),
+        ) from exc
 
     async def event_stream():
         yield _format_sse_event(

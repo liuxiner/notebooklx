@@ -174,12 +174,21 @@ def get_ingestion_health(
     _: uuid.UUID = Depends(get_current_user_id),
 ):
     """Return ingestion worker backend health information."""
+    queue = get_ingestion_queue()
+
     try:
-        redis_connected = get_ingestion_queue().ping()
+        redis_connected = queue.ping()
     except IngestionQueueError:
         redis_connected = False
+        worker_connected = False
+    else:
+        try:
+            worker_connected = queue.worker_ping()
+        except IngestionQueueError:
+            worker_connected = False
 
     return IngestionHealthResponse(
-        status="healthy" if redis_connected else "degraded",
+        status="healthy" if redis_connected and worker_connected else "degraded",
         redis="connected" if redis_connected else "disconnected",
+        worker="connected" if worker_connected else "disconnected",
     )

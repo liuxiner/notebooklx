@@ -41,3 +41,4 @@ class IngestionHealthResponse(BaseModel):
 
     status: str
     redis: str
+    worker: str

@@ -61,3 +61,5 @@ yarn-error.log*
 tmp/
 temp/
 dump.rdb
+logs/
+!logs/.gitkeep

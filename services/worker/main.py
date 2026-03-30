@@ -3,6 +3,7 @@ Arq worker bootstrap for the async ingestion pipeline.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import Any, Callable
@@ -25,6 +26,17 @@ logger = logging.getLogger(__name__)
 
 
 DEFAULT_PROGRESS = {"step": "completed", "percentage": 100}
+
+
+def ensure_main_thread_event_loop() -> None:
+    """Install a default event loop for Python 3.14+ CLI startup."""
+    try:
+        asyncio.get_event_loop()
+    except RuntimeError:
+        asyncio.set_event_loop(asyncio.new_event_loop())
+
+
+ensure_main_thread_event_loop()
 
 
 def utcnow() -> datetime:

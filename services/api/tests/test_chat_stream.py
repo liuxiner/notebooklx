@@ -104,3 +104,34 @@ class TestGroundedChatStream:
 
         assert response.status_code == 404
         assert response.json()["detail"]["error"] == "not_found"
+
+    def test_stream_endpoint_returns_503_when_ai_client_is_not_configured(
+        self,
+        client: TestClient,
+        sample_notebook_data: dict,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """
+        AC: Chat returns a controlled error when AI providers are not configured.
+        """
+        from services.api.modules.chat import routes as chat_routes
+
+        notebook_response = client.post("/api/notebooks", json=sample_notebook_data)
+        assert notebook_response.status_code == 201
+        notebook_id = notebook_response.json()["id"]
+
+        def fail_to_build_service(_db):
+            raise ValueError("BigModel API key is required.")
+
+        monkeypatch.setattr(chat_routes, "get_grounded_qa_service", fail_to_build_service)
+
+        response = client.post(
+            f"/api/notebooks/{notebook_id}/chat/stream",
+            json={"question": "What is Alpha?"},
+        )
+
+        assert response.status_code == 503
+        assert response.json()["detail"] == {
+            "error": "ai_not_configured",
+            "message": "BigModel API key is required.",
+        }
