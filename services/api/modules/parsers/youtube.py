@@ -8,13 +8,6 @@ from typing import Optional
 import re
 import logging
 
-from youtube_transcript_api import YouTubeTranscriptApi
-from youtube_transcript_api._errors import (
-    TranscriptsDisabled,
-    NoTranscriptFound,
-    VideoUnavailable,
-)
-
 from services.api.modules.parsers.base import (
     BaseParser,
     ParseResult,
@@ -23,6 +16,22 @@ from services.api.modules.parsers.base import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Kept as module attributes so tests can patch them without importing the
+# third-party package during module import.
+YouTubeTranscriptApi = None
+
+
+def _load_youtube_transcript_api() -> None:
+    """Load youtube-transcript-api lazily to avoid startup-time side effects."""
+    global YouTubeTranscriptApi
+
+    if YouTubeTranscriptApi is not None:
+        return
+
+    from youtube_transcript_api import YouTubeTranscriptApi as _YouTubeTranscriptApi
+
+    YouTubeTranscriptApi = _YouTubeTranscriptApi
 
 
 class YouTubeParser(BaseParser):
@@ -84,6 +93,8 @@ class YouTubeParser(BaseParser):
         video_id = self.extract_video_id(url)
 
         try:
+            _load_youtube_transcript_api()
+
             # Get transcript from YouTube using new API
             api = YouTubeTranscriptApi()
             transcript = api.fetch(video_id, languages=["en"])
@@ -124,19 +135,20 @@ class YouTubeParser(BaseParser):
                 encoding="utf-8",
             )
 
-        except TranscriptsDisabled:
-            raise ParserError(
-                f"Transcripts are disabled for video {video_id}"
-            )
-        except NoTranscriptFound:
-            raise ParserError(
-                f"No transcript found for video {video_id}"
-            )
-        except VideoUnavailable:
-            raise ParserError(
-                f"Video {video_id} is unavailable"
-            )
         except Exception as e:
+            error_name = e.__class__.__name__
+            if error_name == "TranscriptsDisabled":
+                raise ParserError(
+                    f"Transcripts are disabled for video {video_id}"
+                )
+            if error_name == "NoTranscriptFound":
+                raise ParserError(
+                    f"No transcript found for video {video_id}"
+                )
+            if error_name == "VideoUnavailable":
+                raise ParserError(
+                    f"Video {video_id} is unavailable"
+                )
             logger.error(f"Failed to get transcript for {video_id}: {e}")
             raise ParserError(f"Failed to get transcript: {e}")
 

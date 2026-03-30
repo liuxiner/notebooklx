@@ -6,6 +6,8 @@ Extracts text content from publicly shared Google Docs via the export API.
 from pathlib import Path
 import re
 import logging
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 
 from services.api.modules.parsers.base import (
     BaseParser,
@@ -72,21 +74,19 @@ class GoogleDocsParser(BaseParser):
         # Build export URL for plain text
         export_url = f"https://docs.google.com/document/d/{doc_id}/export?format=txt"
 
-        import requests
-
         try:
-            # Fetch the document as plain text
-            response = requests.get(
+            request = Request(
                 export_url,
-                timeout=self.REQUEST_TIMEOUT,
                 headers={
                     "User-Agent": "Mozilla/5.0 (compatible; NotebookLX/1.0)",
                 },
             )
-            response.raise_for_status()
 
-            # Get the text content
-            text_content = response.text
+            # Fetch the document as plain text using the standard library.
+            with urlopen(request, timeout=self.REQUEST_TIMEOUT) as response:
+                raw_content = response.read()
+                charset = response.headers.get_content_charset() or "utf-8"
+                text_content = raw_content.decode(charset, errors="replace")
 
             # Normalize the text
             normalized_text = self.normalize_text(text_content)
@@ -116,19 +116,16 @@ class GoogleDocsParser(BaseParser):
                 encoding="utf-8",
             )
 
-        except requests.HTTPError as e:
-            if e.response is not None:
-                if e.response.status_code == 404:
-                    raise ParserError(
-                        f"Document not found: {doc_id}"
-                    )
-                elif e.response.status_code == 403:
-                    raise ParserError(
-                        f"Access denied - document may not be public: {doc_id}"
-                    )
+        except HTTPError as e:
+            if e.code == 404:
+                raise ParserError(f"Document not found: {doc_id}")
+            if e.code == 403:
+                raise ParserError(
+                    f"Access denied - document may not be public: {doc_id}"
+                )
             logger.error(f"HTTP error fetching Google Doc {doc_id}: {e}")
             raise ParserError(f"Failed to fetch document: {e}")
-        except requests.RequestException as e:
+        except URLError as e:
             logger.error(f"Request error fetching Google Doc {doc_id}: {e}")
             raise ParserError(f"Failed to fetch document: {e}")
         except Exception as e:

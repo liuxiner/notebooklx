@@ -7,8 +7,6 @@ from pathlib import Path
 from typing import Optional
 import logging
 
-import trafilatura
-
 from services.api.modules.parsers.base import (
     BaseParser,
     ParseResult,
@@ -98,6 +96,8 @@ class URLParser(BaseParser):
             raise ParserError("Empty HTML content provided")
 
         try:
+            import trafilatura
+
             # Use trafilatura to extract main content
             extracted = trafilatura.extract(
                 html_content,
@@ -187,6 +187,8 @@ class URLParser(BaseParser):
             Extracted title or None.
         """
         try:
+            import trafilatura
+
             # Try to extract using trafilatura's metadata extraction
             metadata = trafilatura.extract_metadata(html_content)
             if metadata and metadata.title:

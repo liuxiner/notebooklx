@@ -574,7 +574,8 @@ class TestYouTubeParser:
 
     def test_parse_transcript_handles_api_error(self, youtube_parser, mocker):
         """Should raise ParserError when transcript unavailable."""
-        from youtube_transcript_api._errors import TranscriptsDisabled
+        class TranscriptsDisabled(Exception):
+            """Local stand-in for the YouTube transcript error."""
 
         mock_api = mocker.patch(
             "services.api.modules.parsers.youtube.YouTubeTranscriptApi"
@@ -666,13 +667,13 @@ class TestGoogleDocsParser:
     def test_parse_url_returns_parse_result(self, gdocs_parser, mocker):
         """Should return ParseResult from document content."""
         # Mock the HTTP request
-        mock_response = mocker.Mock()
-        mock_response.status_code = 200
-        mock_response.text = "This is the document content."
-        mock_response.encoding = "utf-8"
-        mock_response.raise_for_status = mocker.Mock()
+        mock_response = mocker.MagicMock()
+        mock_response.read.return_value = b"This is the document content."
+        mock_response.headers.get_content_charset.return_value = "utf-8"
+        mock_response.__enter__.return_value = mock_response
+        mock_response.__exit__.return_value = False
 
-        mock_get = mocker.patch("requests.get", return_value=mock_response)
+        mocker.patch("services.api.modules.parsers.googledocs.urlopen", return_value=mock_response)
 
         result = gdocs_parser.parse_url(
             "https://docs.google.com/document/d/1a2B3c4D5e6F7g8H9i0JkLmNoPqRsTuVwXyZ/edit"
@@ -681,13 +682,13 @@ class TestGoogleDocsParser:
 
     def test_parse_url_extracts_text(self, gdocs_parser, mocker):
         """Should extract document text content."""
-        mock_response = mocker.Mock()
-        mock_response.status_code = 200
-        mock_response.text = "Hello, this is my Google Doc content."
-        mock_response.encoding = "utf-8"
-        mock_response.raise_for_status = mocker.Mock()
+        mock_response = mocker.MagicMock()
+        mock_response.read.return_value = b"Hello, this is my Google Doc content."
+        mock_response.headers.get_content_charset.return_value = "utf-8"
+        mock_response.__enter__.return_value = mock_response
+        mock_response.__exit__.return_value = False
 
-        mocker.patch("requests.get", return_value=mock_response)
+        mocker.patch("services.api.modules.parsers.googledocs.urlopen", return_value=mock_response)
 
         result = gdocs_parser.parse_url(
             "https://docs.google.com/document/d/1a2B3c4D5e6F7g8H9i0JkLmNoPqRsTuVwXyZ/edit"
@@ -696,13 +697,13 @@ class TestGoogleDocsParser:
 
     def test_parse_url_returns_utf8_encoding(self, gdocs_parser, mocker):
         """Should return UTF-8 encoded text."""
-        mock_response = mocker.Mock()
-        mock_response.status_code = 200
-        mock_response.text = "Document text"
-        mock_response.encoding = "utf-8"
-        mock_response.raise_for_status = mocker.Mock()
+        mock_response = mocker.MagicMock()
+        mock_response.read.return_value = b"Document text"
+        mock_response.headers.get_content_charset.return_value = "utf-8"
+        mock_response.__enter__.return_value = mock_response
+        mock_response.__exit__.return_value = False
 
-        mocker.patch("requests.get", return_value=mock_response)
+        mocker.patch("services.api.modules.parsers.googledocs.urlopen", return_value=mock_response)
 
         result = gdocs_parser.parse_url(
             "https://docs.google.com/document/d/1a2B3c4D5e6F7g8H9i0JkLmNoPqRsTuVwXyZ/edit"
@@ -711,13 +712,13 @@ class TestGoogleDocsParser:
 
     def test_parse_url_includes_metadata(self, gdocs_parser, mocker):
         """Should include URL and document ID in metadata."""
-        mock_response = mocker.Mock()
-        mock_response.status_code = 200
-        mock_response.text = "Document text"
-        mock_response.encoding = "utf-8"
-        mock_response.raise_for_status = mocker.Mock()
+        mock_response = mocker.MagicMock()
+        mock_response.read.return_value = b"Document text"
+        mock_response.headers.get_content_charset.return_value = "utf-8"
+        mock_response.__enter__.return_value = mock_response
+        mock_response.__exit__.return_value = False
 
-        mocker.patch("requests.get", return_value=mock_response)
+        mocker.patch("services.api.modules.parsers.googledocs.urlopen", return_value=mock_response)
 
         url = "https://docs.google.com/document/d/1a2B3c4D5e6F7g8H9i0JkLmNoPqRsTuVwXyZ/edit"
         result = gdocs_parser.parse_url(url)
@@ -726,13 +727,17 @@ class TestGoogleDocsParser:
 
     def test_parse_url_handles_404_error(self, gdocs_parser, mocker):
         """Should raise ParserError when document not found."""
-        import requests
+        from urllib.error import HTTPError
 
-        mock_response = mocker.Mock()
-        mock_response.status_code = 404
-        mock_response.raise_for_status.side_effect = requests.HTTPError("404 Not Found")
+        mock_error = HTTPError(
+            "https://docs.google.com/document/d/nonexistent/export?format=txt",
+            404,
+            "Not Found",
+            hdrs=None,
+            fp=None,
+        )
 
-        mocker.patch("requests.get", return_value=mock_response)
+        mocker.patch("services.api.modules.parsers.googledocs.urlopen", side_effect=mock_error)
 
         with pytest.raises(ParserError) as exc_info:
             gdocs_parser.parse_url(
@@ -742,13 +747,17 @@ class TestGoogleDocsParser:
 
     def test_parse_url_handles_403_error(self, gdocs_parser, mocker):
         """Should raise ParserError when document is not public."""
-        import requests
+        from urllib.error import HTTPError
 
-        mock_response = mocker.Mock()
-        mock_response.status_code = 403
-        mock_response.raise_for_status.side_effect = requests.HTTPError("403 Forbidden")
+        mock_error = HTTPError(
+            "https://docs.google.com/document/d/private-doc/export?format=txt",
+            403,
+            "Forbidden",
+            hdrs=None,
+            fp=None,
+        )
 
-        mocker.patch("requests.get", return_value=mock_response)
+        mocker.patch("services.api.modules.parsers.googledocs.urlopen", side_effect=mock_error)
 
         with pytest.raises(ParserError) as exc_info:
             gdocs_parser.parse_url(
@@ -762,13 +771,13 @@ class TestGoogleDocsParser:
 
     def test_parse_result_has_single_page(self, gdocs_parser, mocker):
         """Google Docs parser should return single page."""
-        mock_response = mocker.Mock()
-        mock_response.status_code = 200
-        mock_response.text = "Document text"
-        mock_response.encoding = "utf-8"
-        mock_response.raise_for_status = mocker.Mock()
+        mock_response = mocker.MagicMock()
+        mock_response.read.return_value = b"Document text"
+        mock_response.headers.get_content_charset.return_value = "utf-8"
+        mock_response.__enter__.return_value = mock_response
+        mock_response.__exit__.return_value = False
 
-        mocker.patch("requests.get", return_value=mock_response)
+        mocker.patch("services.api.modules.parsers.googledocs.urlopen", return_value=mock_response)
 
         result = gdocs_parser.parse_url(
             "https://docs.google.com/document/d/1a2B3c4D5e6F7g8H9i0JkLmNoPqRsTuVwXyZ/edit"

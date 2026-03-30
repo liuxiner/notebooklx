@@ -17,7 +17,7 @@ fpdf2  # For creating test PDFs
 
 # Document parsing
 pdfplumber
-chardet
+chardet<6
 trafilatura  # For clean web content extraction
 youtube-transcript-api  # For YouTube video transcripts
 requests  # For Google Docs export API
