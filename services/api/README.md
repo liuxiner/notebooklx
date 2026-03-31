@@ -354,25 +354,25 @@ curl "http://localhost:8000/api/status/ingestion"
 ### Database Verification Queries
 
 ```sql
--- sqlite3 services/api/notebooklx.db "select count(*), min(token_count), max(token_count) from source_chunks where...
+-- Local SQLite stores UUIDs without hyphens, so use replace('{source_id}', '-', '')
 -- Check source status
 SELECT id, title, status, error_message
-FROM sources WHERE notebook_id = '{notebook_id}';
+FROM sources WHERE id = replace('{source_id}', '-', '');
 
 -- Check chunks created
 SELECT COUNT(*), AVG(token_count), MIN(token_count), MAX(token_count)
-FROM source_chunks WHERE source_id = '{source_id}';
+FROM source_chunks WHERE source_id = replace('{source_id}', '-', '');
 
 -- Verify embeddings exist
 SELECT id, chunk_index,
        CASE WHEN embedding IS NOT NULL THEN 'has embedding' ELSE 'missing' END
-FROM source_chunks WHERE source_id = '{source_id}';
+FROM source_chunks WHERE source_id = replace('{source_id}', '-', '');
 
 -- Test vector search performance
 EXPLAIN ANALYZE
 SELECT id, content, embedding <=> '[...]'::vector as distance
 FROM source_chunks
-WHERE source_id = '{source_id}'
+WHERE source_id = replace('{source_id}', '-', '')
 ORDER BY distance LIMIT 5;
 ```
 

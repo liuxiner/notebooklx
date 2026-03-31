@@ -7,6 +7,7 @@ from typing import List
 import uuid
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from sqlalchemy import delete
 from sqlalchemy.orm import Session
 
 from services.api.core.database import get_db
@@ -65,6 +66,27 @@ def get_notebook_or_404(
             detail={"error": "not_found", "message": f"Notebook {notebook_id} not found"}
         )
     return notebook
+
+
+def get_source_or_404(
+    notebook_id: uuid.UUID,
+    source_id: uuid.UUID,
+    db: Session,
+) -> Source:
+    """Get a source by notebook/source id or raise 404."""
+    source = db.query(Source).filter(
+        Source.id == source_id,
+        Source.notebook_id == notebook_id,
+    ).first()
+
+    if not source:
+        raise build_error(
+            status.HTTP_404_NOT_FOUND,
+            "not_found",
+            f"Source {source_id} not found",
+        )
+
+    return source
 
 
 def build_error(status_code: int, error: str, message: str) -> HTTPException:
@@ -292,3 +314,38 @@ def upload_source_file(
         filename=sanitize_filename(file.filename, rule["default_filename"]),
         db=db,
     )
+
+
+@router.delete(
+    "/{notebook_id}/sources/{source_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_source(
+    notebook_id: uuid.UUID,
+    source_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    user_id: uuid.UUID = Depends(get_current_user_id),
+):
+    """
+    Delete a source from a notebook.
+
+    Deletes the source row and relies on database cascades to remove derived
+    source records such as chunks and ingestion jobs.
+    """
+    get_notebook_or_404(notebook_id, user_id, db)
+    source = get_source_or_404(notebook_id, source_id, db)
+
+    if source.file_path:
+        try:
+            get_object_storage().delete_bytes(source.file_path)
+        except StorageError as exc:
+            raise build_error(
+                status.HTTP_500_INTERNAL_SERVER_ERROR,
+                "delete_failed",
+                "Failed to delete source content",
+            ) from exc
+
+    db.execute(delete(Source).where(Source.id == source.id))
+    db.commit()
+
+    return None

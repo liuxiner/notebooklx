@@ -73,6 +73,7 @@ This document outlines the detailed development plan, acceptance criteria, and t
 - [x] Upload PDF file (max 50MB)
 - [x] Upload plain text content
 - [x] Add URL source (validate URL format)
+- [x] Delete source by ID and remove derived source data
 - [x] Return source ID and initial status (pending)
 - [x] Store original file in MinIO/S3
 - [x] Support multiple file types (PDF, TXT, DOCX)
@@ -102,6 +103,7 @@ This document outlines the detailed development plan, acceptance criteria, and t
 9. Create Pydantic schemas for source creation
 10. Add unit tests for upload endpoints
 11. Add database migration for sources table
+12. Implement DELETE /api/notebooks/{id}/sources/{source_id} endpoint
 
 ---
 

@@ -6,7 +6,9 @@ Slice: enqueue ingestion jobs + query task status
 """
 import socket
 import subprocess
+import sys
 import time
+import types
 import uuid
 from contextlib import closing
 import os
@@ -334,6 +336,40 @@ class TestWorkerBootstrap:
         worker_main.ensure_main_thread_event_loop()
 
         assert installed["loop"] is sentinel_loop
+
+    def test_worker_file_loader_uses_shared_object_storage(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """
+        AC: Uploaded file ingestion reads from the same storage backend used by the API.
+        """
+        from services.worker import main as worker_main
+
+        calls: list[str] = []
+
+        class RecordingStorage:
+            def load_bytes(self, object_path: str) -> bytes:
+                calls.append(object_path)
+                return b"stored-content"
+
+        fake_boto3 = types.SimpleNamespace(
+            client=lambda *args, **kwargs: (_ for _ in ()).throw(
+                AssertionError("worker should not bypass shared storage")
+            )
+        )
+
+        monkeypatch.setattr(
+            worker_main,
+            "get_object_storage",
+            lambda: RecordingStorage(),
+            raising=False,
+        )
+        monkeypatch.setitem(sys.modules, "boto3", fake_boto3)
+
+        loader = worker_main._get_file_content_loader({})
+
+        assert loader("notebook/source/upload.txt") == b"stored-content"
+        assert calls == ["notebook/source/upload.txt"]
 
 
 @pytest.mark.skipif(

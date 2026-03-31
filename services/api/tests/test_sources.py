@@ -393,6 +393,212 @@ class TestUploadSourceFile:
         assert source.error_message == "MinIO unavailable"
 
 
+class TestDeleteSource:
+    """Tests for DELETE /api/notebooks/{notebook_id}/sources/{source_id} endpoint."""
+
+    def test_delete_source_returns_204_and_removes_record(
+        self, client: TestClient, created_notebook: dict, db, monkeypatch: pytest.MonkeyPatch
+    ):
+        """
+        AC: Deleting a source removes it from the notebook and returns 204.
+        AC: File-backed sources remove their stored payload.
+        """
+        from services.api.modules.sources import routes as source_routes
+        from services.api.modules.sources.models import Source, SourceStatus, SourceType
+
+        class RecordingStorage:
+            def __init__(self) -> None:
+                self.deleted_paths = []
+
+            def delete_bytes(self, object_path: str) -> None:
+                self.deleted_paths.append(object_path)
+
+        storage = RecordingStorage()
+        monkeypatch.setattr(source_routes, "get_object_storage", lambda: storage)
+
+        source = Source(
+            notebook_id=uuid.UUID(created_notebook["id"]),
+            source_type=SourceType.TEXT,
+            title="Source to delete",
+            file_path="notebook/source-to-delete.txt",
+            file_size=128,
+            status=SourceStatus.READY,
+        )
+        db.add(source)
+        db.commit()
+        db.refresh(source)
+
+        response = client.delete(
+            f"/api/notebooks/{created_notebook['id']}/sources/{source.id}"
+        )
+
+        assert response.status_code == 204
+        assert response.content == b""
+        assert storage.deleted_paths == ["notebook/source-to-delete.txt"]
+        assert db.query(Source).filter(Source.id == source.id).first() is None
+
+    def test_delete_source_removes_derived_records(
+        self, client: TestClient, created_notebook: dict, db
+    ):
+        """
+        AC: Deleting a source cascades to chunks and ingestion jobs.
+        """
+        from services.api.modules.chunking.models import SourceChunk
+        from services.api.modules.ingestion.models import IngestionJob, IngestionJobStatus
+        from services.api.modules.sources.models import Source, SourceStatus, SourceType
+
+        source = Source(
+            notebook_id=uuid.UUID(created_notebook["id"]),
+            source_type=SourceType.URL,
+            title="Derived records source",
+            original_url="https://example.com/delete-me",
+            status=SourceStatus.READY,
+        )
+        db.add(source)
+        db.commit()
+        db.refresh(source)
+
+        chunk = SourceChunk(
+            source_id=source.id,
+            chunk_index=0,
+            content="Chunk content",
+            token_count=2,
+            char_start=0,
+            char_end=13,
+        )
+        job = IngestionJob(
+            source_id=source.id,
+            status=IngestionJobStatus.COMPLETED,
+            progress={"step": "completed"},
+        )
+        db.add_all([chunk, job])
+        db.commit()
+
+        response = client.delete(
+            f"/api/notebooks/{created_notebook['id']}/sources/{source.id}"
+        )
+
+        assert response.status_code == 204
+        assert db.query(Source).filter(Source.id == source.id).first() is None
+        assert db.query(SourceChunk).filter(SourceChunk.source_id == source.id).count() == 0
+        assert db.query(IngestionJob).filter(IngestionJob.source_id == source.id).count() == 0
+
+    def test_delete_source_without_file_path_skips_storage_cleanup(
+        self, client: TestClient, created_notebook: dict, db, monkeypatch: pytest.MonkeyPatch
+    ):
+        """
+        AC: Non-file sources delete cleanly without storage calls.
+        """
+        from services.api.modules.sources import routes as source_routes
+        from services.api.modules.sources.models import Source, SourceStatus, SourceType
+
+        class RecordingStorage:
+            def __init__(self) -> None:
+                self.deleted_paths = []
+
+            def delete_bytes(self, object_path: str) -> None:
+                self.deleted_paths.append(object_path)
+
+        storage = RecordingStorage()
+        monkeypatch.setattr(source_routes, "get_object_storage", lambda: storage)
+
+        source = Source(
+            notebook_id=uuid.UUID(created_notebook["id"]),
+            source_type=SourceType.URL,
+            title="URL source",
+            original_url="https://example.com",
+            status=SourceStatus.PENDING,
+        )
+        db.add(source)
+        db.commit()
+        db.refresh(source)
+
+        response = client.delete(
+            f"/api/notebooks/{created_notebook['id']}/sources/{source.id}"
+        )
+
+        assert response.status_code == 204
+        assert storage.deleted_paths == []
+
+    def test_delete_source_nonexistent_notebook_returns_404(self, client: TestClient):
+        """
+        AC: Notebook ownership and existence are validated before deletion.
+        """
+        response = client.delete(
+            f"/api/notebooks/{uuid.uuid4()}/sources/{uuid.uuid4()}"
+        )
+
+        assert response.status_code == 404
+
+    def test_delete_source_nonexistent_source_returns_404(
+        self, client: TestClient, created_notebook: dict
+    ):
+        """
+        AC: Missing sources return a not-found error.
+        """
+        response = client.delete(
+            f"/api/notebooks/{created_notebook['id']}/sources/{uuid.uuid4()}"
+        )
+
+        assert response.status_code == 404
+
+
+class TestObjectStorageConfiguration:
+    """Tests for environment-driven object storage selection."""
+
+    def test_minio_env_uses_s3_storage_backend(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """
+        AC: Local MinIO dev configuration resolves to the shared S3-compatible backend.
+        """
+        from services.api.modules.sources import storage as source_storage
+
+        captured: dict[str, str | None] = {}
+
+        class RecordingS3Storage:
+            def __init__(
+                self,
+                bucket_name: str,
+                endpoint_url: str | None = None,
+                region_name: str | None = None,
+                access_key_id: str | None = None,
+                secret_access_key: str | None = None,
+            ) -> None:
+                captured.update(
+                    {
+                        "bucket_name": bucket_name,
+                        "endpoint_url": endpoint_url,
+                        "region_name": region_name,
+                        "access_key_id": access_key_id,
+                        "secret_access_key": secret_access_key,
+                    }
+                )
+
+        monkeypatch.delenv("SOURCE_STORAGE_BACKEND", raising=False)
+        monkeypatch.delenv("SOURCE_STORAGE_BUCKET", raising=False)
+        monkeypatch.delenv("SOURCE_STORAGE_ENDPOINT_URL", raising=False)
+        monkeypatch.delenv("SOURCE_STORAGE_REGION", raising=False)
+        monkeypatch.delenv("SOURCE_STORAGE_ACCESS_KEY_ID", raising=False)
+        monkeypatch.delenv("SOURCE_STORAGE_SECRET_ACCESS_KEY", raising=False)
+        monkeypatch.setenv("MINIO_BUCKET", "notebooklx")
+        monkeypatch.setenv("MINIO_ENDPOINT", "http://localhost:9000")
+        monkeypatch.setenv("MINIO_ACCESS_KEY", "minioadmin")
+        monkeypatch.setenv("MINIO_SECRET_KEY", "minioadmin")
+        monkeypatch.setattr(source_storage, "S3ObjectStorage", RecordingS3Storage)
+
+        storage = source_storage._build_object_storage_from_env()
+
+        assert isinstance(storage, RecordingS3Storage)
+        assert captured == {
+            "bucket_name": "notebooklx",
+            "endpoint_url": "http://localhost:9000",
+            "region_name": None,
+            "access_key_id": "minioadmin",
+            "secret_access_key": "minioadmin",
+        }
+
+
 class TestSourceModel:
     """Tests to verify Source model schema and fields."""
 

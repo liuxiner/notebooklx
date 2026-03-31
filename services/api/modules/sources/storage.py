@@ -23,6 +23,12 @@ class ObjectStorage(Protocol):
     def store_bytes(self, content: bytes, object_path: str, content_type: str) -> str:
         """Persist bytes and return the logical object path."""
 
+    def load_bytes(self, object_path: str) -> bytes:
+        """Load bytes for a previously stored object path."""
+
+    def delete_bytes(self, object_path: str) -> None:
+        """Delete a previously stored object path."""
+
 
 class LocalObjectStorage:
     """Filesystem-backed storage used for tests and local fallback."""
@@ -37,6 +43,20 @@ class LocalObjectStorage:
         target_path.parent.mkdir(parents=True, exist_ok=True)
         target_path.write_bytes(content)
         return object_path
+
+    def load_bytes(self, object_path: str) -> bytes:
+        target_path = self.root_path / object_path
+        try:
+            return target_path.read_bytes()
+        except FileNotFoundError as exc:
+            raise StorageError(str(exc)) from exc
+
+    def delete_bytes(self, object_path: str) -> None:
+        target_path = self.root_path / object_path
+        try:
+            target_path.unlink(missing_ok=True)
+        except OSError as exc:
+            raise StorageError(str(exc)) from exc
 
 
 class S3ObjectStorage:
@@ -74,24 +94,57 @@ class S3ObjectStorage:
 
         return object_path
 
+    def load_bytes(self, object_path: str) -> bytes:
+        try:
+            response = self.client.get_object(Bucket=self.bucket_name, Key=object_path)
+            return response["Body"].read()
+        except Exception as exc:  # pragma: no cover - boto3 exception graph is broad
+            raise StorageError(str(exc)) from exc
+
+    def delete_bytes(self, object_path: str) -> None:
+        try:
+            self.client.delete_object(Bucket=self.bucket_name, Key=object_path)
+        except Exception as exc:  # pragma: no cover - boto3 exception graph is broad
+            raise StorageError(str(exc)) from exc
+
+
+def _get_env_value(*names: str) -> str:
+    """Return the first non-empty environment variable from the provided names."""
+    for name in names:
+        value = os.getenv(name, "").strip()
+        if value:
+            return value
+    return ""
+
 
 def _build_object_storage_from_env() -> ObjectStorage:
-    backend = os.getenv("SOURCE_STORAGE_BACKEND", "").strip().lower()
-    bucket_name = os.getenv("SOURCE_STORAGE_BUCKET", "").strip()
+    backend = _get_env_value("SOURCE_STORAGE_BACKEND").lower()
+    bucket_name = _get_env_value("SOURCE_STORAGE_BUCKET", "MINIO_BUCKET")
 
-    if backend == "s3" or bucket_name:
+    if backend in {"s3", "minio"} or (not backend and bucket_name):
         if not bucket_name:
             raise StorageError("SOURCE_STORAGE_BUCKET is required when using S3 storage")
 
         return S3ObjectStorage(
             bucket_name=bucket_name,
-            endpoint_url=os.getenv("SOURCE_STORAGE_ENDPOINT_URL"),
-            region_name=os.getenv("SOURCE_STORAGE_REGION"),
-            access_key_id=os.getenv("SOURCE_STORAGE_ACCESS_KEY_ID"),
-            secret_access_key=os.getenv("SOURCE_STORAGE_SECRET_ACCESS_KEY"),
+            endpoint_url=_get_env_value(
+                "SOURCE_STORAGE_ENDPOINT_URL",
+                "MINIO_ENDPOINT",
+            ) or None,
+            region_name=_get_env_value("SOURCE_STORAGE_REGION") or None,
+            access_key_id=_get_env_value(
+                "SOURCE_STORAGE_ACCESS_KEY_ID",
+                "MINIO_ACCESS_KEY",
+            ) or None,
+            secret_access_key=_get_env_value(
+                "SOURCE_STORAGE_SECRET_ACCESS_KEY",
+                "MINIO_SECRET_KEY",
+            ) or None,
         )
 
-    local_root = Path(os.getenv("SOURCE_STORAGE_ROOT", str(DEFAULT_LOCAL_STORAGE_ROOT)))
+    local_root = Path(
+        _get_env_value("SOURCE_STORAGE_ROOT") or str(DEFAULT_LOCAL_STORAGE_ROOT)
+    )
     return LocalObjectStorage(local_root)
 
 

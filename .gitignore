@@ -3,6 +3,7 @@
 
 # Local AI/tool settings
 .claude/settings.local.json
+.claude/skills/daily-review
 
 # Python / FastAPI artifacts
 **/__pycache__/

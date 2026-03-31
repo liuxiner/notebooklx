@@ -20,6 +20,7 @@ Quick reference checklist for tracking development progress. Check off items as 
 - ✓ URL upload endpoint
 - ✓ Text upload endpoint
 - ✓ File validation
+- ✓ Source delete endpoint
 
 **Worker Pipeline** ✓
 - ✓ Redis setup

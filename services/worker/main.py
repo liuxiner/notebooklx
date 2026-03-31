@@ -19,6 +19,7 @@ from services.api.modules.ingestion.queue import (
     get_ingestion_queue_settings,
     redis_settings_from_url,
 )
+from services.api.modules.sources.storage import get_object_storage
 from services.api.modules.sources.models import Source, SourceStatus
 
 
@@ -89,32 +90,17 @@ async def on_worker_shutdown(_: dict[str, Any]) -> None:
 
 def _get_file_content_loader(ctx: dict[str, Any]) -> Callable[[str], bytes] | None:
     """
-    Get a file content loader from context or default to S3/MinIO loader.
+    Get a file content loader from context or default to the configured storage backend.
 
     File paths are in format: {notebook_id}/{source_id}/{filename}
     """
     if "file_content_loader" in ctx:
         return ctx["file_content_loader"]
 
-    # Default: load from MinIO/S3 using boto3
+    storage = get_object_storage()
+
     def load_from_storage(file_path: str) -> bytes:
-        import boto3
-        import os
-
-        endpoint_url = os.getenv("MINIO_ENDPOINT", "http://localhost:9000")
-        access_key = os.getenv("MINIO_ACCESS_KEY", "minioadmin")
-        secret_key = os.getenv("MINIO_SECRET_KEY", "minioadmin")
-        bucket_name = os.getenv("MINIO_BUCKET", "notebooklx")
-
-        s3 = boto3.client(
-            "s3",
-            endpoint_url=endpoint_url,
-            aws_access_key_id=access_key,
-            aws_secret_access_key=secret_key,
-        )
-
-        response = s3.get_object(Bucket=bucket_name, Key=file_path)
-        return response["Body"].read()
+        return storage.load_bytes(file_path)
 
     return load_from_storage
 
