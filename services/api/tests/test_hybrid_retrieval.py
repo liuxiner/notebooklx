@@ -7,7 +7,11 @@ import time
 import pytest
 from unittest.mock import MagicMock, patch, AsyncMock
 from uuid import uuid4
+from sqlalchemy.orm import Session
 
+from services.api.modules.chunking.models import SourceChunk
+from services.api.modules.notebooks.models import Notebook
+from services.api.modules.sources.models import Source
 from services.api.modules.retrieval.service import SearchResult
 from services.api.modules.retrieval.hybrid import (
     BM25SearchService,
@@ -111,6 +115,33 @@ class TestBM25IndexBuilding:
         bm25, chunk_data = service._build_index(notebook_id)
 
         assert len(chunk_data) == 0
+
+    def test_build_index_accepts_string_notebook_id_on_sqlite(
+        self,
+        db: Session,
+        sample_notebook: Notebook,
+        sample_source: Source,
+    ):
+        """SQLite-backed BM25 queries should accept dashed string notebook ids."""
+        db.add(
+            SourceChunk(
+                source_id=sample_source.id,
+                chunk_index=0,
+                content="Tuya platform overview",
+                token_count=3,
+                char_start=0,
+                char_end=22,
+                chunk_metadata={"page": 1},
+            )
+        )
+        db.commit()
+
+        service = BM25SearchService(db)
+        bm25, chunk_data = service._build_index(str(sample_notebook.id))
+
+        assert bm25 is not None
+        assert len(chunk_data) == 1
+        assert chunk_data[0]["source_id"] == str(sample_source.id)
 
 
 class TestBM25Search:

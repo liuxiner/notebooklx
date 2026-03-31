@@ -8,6 +8,7 @@ Provides:
 - Notebook-scoped search (filter by notebook_id)
 - Top-K retrieval with relevance scores
 """
+import uuid
 from dataclasses import dataclass
 from typing import List, Optional
 from sqlalchemy import select, func, text
@@ -33,6 +34,13 @@ class SearchResult:
 
     def __repr__(self) -> str:
         return f"<SearchResult(score={self.score:.4f}, content={self.content[:50]}...)>"
+
+
+def _normalize_uuid_string(value: object) -> str:
+    """Convert SQLite UUID hex strings into standard dashed UUID strings."""
+    if isinstance(value, str) and len(value) == 32:
+        return str(uuid.UUID(value))
+    return str(value)
 
 
 class VectorSearchService:
@@ -170,8 +178,6 @@ class VectorSearchService:
         """
         import json
         import numpy as np
-        import uuid
-
         # Convert notebook_id to UUID hex format (without dashes) for SQLite compatibility
         if isinstance(notebook_id, str):
             notebook_uuid = uuid.UUID(notebook_id)
@@ -237,17 +243,11 @@ class VectorSearchService:
                         except json.JSONDecodeError:
                             metadata = {}
 
-                    # Convert UUID hex format back to standard UUID format with dashes
-                    notebook_id_value = row.notebook_id
-                    if isinstance(notebook_id_value, str) and len(notebook_id_value) == 32:
-                        # It's a hex string without dashes, convert to standard UUID format
-                        notebook_id_value = str(uuid.UUID(notebook_id_value))
-
                     results.append(
                         SearchResult(
-                            chunk_id=str(row.id),
-                            source_id=str(row.source_id),
-                            notebook_id=notebook_id_value,
+                            chunk_id=_normalize_uuid_string(row.id),
+                            source_id=_normalize_uuid_string(row.source_id),
+                            notebook_id=_normalize_uuid_string(row.notebook_id),
                             content=row.content,
                             score=float(similarity),
                             metadata=metadata or {},

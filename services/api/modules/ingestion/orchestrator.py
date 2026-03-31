@@ -22,6 +22,7 @@ from services.api.modules.chunking import Chunker, ChunkResult, SourceChunk
 from services.api.modules.embeddings import (
     EmbeddingService,
     EmbeddingResult,
+    BigModelEmbeddingProvider,
     normalize_embedding,
 )
 from services.api.modules.parsers import (
@@ -37,6 +38,26 @@ from services.api.modules.sources.models import Source, SourceType
 
 
 logger = logging.getLogger(__name__)
+
+
+def _build_runtime_embedding_service() -> EmbeddingService:
+    """
+    Build the default runtime embedding service.
+
+    In production flows, ingestion should use the same OpenAI-compatible
+    provider as chat and retrieval. Tests and offline environments still fall
+    back to the mock provider when AI configuration is unavailable.
+    """
+    try:
+        provider = BigModelEmbeddingProvider()
+    except (ImportError, ValueError):
+        return EmbeddingService()
+
+    return EmbeddingService(
+        provider=provider,
+        model_name=provider.model,
+        dimension=provider.dimension,
+    )
 
 
 class IngestionError(Exception):
@@ -117,7 +138,7 @@ class IngestionOrchestrator:
             file_content_loader: Optional function to load file content from storage path
         """
         self.db = db
-        self.embedding_service = embedding_service or EmbeddingService()
+        self.embedding_service = embedding_service or _build_runtime_embedding_service()
         self.chunker = chunker or Chunker()
         self.progress_callback = progress_callback
         self.file_content_loader = file_content_loader

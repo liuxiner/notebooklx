@@ -74,6 +74,25 @@ def sample_text_source(db: Session, sample_notebook: Notebook) -> Source:
 class TestIngestionOrchestrator:
     """Test the ingestion orchestrator."""
 
+    def test_default_embedding_service_prefers_bigmodel_provider_when_configured(
+        self,
+        db: Session,
+    ):
+        """Runtime ingestion should align with the chat embedding backend."""
+        mock_provider = Mock()
+        mock_provider.dimension = 2048
+        mock_provider.model = "embedding-3"
+
+        with patch(
+            "services.api.modules.ingestion.orchestrator.BigModelEmbeddingProvider",
+            return_value=mock_provider,
+        ):
+            orchestrator = IngestionOrchestrator(db=db)
+
+        assert orchestrator.embedding_service.dimension == 2048
+        assert orchestrator.embedding_service.model_name == "embedding-3"
+        assert orchestrator.embedding_service._provider is mock_provider
+
     @pytest.mark.asyncio
     async def test_ingest_url_source_creates_chunks_and_embeddings(
         self,

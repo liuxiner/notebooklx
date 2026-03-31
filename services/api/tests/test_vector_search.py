@@ -411,3 +411,35 @@ class TestVectorSearchService:
         )
 
         assert len(results) <= 5
+
+    def test_search_normalizes_sqlite_uuid_strings(
+        self,
+        db: Session,
+        sample_notebook: Notebook,
+        sample_source: Source,
+    ):
+        """SQLite fallback should return UUIDs in standard dashed format."""
+        embedding = normalize_embedding([1.0] + [0.0] * 9)
+        chunk = SourceChunk(
+            source_id=sample_source.id,
+            chunk_index=0,
+            content="课程 方法论",
+            token_count=2,
+            char_start=0,
+            char_end=6,
+            embedding=embedding,
+        )
+        db.add(chunk)
+        db.commit()
+
+        service = VectorSearchService(db)
+        results = service.search(
+            query_embedding=embedding,
+            notebook_id=str(sample_notebook.id),
+            top_k=1,
+        )
+
+        assert len(results) == 1
+        assert results[0].chunk_id == str(chunk.id)
+        assert results[0].source_id == str(sample_source.id)
+        assert results[0].notebook_id == str(sample_notebook.id)

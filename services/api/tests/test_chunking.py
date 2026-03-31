@@ -440,6 +440,32 @@ class TestChunkerWithDefaultSettings:
             assert 300 <= token_count <= 800, \
                 f"Chunk {i} has {token_count} tokens, outside 300-800 range"
 
+    def test_cjk_document_chunking_respects_max_tokens(self, production_chunker):
+        """Chinese/PDF-style text should still produce bounded chunks."""
+        from services.api.modules.chunking.chunker import count_tokens
+
+        line = (
+            "这是管理课程《揭秘公司治理框架》的内容摘要，"
+            "包含章节说明、链接 https://example.com/resource 和更多分析。\\n"
+        )
+        text = line * 220
+
+        result = production_chunker.chunk_text(text, source_title="中文课程")
+
+        assert len(result) > 1
+        assert all(count_tokens(chunk.content) <= production_chunker.max_tokens for chunk in result)
+
+    def test_unbroken_text_is_hard_split_to_max_tokens(self, production_chunker):
+        """A segment without sentence boundaries should still be split safely."""
+        from services.api.modules.chunking.chunker import count_tokens
+
+        text = "课程内容分析" * 1500
+
+        result = production_chunker.chunk_text(text, source_title="无边界文本")
+
+        assert len(result) > 1
+        assert all(count_tokens(chunk.content) <= production_chunker.max_tokens for chunk in result)
+
     def test_overlap_within_range(self, production_chunker):
         """Overlap should be within 50-120 token range."""
         from services.api.modules.chunking.chunker import count_tokens
@@ -478,4 +504,3 @@ class TestChunkerModuleExports:
         assert Chunker is not None
         assert ChunkResult is not None
         assert count_tokens is not None
-

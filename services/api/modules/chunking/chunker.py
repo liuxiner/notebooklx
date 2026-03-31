@@ -176,7 +176,15 @@ class Chunker:
 
                 while overlap_start_idx >= 0 and overlap_tokens < self.overlap_tokens:
                     overlap_sent = sentences[overlap_start_idx]
-                    overlap_tokens += count_tokens(overlap_sent)
+                    overlap_sent_tokens = count_tokens(overlap_sent)
+
+                    # Skip overlap when a single segment already meets or exceeds
+                    # the overlap budget. Otherwise we can requeue the entire
+                    # previous chunk and never advance.
+                    if overlap_sent_tokens > self.overlap_tokens:
+                        break
+
+                    overlap_tokens += overlap_sent_tokens
                     overlap_sentences.insert(0, overlap_sent)
                     overlap_start_idx -= 1
 
@@ -303,7 +311,8 @@ class Chunker:
         """
         Split text into sentences.
 
-        Uses a simple regex-based approach that handles common sentence boundaries.
+        Handles common English and CJK sentence boundaries, while falling back to
+        token-window splits when a single segment still exceeds ``max_tokens``.
 
         Args:
             text: Text to split.
@@ -311,13 +320,41 @@ class Chunker:
         Returns:
             List of sentences.
         """
-        # Split on sentence-ending punctuation followed by whitespace
-        # This handles: periods, question marks, exclamation marks
-        # But preserves abbreviations like "Dr.", "Mr.", "e.g.", etc.
-        pattern = r'(?<=[.!?])\s+(?=[A-Z])'
-        raw_sentences = re.split(pattern, text.strip())
+        pattern = re.compile(
+            r".+?(?:\n+|[。！？；]\s*|[.!?;](?:\s+|$)|$)",
+            re.DOTALL,
+        )
+        raw_sentences = [match.group(0) for match in pattern.finditer(text.strip())]
 
-        # Filter out empty sentences and strip whitespace
-        sentences = [s.strip() for s in raw_sentences if s.strip()]
+        sentences: List[str] = []
+        for raw_sentence in raw_sentences:
+            if not raw_sentence.strip():
+                continue
+
+            if count_tokens(raw_sentence) <= self.max_tokens:
+                sentences.append(raw_sentence)
+                continue
+
+            sentences.extend(self._split_oversized_segment(raw_sentence))
 
         return sentences
+
+    def _split_oversized_segment(self, text: str) -> List[str]:
+        """
+        Split a single oversized segment into token-bounded pieces.
+
+        This keeps ingestion safe even when sentence detection misses natural
+        boundaries, which is common with PDFs containing links, bullets, or CJK
+        text that does not follow English punctuation rules.
+        """
+        encoding = _get_encoding()
+        token_ids = encoding.encode(text)
+        segments: List[str] = []
+
+        for start in range(0, len(token_ids), self.max_tokens):
+            end = min(start + self.max_tokens, len(token_ids))
+            segment = encoding.decode(token_ids[start:end])
+            if segment.strip():
+                segments.append(segment)
+
+        return segments

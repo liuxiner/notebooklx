@@ -13,6 +13,7 @@ from __future__ import annotations
 import logging
 import math
 import re
+import uuid
 from dataclasses import dataclass, field
 from typing import List, Optional, Dict, Any
 from sqlalchemy import text, select
@@ -77,6 +78,13 @@ from services.api.modules.sources.models import Source
 from services.api.modules.retrieval.service import VectorSearchService, SearchResult
 
 logger = logging.getLogger(__name__)
+
+
+def _normalize_notebook_id(notebook_id: str | uuid.UUID) -> str | uuid.UUID:
+    """Convert string UUIDs to UUID objects for ORM filters."""
+    if isinstance(notebook_id, str):
+        return uuid.UUID(notebook_id)
+    return notebook_id
 
 
 @dataclass
@@ -145,7 +153,7 @@ class BM25SearchService:
                 Source.notebook_id,
             )
             .join(Source, SourceChunk.source_id == Source.id)
-            .where(Source.notebook_id == notebook_id)
+            .where(Source.notebook_id == _normalize_notebook_id(notebook_id))
         )
 
         result = self.db.execute(query)
