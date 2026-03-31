@@ -209,8 +209,14 @@ class IngestionOrchestrator:
                     content = content.encode("utf-8")
                 result = parser.parse_bytes(content, filename=source.title)
             elif source.source_type in (SourceType.URL, SourceType.YOUTUBE, SourceType.GDOCS):
-                # URL-based parsers expect the URL string
-                result = parser.parse(str(content))
+                if isinstance(content, bytes):
+                    content = content.decode("utf-8")
+
+                parse_url = getattr(parser, "parse_url", None)
+                if callable(parse_url):
+                    result = parse_url(str(content))
+                else:
+                    result = parser.parse(str(content))
             else:
                 # Fallback for unknown types
                 if isinstance(content, bytes):

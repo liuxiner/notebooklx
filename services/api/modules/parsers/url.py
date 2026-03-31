@@ -7,6 +7,8 @@ from pathlib import Path
 from typing import Optional
 import logging
 
+import httpx
+
 from services.api.modules.parsers.base import (
     BaseParser,
     ParseResult,
@@ -25,12 +27,15 @@ class URLParser(BaseParser):
     removing scripts, styles, navigation, and other boilerplate.
     """
 
-    def parse(self, file_path: Path) -> ParseResult:
+    REQUEST_TIMEOUT = 30
+    USER_AGENT = "Mozilla/5.0 (compatible; NotebookLX/1.0)"
+
+    def parse(self, file_path: Path | str) -> ParseResult:
         """
-        Parse an HTML file from disk.
+        Parse an HTML file from disk or fetch a remote URL.
 
         Args:
-            file_path: Path to the HTML file.
+            file_path: Path to the HTML file or URL string.
 
         Returns:
             ParseResult with extracted text and metadata.
@@ -38,6 +43,12 @@ class URLParser(BaseParser):
         Raises:
             ParserError: If the file doesn't exist or parsing fails.
         """
+        if isinstance(file_path, str):
+            candidate = file_path.strip()
+            if candidate.startswith(("http://", "https://")):
+                return self.parse_url(candidate)
+            file_path = Path(candidate)
+
         if not file_path.exists():
             raise ParserError(f"File not found: {file_path}")
 
@@ -50,6 +61,38 @@ class URLParser(BaseParser):
         except Exception as e:
             logger.error(f"Failed to read HTML file {file_path}: {e}")
             raise ParserError(f"Failed to read HTML file: {e}")
+
+    def parse_url(self, url: str) -> ParseResult:
+        """
+        Fetch a remote URL and parse the returned HTML.
+
+        Args:
+            url: The remote URL to fetch.
+
+        Returns:
+            ParseResult with extracted text and metadata.
+
+        Raises:
+            ParserError: If the URL fetch fails or returns invalid HTML.
+        """
+        if not url or not url.strip():
+            raise ParserError("Empty URL provided")
+
+        try:
+            response = httpx.get(
+                url,
+                headers={"User-Agent": self.USER_AGENT},
+                timeout=self.REQUEST_TIMEOUT,
+                follow_redirects=True,
+            )
+            response.raise_for_status()
+            return self.parse_html(response.text, url=url)
+        except httpx.HTTPStatusError as e:
+            logger.error(f"HTTP error fetching URL {url}: {e}")
+            raise ParserError(f"Failed to fetch URL: {e}") from e
+        except httpx.RequestError as e:
+            logger.error(f"Request error fetching URL {url}: {e}")
+            raise ParserError(f"Failed to fetch URL: {e}") from e
 
     def parse_bytes(self, content: bytes, filename: str = "") -> ParseResult:
         """

@@ -11,6 +11,7 @@ import pytest
 from pathlib import Path
 import tempfile
 import io
+from unittest.mock import Mock
 
 from fpdf import FPDF
 
@@ -351,6 +352,31 @@ class TestURLParser:
         # Web pages are treated as a single "page"
         assert len(result.pages) == 1
         assert result.pages[0].page_number == 1
+
+    def test_parse_url_fetches_remote_html(self, url_parser, sample_html, monkeypatch):
+        """URL parser should fetch remote HTML before extracting text."""
+        test_url = "https://example.com/test-page"
+
+        response = Mock()
+        response.text = sample_html
+        response.raise_for_status.return_value = None
+
+        def fake_get(url, *, headers, timeout, follow_redirects):
+            assert url == test_url
+            assert timeout == URLParser.REQUEST_TIMEOUT
+            assert follow_redirects is True
+            assert "NotebookLX" in headers["User-Agent"]
+            return response
+
+        import services.api.modules.parsers.url as url_module
+
+        monkeypatch.setattr(url_module.httpx, "get", fake_get)
+
+        result = url_parser.parse_url(test_url)
+
+        assert isinstance(result, ParseResult)
+        assert result.metadata["url"] == test_url
+        assert "main content paragraph" in result.full_text.lower()
 
 
 class TestTextParser:

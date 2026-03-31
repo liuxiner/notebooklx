@@ -104,7 +104,7 @@ class TestIngestionOrchestrator:
             "services.api.modules.ingestion.orchestrator.URLParser"
         ) as MockURLParser:
             mock_parser = Mock()
-            mock_parser.parse.return_value = mock_parse_result
+            mock_parser.parse_url.return_value = mock_parse_result
             MockURLParser.return_value = mock_parser
 
             orchestrator = IngestionOrchestrator(
@@ -197,7 +197,7 @@ class TestIngestionOrchestrator:
             "services.api.modules.ingestion.orchestrator.URLParser"
         ) as MockURLParser:
             mock_parser = Mock()
-            mock_parser.parse.return_value = mock_parse_result
+            mock_parser.parse_url.return_value = mock_parse_result
             MockURLParser.return_value = mock_parser
 
             orchestrator = IngestionOrchestrator(
@@ -232,7 +232,7 @@ class TestIngestionOrchestrator:
             "services.api.modules.ingestion.orchestrator.URLParser"
         ) as MockURLParser:
             mock_parser = Mock()
-            mock_parser.parse.side_effect = ParserError("Failed to fetch URL")
+            mock_parser.parse_url.side_effect = ParserError("Failed to fetch URL")
             MockURLParser.return_value = mock_parser
 
             orchestrator = IngestionOrchestrator(
@@ -301,7 +301,7 @@ class TestIngestionOrchestrator:
             "services.api.modules.ingestion.orchestrator.URLParser"
         ) as MockURLParser:
             mock_parser = Mock()
-            mock_parser.parse.return_value = mock_parse_result
+            mock_parser.parse_url.return_value = mock_parse_result
             MockURLParser.return_value = mock_parser
 
             orchestrator = IngestionOrchestrator(
@@ -352,7 +352,7 @@ class TestIngestionOrchestrator:
             "services.api.modules.ingestion.orchestrator.URLParser"
         ) as MockURLParser:
             mock_parser = Mock()
-            mock_parser.parse.return_value = mock_parse_result
+            mock_parser.parse_url.return_value = mock_parse_result
             MockURLParser.return_value = mock_parser
 
             orchestrator = IngestionOrchestrator(
@@ -405,7 +405,7 @@ class TestRunIngestionFunction:
             "services.api.modules.ingestion.orchestrator.URLParser"
         ) as MockURLParser:
             mock_parser = Mock()
-            mock_parser.parse.return_value = mock_parse_result
+            mock_parser.parse_url.return_value = mock_parse_result
             MockURLParser.return_value = mock_parser
 
             result = await run_ingestion(
@@ -416,6 +416,51 @@ class TestRunIngestionFunction:
 
             assert isinstance(result, IngestionResult)
             assert result.source_id == str(sample_url_source.id)
+
+    @pytest.mark.asyncio
+    async def test_ingest_url_source_uses_parse_url_contract(
+        self,
+        db: Session,
+        sample_url_source: Source,
+        mock_embedding_service: EmbeddingService,
+    ):
+        """URL-like sources should call parse_url instead of parse."""
+        mock_parse_result = ParseResult(
+            full_text="Contract test content for URL ingestion.",
+            pages=[
+                PageContent(
+                    page_number=1,
+                    text="Contract test content for URL ingestion.",
+                    char_start=0,
+                    char_end=39,
+                )
+            ],
+            metadata={"url": sample_url_source.original_url},
+            title="Contract Test",
+            total_pages=1,
+        )
+
+        with patch(
+            "services.api.modules.ingestion.orchestrator.URLParser"
+        ) as MockURLParser:
+            mock_parser = Mock()
+            mock_parser.parse.side_effect = AssertionError(
+                "parse() should not be used for URL sources"
+            )
+            mock_parser.parse_url.return_value = mock_parse_result
+            MockURLParser.return_value = mock_parser
+
+            orchestrator = IngestionOrchestrator(
+                db=db,
+                embedding_service=mock_embedding_service,
+            )
+
+            result = await orchestrator.ingest(sample_url_source)
+
+            assert isinstance(result, IngestionResult)
+            mock_parser.parse_url.assert_called_once_with(
+                sample_url_source.original_url
+            )
 
 
 class TestIngestionProgress:
