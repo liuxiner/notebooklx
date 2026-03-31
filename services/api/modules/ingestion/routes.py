@@ -19,6 +19,7 @@ from services.api.modules.ingestion.schemas import (
 from services.api.modules.notebooks.models import Notebook
 from services.api.modules.notebooks.routes import get_current_user_id
 from services.api.modules.sources.models import Source, SourceStatus
+from services.api.modules.chunking.models import SourceChunk
 
 
 router = APIRouter(prefix="/api", tags=["ingestion"])
@@ -146,6 +147,34 @@ def get_source_ingestion_status(
         .first()
     )
     return build_status_response(source, job)
+
+
+@router.delete(
+    "/sources/{source_id}/ingestion",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_source_ingestion_data(
+    source_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    user_id: uuid.UUID = Depends(get_current_user_id),
+) -> None:
+    """
+    Remove ingestion jobs/chunks for a source and reset its status.
+
+    AC: Ingestion data can be cleared for a source (jobs + chunks).
+    """
+    source = get_source_for_user(source_id, user_id, db)
+
+    db.query(IngestionJob).filter(IngestionJob.source_id == source.id).delete(
+        synchronize_session=False
+    )
+    db.query(SourceChunk).filter(SourceChunk.source_id == source.id).delete(
+        synchronize_session=False
+    )
+    source.status = SourceStatus.PENDING
+    source.error_message = None
+    db.commit()
+    return None
 
 
 @router.get("/status/ingestion", response_model=IngestionQueueStatusResponse)

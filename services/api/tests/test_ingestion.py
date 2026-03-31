@@ -250,6 +250,62 @@ class TestIngestionQueueStatus:
         }
 
 
+class TestDeleteIngestionDataRoute:
+    def test_delete_ingestion_data_removes_jobs_and_chunks(
+        self, client: TestClient, created_source: dict, db
+    ):
+        """AC: Ingestion data can be cleared for a source."""
+        from services.api.modules.chunking.models import SourceChunk
+        from services.api.modules.ingestion.models import IngestionJob, IngestionJobStatus
+        from services.api.modules.sources.models import Source, SourceStatus
+
+        source_id = uuid.UUID(created_source["id"])
+        source = db.query(Source).filter(Source.id == source_id).one()
+
+        db.add_all(
+            [
+                IngestionJob(
+                    source_id=source_id,
+                    status=IngestionJobStatus.FAILED,
+                    error_message="boom",
+                ),
+                SourceChunk(
+                    source_id=source_id,
+                    chunk_index=0,
+                    content="chunk",
+                    token_count=1,
+                    char_start=0,
+                    char_end=1,
+                    embedding=[0.1, 0.2],
+                ),
+            ]
+        )
+        source.status = SourceStatus.FAILED
+        source.error_message = "boom"
+        db.commit()
+
+        assert (
+            db.query(IngestionJob).filter(IngestionJob.source_id == source_id).count() == 1
+        )
+        assert (
+            db.query(SourceChunk).filter(SourceChunk.source_id == source_id).count() == 1
+        )
+
+        response = client.delete(f"/api/sources/{created_source['id']}/ingestion")
+
+        assert response.status_code == 204
+        assert (
+            db.query(IngestionJob).filter(IngestionJob.source_id == source_id).count() == 0
+        )
+        assert (
+            db.query(SourceChunk).filter(SourceChunk.source_id == source_id).count() == 0
+        )
+
+        refreshed_source = db.query(Source).filter(Source.id == source_id).one()
+        assert refreshed_source.status == SourceStatus.PENDING
+        assert refreshed_source.error_message is None
+
+
 class TestIngestionHealth:
     """Tests for GET /api/status/ingestion/health."""
 
