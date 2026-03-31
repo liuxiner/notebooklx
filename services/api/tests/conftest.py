@@ -58,6 +58,10 @@ def db() -> Generator[Session, None, None]:
         from services.api.modules.chunking.models import SourceChunk  # noqa: F401
     except ImportError:
         pass  # Chunking module not yet created
+    try:
+        from services.api.modules.chat.models import Message  # noqa: F401
+    except ImportError:
+        pass  # Chat message storage may not exist yet
 
     # Create all tables
     Base.metadata.create_all(bind=engine)

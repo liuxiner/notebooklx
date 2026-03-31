@@ -62,6 +62,7 @@ def initialize_database(bind_engine: Engine | None = None) -> None:
     from services.api.modules.sources.models import Source  # noqa: F401
     from services.api.modules.ingestion.models import IngestionJob  # noqa: F401
     from services.api.modules.chunking.models import SourceChunk  # noqa: F401
+    from services.api.modules.chat.models import Message  # noqa: F401
 
     Base.metadata.create_all(bind=active_engine)
 

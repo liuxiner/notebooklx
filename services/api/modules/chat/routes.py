@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from services.api.core.ai import BigModelChatProvider
 from services.api.core.database import get_db
+from services.api.modules.chat.models import Message, MessageRole
 from services.api.modules.chat.service import GroundedQAService
 from services.api.modules.embeddings.providers import BigModelEmbeddingProvider
 from services.api.modules.notebooks.models import Notebook
@@ -79,6 +80,30 @@ def _format_sse_event(event: str, data: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
+def _persist_chat_exchange(
+    db: Session,
+    notebook_id: uuid.UUID,
+    question: str,
+    answer: str,
+) -> None:
+    """Store a completed user/assistant exchange for the notebook."""
+    db.add_all(
+        [
+            Message(
+                notebook_id=notebook_id,
+                role=MessageRole.USER,
+                content=question,
+            ),
+            Message(
+                notebook_id=notebook_id,
+                role=MessageRole.ASSISTANT,
+                content=answer,
+            ),
+        ]
+    )
+    db.commit()
+
+
 @router.post("/{notebook_id}/chat/stream")
 async def stream_grounded_chat(
     notebook_id: uuid.UUID,
@@ -117,6 +142,7 @@ async def stream_grounded_chat(
             str(notebook.id),
             top_k=payload.top_k,
         )
+        _persist_chat_exchange(db, notebook.id, payload.question, response.answer)
 
         yield _format_sse_event(
             "citations",

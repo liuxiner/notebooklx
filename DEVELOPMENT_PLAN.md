@@ -340,9 +340,9 @@ This document outlines the detailed development plan, acceptance criteria, and t
 5. [x] Implement structured citation output parsing
 6. [x] Create citation alignment logic (map chunk IDs to markers)
 7. [x] Implement SSE streaming endpoint
-8. Create Message model and database table
+8. [x] Create Message model and database table
 9. Create Citation model and database table
-10. Implement chat history storage
+10. [x] Implement chat history storage
 11. Add groundedness validation
 12. Write unit tests for chat flow
 13. Add database migrations

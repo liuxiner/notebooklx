@@ -89,7 +89,7 @@ Quick reference checklist for tracking development progress. Check off items as 
 - ✓ Structured output parsing
 - ✓ Citation extraction
 - ✓ SSE streaming
-- ⬜ Message storage
+- ✓ Message storage
 
 **Citation System**
 - ⬜ Evidence layer
