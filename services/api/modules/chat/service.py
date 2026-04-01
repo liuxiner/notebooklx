@@ -7,11 +7,15 @@ from __future__ import annotations
 
 import json
 import re
+import time
+import logging
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from services.api.modules.embeddings.providers import EmbeddingProvider
 from services.api.modules.retrieval.hybrid import HybridSearchResult
+
+logger = logging.getLogger(__name__)
 
 
 DEFAULT_GROUNDED_SYSTEM_PROMPT = (
@@ -268,16 +272,30 @@ class GroundedQAService:
         top_k: int = 5,
     ) -> GroundedQAResponse:
         """Retrieve evidence and generate a grounded answer."""
+        start_time = time.monotonic()
+
+        logger.info(f"[CHAT] Starting answer_question for question: '{question[:50]}...'")
+
+        # Step 1: Generate embedding
+        embed_start = time.monotonic()
         query_embedding = self.embedding_provider.embed(question)
+        embed_duration = time.monotonic() - embed_start
+        logger.info(f"[CHAT] Embedding generation took {embed_duration:.2f}s")
+
+        # Step 2: Search for relevant chunks
+        search_start = time.monotonic()
         retrieved = await self.retrieval_service.search(
             query=question,
             query_embedding=query_embedding,
             notebook_id=notebook_id,
             top_k=top_k,
         )
+        search_duration = time.monotonic() - search_start
+        logger.info(f"[CHAT] Vector search took {search_duration:.2f}s, found {len(retrieved)} results")
 
         evidence = format_evidence_pack(retrieved)
         if not evidence:
+            logger.warning(f"[CHAT] No evidence found for question: '{question[:50]}...'")
             messages = build_grounded_messages(question, evidence)
             return GroundedQAResponse(
                 answer="I don't have enough information",
@@ -289,11 +307,18 @@ class GroundedQAService:
                 messages=messages,
             )
 
+        # Step 3: Generate answer with LLM
+        llm_start = time.monotonic()
         messages = build_grounded_messages(question, evidence)
+        logger.info(f"[CHAT] Calling LLM with {len(evidence)} evidence chunks")
         raw_answer = self.chat_provider.chat(messages)
+        llm_duration = time.monotonic() - llm_start
+        logger.info(f"[CHAT] LLM call took {llm_duration:.2f}s")
+
         parsed = parse_grounded_answer_output(raw_answer, evidence)
         answer = parsed.answer.strip()
         if not answer:
+            logger.warning(f"[CHAT] LLM returned empty answer for question: '{question[:50]}...'")
             return GroundedQAResponse(
                 answer="I don't have enough information",
                 evidence=evidence,
@@ -303,6 +328,9 @@ class GroundedQAService:
                 raw_answer=parsed.raw_answer,
                 messages=messages,
             )
+
+        total_duration = time.monotonic() - start_time
+        logger.info(f"[CHAT] Total answer_question took {total_duration:.2f}s")
 
         return GroundedQAResponse(
             answer=answer,

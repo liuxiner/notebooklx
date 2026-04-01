@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 from dataclasses import asdict
 import uuid
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
@@ -15,6 +16,13 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from services.api.core.ai import BigModelChatProvider
+
+logger = logging.getLogger(__name__)
+
+try:
+    from openai import APIConnectionError, APIError, RateLimitError, APITimeoutError
+except ImportError:  # pragma: no cover
+    APIConnectionError = APIError = RateLimitError = APITimeoutError = None
 from services.api.core.database import get_db
 from services.api.modules.chat.models import Message, MessageRole
 from services.api.modules.chat.service import GroundedQAService
@@ -137,29 +145,50 @@ async def stream_grounded_chat(
             },
         )
 
-        response = await grounded_qa_service.answer_question(
-            payload.question,
-            str(notebook.id),
-            top_k=payload.top_k,
-        )
-        _persist_chat_exchange(db, notebook.id, payload.question, response.answer)
+        try:
+            response = await grounded_qa_service.answer_question(
+                payload.question,
+                str(notebook.id),
+                top_k=payload.top_k,
+            )
+            _persist_chat_exchange(db, notebook.id, payload.question, response.answer)
 
-        yield _format_sse_event(
-            "citations",
-            {
-                "citations": [asdict(chunk) for chunk in response.citations],
-                "citation_indices": response.citation_indices,
-                "missing_citation_indices": response.missing_citation_indices,
-            },
-        )
-        yield _format_sse_event(
-            "answer",
-            {
-                "answer": response.answer,
-                "raw_answer": response.raw_answer,
-            },
-        )
-        yield _format_sse_event("done", {"status": "complete"})
+            yield _format_sse_event(
+                "citations",
+                {
+                    "citations": [asdict(chunk) for chunk in response.citations],
+                    "citation_indices": response.citation_indices,
+                    "missing_citation_indices": response.missing_citation_indices,
+                },
+            )
+            yield _format_sse_event(
+                "answer",
+                {
+                    "answer": response.answer,
+                    "raw_answer": response.raw_answer,
+                },
+            )
+            yield _format_sse_event("done", {"status": "complete"})
+        except (APIConnectionError, APIError, RateLimitError, APITimeoutError) as exc:
+            logger.exception("AI API error during chat stream")
+            yield _format_sse_event(
+                "error",
+                {
+                    "error": type(exc).__name__,
+                    "message": str(exc),
+                },
+            )
+            raise
+        except Exception as exc:
+            logger.exception("Unexpected error during chat stream")
+            yield _format_sse_event(
+                "error",
+                {
+                    "error": "internal_error",
+                    "message": "An unexpected error occurred",
+                },
+            )
+            raise
 
     return StreamingResponse(
         event_stream(),

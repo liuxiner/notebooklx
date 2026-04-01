@@ -8,6 +8,8 @@ one place.
 from __future__ import annotations
 
 import os
+import time
+import logging
 from dataclasses import dataclass
 from typing import Any
 
@@ -15,6 +17,8 @@ try:
     from openai import OpenAI
 except ImportError:  # pragma: no cover - exercised in environments without deps
     OpenAI = None
+
+logger = logging.getLogger(__name__)
 
 
 DEFAULT_BIGMODEL_BASE_URL = "https://open.bigmodel.cn/api/paas/v4/"
@@ -94,6 +98,7 @@ def build_openai_compatible_client(settings: AIClientSettings):
     return OpenAI(
         api_key=settings.api_key,
         base_url=settings.base_url,
+        timeout=120.0,  # 120 seconds timeout for long-running requests
     )
 
 
@@ -126,23 +131,38 @@ class BigModelChatProvider:
 
     def chat(self, messages: list[dict[str, Any]], **kwargs: Any) -> str:
         """Create a chat completion and return the first text response."""
-        response = self._get_client().chat.completions.create(
-            model=self._model,
-            messages=messages,
-            **kwargs,
-        )
-        message = response.choices[0].message
-        content = getattr(message, "content", "")
+        start_time = time.monotonic()
+        logger.info(f"[CHAT] Calling LLM with {len(messages)} messages, model: {self._model}")
 
-        if isinstance(content, str):
-            return content
+        try:
+            response = self._get_client().chat.completions.create(
+                model=self._model,
+                messages=messages,
+                **kwargs,
+            )
+            duration = time.monotonic() - start_time
+            logger.info(f"[CHAT] LLM call completed in {duration:.2f}s")
 
-        if isinstance(content, list):
-            text_parts = [
-                part.text
-                for part in content
-                if getattr(part, "type", None) == "text" and getattr(part, "text", None)
-            ]
-            return "".join(text_parts)
+            message = response.choices[0].message
+            content = getattr(message, "content", "")
 
-        return ""
+            if isinstance(content, str):
+                logger.debug(f"[CHAT] LLM returned {len(content)} characters")
+                return content
+
+            if isinstance(content, list):
+                text_parts = [
+                    part.text
+                    for part in content
+                    if getattr(part, "type", None) == "text" and getattr(part, "text", None)
+                ]
+                result = "".join(text_parts)
+                logger.debug(f"[CHAT] LLM returned {len(result)} characters (multipart content)")
+                return result
+
+            logger.warning(f"[CHAT] LLM returned unexpected content type: {type(content)}")
+            return ""
+        except Exception as e:
+            duration = time.monotonic() - start_time
+            logger.error(f"[CHAT] LLM call failed after {duration:.2f}s: {e}")
+            raise

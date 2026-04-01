@@ -9,11 +9,14 @@ Supports:
 """
 import hashlib
 import time
+import logging
 from abc import ABC, abstractmethod
 from typing import List, Optional
 
 from services.api.core.ai import build_openai_compatible_client, get_ai_client_settings
 from services.api.modules.embeddings.utils import normalize_embedding
+
+logger = logging.getLogger(__name__)
 
 
 DEFAULT_EMBEDDING_MAX_RETRIES = 3
@@ -283,6 +286,7 @@ class BigModelEmbeddingProvider(EmbeddingProvider):
         elapsed = time.monotonic() - self._last_request_started_at
         remaining = self._min_interval_seconds - elapsed
         if remaining > 0:
+            logger.debug(f"[EMBEDDING] Rate limiting: sleeping {remaining:.2f}s")
             time.sleep(remaining)
 
     def _sleep_for_backoff(self, attempt: int) -> None:
@@ -301,14 +305,18 @@ class BigModelEmbeddingProvider(EmbeddingProvider):
             self._last_request_started_at = time.monotonic()
 
             try:
+                logger.debug(f"[EMBEDDING] Calling API for {len(texts)} texts (attempt {attempt + 1}/{self._max_retries + 1})")
                 return client.embeddings.create(
                     model=self._model,
                     input=texts,
                 )
             except Exception as error:
                 if attempt >= self._max_retries or not _is_retryable_embedding_error(error):
+                    logger.error(f"[EMBEDDING] API error on attempt {attempt + 1}: {error}")
                     raise
 
+                delay = self._base_backoff_seconds * (2 ** attempt)
+                logger.warning(f"[EMBEDDING] Retryable error on attempt {attempt + 1}, retrying in {delay:.2f}s: {error}")
                 self._sleep_for_backoff(attempt)
 
         raise RuntimeError("embedding request exhausted retry attempts")

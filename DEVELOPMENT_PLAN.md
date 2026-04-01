@@ -408,7 +408,7 @@ This document outlines the detailed development plan, acceptance criteria, and t
 7. ✓ Implement chunk ID → citation marker mapping
 8. ✓ Create citation storage logic
 9. ⬜ Add citation validation (check chunk IDs exist)
-10. ⬜ Create citation API endpoint for fetching
+10. ✓ Create citation API endpoint for fetching
 11. ✓ Write unit tests for citation logic
 12. ✓ Add database migration for citations table
 

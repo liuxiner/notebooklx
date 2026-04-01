@@ -93,7 +93,7 @@ Quick reference checklist for tracking development progress. Check off items as 
 
 **Citation System**
 - ✓ Citation database model
-- ⬜ Citation API
+- ✓ Citation API
 - ⬜ Citation validation
 
 **Chat UI**
