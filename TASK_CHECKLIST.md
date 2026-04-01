@@ -92,9 +92,7 @@ Quick reference checklist for tracking development progress. Check off items as 
 - ✓ Message storage
 
 **Citation System**
-- ⬜ Evidence layer
-- ⬜ Binding layer
-- ⬜ Citation database model
+- ✓ Citation database model
 - ⬜ Citation API
 - ⬜ Citation validation
 

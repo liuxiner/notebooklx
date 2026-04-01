@@ -62,6 +62,10 @@ def db() -> Generator[Session, None, None]:
         from services.api.modules.chat.models import Message  # noqa: F401
     except ImportError:
         pass  # Chat message storage may not exist yet
+    try:
+        from services.api.modules.citations.models import Citation  # noqa: F401
+    except ImportError:
+        pass  # Citation module may not exist yet
 
     # Create all tables
     Base.metadata.create_all(bind=engine)

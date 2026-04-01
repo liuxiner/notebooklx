@@ -383,20 +383,20 @@ This document outlines the detailed development plan, acceptance criteria, and t
 ### Feature 3.4: Two-Layer Citation System
 
 **Acceptance Criteria:**
-- [ ] Evidence layer: candidate chunks retrieved before generation
-- [ ] Binding layer: LLM output maps sentences to chunk IDs
-- [ ] Citation scores reflect relevance
-- [ ] Citations include exact quotes from chunks
-- [ ] Multiple citations can support one statement
-- [ ] Citations persist in database for audit
+- [x] Evidence layer: candidate chunks retrieved before generation
+- [x] Binding layer: LLM output maps sentences to chunk IDs
+- [x] Citation scores reflect relevance
+- [x] Citations include exact quotes from chunks
+- [x] Multiple citations can support one statement
+- [x] Citations persist in database for audit
 - [ ] UI displays both citation text and score
 
 **Tasks:**
-1. Create citation module (services/api/modules/citations/)
-2. Design evidence layer schema
-3. Design binding layer schema
-4. Implement evidence retrieval and scoring
-5. Create structured LLM output schema
+1. ✓ Create citation module (services/api/modules/citations/)
+2. ✓ Design evidence layer schema
+3. ✓ Design binding layer schema
+4. ✓ Implement evidence retrieval and scoring
+5. ✓ Create structured LLM output schema
    ```json
    {
      "answer_blocks": [
@@ -404,13 +404,13 @@ This document outlines the detailed development plan, acceptance criteria, and t
      ]
    }
    ```
-6. Implement citation extraction from LLM response
-7. Implement chunk ID → citation marker mapping
-8. Create citation storage logic
-9. Add citation validation (check chunk IDs exist)
-10. Create citation API endpoint for fetching
-11. Write unit tests for citation logic
-12. Add database migration for citations table
+6. ✓ Implement citation extraction from LLM response
+7. ✓ Implement chunk ID → citation marker mapping
+8. ✓ Create citation storage logic
+9. ⬜ Add citation validation (check chunk IDs exist)
+10. ⬜ Create citation API endpoint for fetching
+11. ✓ Write unit tests for citation logic
+12. ✓ Add database migration for citations table
 
 ---
 
