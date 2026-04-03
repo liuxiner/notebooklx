@@ -246,7 +246,7 @@
     {
       "id": "test-001",
       "question": "什么是真正导致其无解的?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "评价权之争",
@@ -271,7 +271,7 @@
     {
       "id": "test-002",
       "question": "什么是公司存在的逻辑就?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "项目",
@@ -296,7 +296,7 @@
     {
       "id": "test-003",
       "question": "战略信息在至上而下传播的过程中会因为理解的特征是什么?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "战略信息在至上而下传播的过程中会因为理解的特征是什么",
@@ -321,12 +321,8 @@
     {
       "id": "test-004",
       "question": "如何用3个人的成本，让2个人干4个人的活**。大家似乎感受不到困难，所以我们进一步演进： 1. 如何",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
-      "expected_chunks": [
-        "chunk_25",
-        "chunk_26",
-        "chunk_27"
-      ],
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
+      "expected_chunks": [],
       "expected_keywords": [
         "让2个人干4个人的活",
         "大家似乎感受不到困难",
@@ -350,7 +346,7 @@
     {
       "id": "test-005",
       "question": "战略信息在至上而下传播的过程中会因为理解和组织行为学有什么区别?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "所以",
@@ -375,7 +371,7 @@
     {
       "id": "test-006",
       "question": "总结一下战略信息在至上而下传播的过程中会因为理解的主要要点",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "评价权之争",
@@ -400,7 +396,7 @@
     {
       "id": "test-007",
       "question": "什么是### 海恩法则?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "复盘",
@@ -425,7 +421,7 @@
     {
       "id": "test-008",
       "question": "什么是团队初期?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "所以",
@@ -450,7 +446,7 @@
     {
       "id": "test-009",
       "question": "团队初期的特征是什么?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "海恩法则指出",
@@ -475,12 +471,8 @@
     {
       "id": "test-010",
       "question": "怎么做，也比较清晰了：**思考清楚要提倡什么、反对什么，反复问为什么，然后上方法。** ## 机制建",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
-      "expected_chunks": [
-        "chunk_115",
-        "chunk_116",
-        "chunk_117"
-      ],
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
+      "expected_chunks": [],
       "expected_keywords": [
         "也比较清晰了",
         "思考清楚要提倡什么",
@@ -504,7 +496,7 @@
     {
       "id": "test-011",
       "question": "团队初期和开始重塑整个公司的信息通道与评价体系有什么区别?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "海恩法则指出",
@@ -529,7 +521,7 @@
     {
       "id": "test-012",
       "question": "总结一下团队初期的主要要点",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "总结一下团队初期的主要要点",
@@ -554,7 +546,7 @@
     {
       "id": "test-013",
       "question": "什么是团队与团队之间?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "影响力",
@@ -579,7 +571,7 @@
     {
       "id": "test-014",
       "question": "什么是但宽容对应的?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "什么是但宽容对应的",
@@ -604,7 +596,7 @@
     {
       "id": "test-015",
       "question": "如图所示的特征是什么?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "任务敏感性",
@@ -629,12 +621,8 @@
     {
       "id": "test-016",
       "question": "如何积累影响力，如何为自己**“造势”**，去争取那些**好的项目**。 这初期和运气有关系，长期来",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
-      "expected_chunks": [
-        "chunk_179",
-        "chunk_180",
-        "chunk_181"
-      ],
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
+      "expected_chunks": [],
       "expected_keywords": [
         "如何为自己",
         "造势",
@@ -658,7 +646,7 @@
     {
       "id": "test-017",
       "question": "如图所示和更高的职位才会考虑到你有什么区别?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "如图所示和更高的职位才会考虑到你有什么区别",
@@ -683,7 +671,7 @@
     {
       "id": "test-018",
       "question": "总结一下如图所示的主要要点",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "总结一下如图所示的主要要点",
@@ -708,7 +696,7 @@
     {
       "id": "test-019",
       "question": "什么是所以无论是信息传递还?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "什么是所以无论是信息传递还",
@@ -733,7 +721,7 @@
     {
       "id": "test-020",
       "question": "什么是追求效率更高的信息传递以及公平评价?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "什么是追求效率更高的信息传递以及公平评价",
@@ -758,7 +746,7 @@
     {
       "id": "test-021",
       "question": "追求效率更高的信息传递以及公平评价的特征是什么?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "体现出来的就是",
@@ -783,7 +771,7 @@
     {
       "id": "test-022",
       "question": "如何识别追求效率更高的信息传递以及公平评价?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "如何识别追求效率更高的信息传递以及公平评价",
@@ -808,7 +796,7 @@
     {
       "id": "test-023",
       "question": "追求效率更高的信息传递以及公平评价和但过份滥用一方面会有什么区别?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "并且",
@@ -833,7 +821,7 @@
     {
       "id": "test-024",
       "question": "总结一下追求效率更高的信息传递以及公平评价的主要要点",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "总结一下追求效率更高的信息传递以及公平评价的主要要点",
@@ -858,7 +846,7 @@
     {
       "id": "test-025",
       "question": "什么是这句话的意思?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "聪明",
@@ -883,7 +871,7 @@
     {
       "id": "test-026",
       "question": "什么是这也?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "什么是这也",
@@ -908,7 +896,7 @@
     {
       "id": "test-027",
       "question": "如图所示的特征是什么?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "https",
@@ -933,12 +921,8 @@
     {
       "id": "test-028",
       "question": "如何选拔人才的？**\n\n要回答这些问题，就需要将视角同时拉回到员工身上，这就涉及**一般员工的思维*",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
-      "expected_chunks": [
-        "chunk_276",
-        "chunk_277",
-        "chunk_278"
-      ],
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
+      "expected_chunks": [],
       "expected_keywords": [
         "要回答这些问题",
         "就需要将视角同时拉回到员工身上",
@@ -962,7 +946,7 @@
     {
       "id": "test-029",
       "question": "如图所示和知行合一是最难的有什么区别?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "如图所示和知行合一是最难的有什么区别",
@@ -987,7 +971,7 @@
     {
       "id": "test-030",
       "question": "总结一下如图所示的主要要点",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "总结一下如图所示的主要要点",
@@ -1012,7 +996,7 @@
     {
       "id": "test-031",
       "question": "什么是便会更有侧重的去处理任务列表了?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "什么是便会更有侧重的去处理任务列表了",
@@ -1037,7 +1021,7 @@
     {
       "id": "test-032",
       "question": "什么是因为经理?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "什么是因为经理",
@@ -1062,7 +1046,7 @@
     {
       "id": "test-033",
       "question": "便会更有侧重的去处理任务列表了的特征是什么?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "https",
@@ -1087,7 +1071,7 @@
     {
       "id": "test-034",
       "question": "如何识别便会更有侧重的去处理任务列表了?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "如何识别便会更有侧重的去处理任务列表了",
@@ -1112,7 +1096,7 @@
     {
       "id": "test-035",
       "question": "便会更有侧重的去处理任务列表了和任务管理是非常考验业务熟悉与专业度的模块有什么区别?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "便会更有侧重的去处理任务列表了和任务管理是非常考验业务熟悉与专业度的模块有什么区别",
@@ -1137,7 +1121,7 @@
     {
       "id": "test-036",
       "question": "总结一下便会更有侧重的去处理任务列表了的主要要点",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "https",
@@ -1162,7 +1146,7 @@
     {
       "id": "test-037",
       "question": "什么是具体刺头员工的处理?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "什么是具体刺头员工的处理",
@@ -1187,7 +1171,7 @@
     {
       "id": "test-038",
       "question": "什么是具体刺头员工的处理?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "什么是具体刺头员工的处理",
@@ -1212,7 +1196,7 @@
     {
       "id": "test-039",
       "question": "不可不慎的特征是什么?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "不可不慎的特征是什么",
@@ -1237,7 +1221,7 @@
     {
       "id": "test-040",
       "question": "如何识别不可不慎?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "大锅饭",
@@ -1262,7 +1246,7 @@
     {
       "id": "test-041",
       "question": "不可不慎和我之前空降到一个团队有什么区别?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "杀熟",
@@ -1287,7 +1271,7 @@
     {
       "id": "test-042",
       "question": "总结一下不可不慎的主要要点",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "不要去讨好员工",
@@ -1312,7 +1296,7 @@
     {
       "id": "test-043",
       "question": "什么是造物主?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "比如",
@@ -1337,7 +1321,7 @@
     {
       "id": "test-044",
       "question": "什么是我确定的目标是大了还?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "比如",
@@ -1362,7 +1346,7 @@
     {
       "id": "test-045",
       "question": "swot分析的特征是什么?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "swot分析的特征是什么",
@@ -1387,12 +1371,8 @@
     {
       "id": "test-046",
       "question": "如何为框架填入内容，内容质量是不是好，才是难题！ 最后举个例子，很多人都会有榜样，特别是一些名人，我",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
-      "expected_chunks": [
-        "chunk_571",
-        "chunk_572",
-        "chunk_573"
-      ],
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
+      "expected_chunks": [],
       "expected_keywords": [
         "内容质量是不是好",
         "才是难题",
@@ -1416,7 +1396,7 @@
     {
       "id": "test-047",
       "question": "swot分析和或者寻找一些信心有什么区别?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "或者",
@@ -1441,7 +1421,7 @@
     {
       "id": "test-048",
       "question": "总结一下swot分析的主要要点",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "所以",
@@ -1466,7 +1446,7 @@
     {
       "id": "test-049",
       "question": "什么是这里的关键是刺头员工?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "什么是这里的关键是刺头员工",
@@ -1491,7 +1471,7 @@
     {
       "id": "test-050",
       "question": "什么是其次?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "什么是其次",
@@ -1516,7 +1496,7 @@
     {
       "id": "test-051",
       "question": "有了几次高投入的特征是什么?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "逐渐老油条化",
@@ -1541,7 +1521,7 @@
     {
       "id": "test-052",
       "question": "如何识别有了几次高投入?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "首先",
@@ -1566,7 +1546,7 @@
     {
       "id": "test-053",
       "question": "有了几次高投入和年轻人也有可能变成老油条有什么区别?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "有了几次高投入和年轻人也有可能变成老油条有什么区别",
@@ -1591,7 +1571,7 @@
     {
       "id": "test-054",
       "question": "总结一下有了几次高投入的主要要点",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "首先",
@@ -1616,7 +1596,7 @@
     {
       "id": "test-055",
       "question": "什么是** 于?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "于是",
@@ -1641,7 +1621,7 @@
     {
       "id": "test-056",
       "question": "什么是这里我也很好奇了问道?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "什么是这里我也很好奇了问道",
@@ -1666,7 +1646,7 @@
     {
       "id": "test-057",
       "question": "这里我也很好奇了问道的特征是什么?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "其反馈是",
@@ -1691,7 +1671,7 @@
     {
       "id": "test-058",
       "question": "如何识别这里我也很好奇了问道?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "如何识别这里我也很好奇了问道",
@@ -1716,7 +1696,7 @@
     {
       "id": "test-059",
       "question": "这里我也很好奇了问道和影响效率有什么区别?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "这里我也很好奇了问道和影响效率有什么区别",
@@ -1741,7 +1721,7 @@
     {
       "id": "test-060",
       "question": "总结一下这里我也很好奇了问道的主要要点",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "总结一下这里我也很好奇了问道的主要要点",
@@ -1766,7 +1746,7 @@
     {
       "id": "test-061",
       "question": "什么是** **这?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "什么是",
@@ -1791,7 +1771,7 @@
     {
       "id": "test-062",
       "question": "什么是绩效考核?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "什么是绩效考核",
@@ -1816,7 +1796,7 @@
     {
       "id": "test-063",
       "question": "忠诚度也高的特征是什么?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "https",
@@ -1841,7 +1821,7 @@
     {
       "id": "test-064",
       "question": "如何识别忠诚度也高?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "https",
@@ -1866,7 +1846,7 @@
     {
       "id": "test-065",
       "question": "忠诚度也高和能完成更多的工作有什么区别?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "忠诚度也高和能完成更多的工作有什么区别",
@@ -1891,7 +1871,7 @@
     {
       "id": "test-066",
       "question": "总结一下忠诚度也高的主要要点",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "其实",
@@ -1916,7 +1896,7 @@
     {
       "id": "test-067",
       "question": "什么是但需要大家共同努力?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "什么是但需要大家共同努力",
@@ -1941,7 +1921,7 @@
     {
       "id": "test-068",
       "question": "什么是如果?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "比如",
@@ -1966,7 +1946,7 @@
     {
       "id": "test-069",
       "question": "但需要大家共同努力的特征是什么?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "br",
@@ -1991,7 +1971,7 @@
     {
       "id": "test-070",
       "question": "如何识别但需要大家共同努力?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "如何识别但需要大家共同努力",
@@ -2016,7 +1996,7 @@
     {
       "id": "test-071",
       "question": "但需要大家共同努力和情感共鸣有什么区别?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "比如",
@@ -2041,7 +2021,7 @@
     {
       "id": "test-072",
       "question": "总结一下但需要大家共同努力的主要要点",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "坚定表达",
@@ -2066,7 +2046,7 @@
     {
       "id": "test-073",
       "question": "什么是**上级单纯就?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "什么是",
@@ -2091,12 +2071,8 @@
     {
       "id": "test-074",
       "question": "什么是**“当枪使”表面看?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
-      "expected_chunks": [
-        "chunk_814",
-        "chunk_868",
-        "chunk_869"
-      ],
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
+      "expected_chunks": [],
       "expected_keywords": [
         "当枪使",
         "什么是",
@@ -2120,7 +2096,7 @@
     {
       "id": "test-075",
       "question": "跳出框架的特征是什么?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "跳出框架的特征是什么",
@@ -2145,12 +2121,8 @@
     {
       "id": "test-076",
       "question": "流程； 1. 第二，有流程但监督不利； 站在这个角度，解法其实就很清晰了：在保有原有结构的基础上，新",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
-      "expected_chunks": [
-        "chunk_855",
-        "chunk_856",
-        "chunk_857"
-      ],
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
+      "expected_chunks": [],
       "expected_keywords": [
         "第二",
         "有流程但监督不利",
@@ -2174,7 +2146,7 @@
     {
       "id": "test-077",
       "question": "跳出框架和他会是有什么区别?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "人畜无害",
@@ -2199,7 +2171,7 @@
     {
       "id": "test-078",
       "question": "总结一下跳出框架的主要要点",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "打手",
@@ -2224,7 +2196,7 @@
     {
       "id": "test-079",
       "question": "什么是信任的?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "同时",
@@ -2249,7 +2221,7 @@
     {
       "id": "test-080",
       "question": "什么是每个事件都?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "td",
@@ -2274,7 +2246,7 @@
     {
       "id": "test-081",
       "question": "下级等对你可能的支持的特征是什么?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "第一",
@@ -2299,7 +2271,7 @@
     {
       "id": "test-082",
       "question": "如何识别下级等对你可能的支持?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "第一",
@@ -2324,7 +2296,7 @@
     {
       "id": "test-083",
       "question": "下级等对你可能的支持和欺上瞒下有什么区别?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "td",
@@ -2349,7 +2321,7 @@
     {
       "id": "test-084",
       "question": "总结一下下级等对你可能的支持的主要要点",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "总结一下下级等对你可能的支持的主要要点",
@@ -2374,7 +2346,7 @@
     {
       "id": "test-085",
       "question": "什么是责任感?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "所以",
@@ -2399,7 +2371,7 @@
     {
       "id": "test-086",
       "question": "什么是和谐的关系?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "什么是和谐的关系",
@@ -2424,7 +2396,7 @@
     {
       "id": "test-087",
       "question": "做了有什么好处的特征是什么?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "所以",
@@ -2449,12 +2421,8 @@
     {
       "id": "test-088",
       "question": "如何处理，都应该被清晰定义。 只要处理策略定义清晰，就算没有**英雄**，团队的不可确定性任务也会被",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
-      "expected_chunks": [
-        "chunk_937",
-        "chunk_938",
-        "chunk_939"
-      ],
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
+      "expected_chunks": [],
       "expected_keywords": [
         "英雄",
         "都应该被清晰定义",
@@ -2478,7 +2446,7 @@
     {
       "id": "test-089",
       "question": "做了有什么好处和另一方面有什么区别?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "做了有什么好处和另一方面有什么区别",
@@ -2503,7 +2471,7 @@
     {
       "id": "test-090",
       "question": "总结一下做了有什么好处的主要要点",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "总结一下做了有什么好处的主要要点",
@@ -2528,7 +2496,7 @@
     {
       "id": "test-091",
       "question": "什么是那个小同学刚工作一年?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "什么是那个小同学刚工作一年",
@@ -2553,7 +2521,7 @@
     {
       "id": "test-092",
       "question": "什么是那个小同学刚工作一年?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "什么是那个小同学刚工作一年",
@@ -2578,7 +2546,7 @@
     {
       "id": "test-093",
       "question": "那个小同学刚工作一年的特征是什么?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "那个小同学刚工作一年的特征是什么",
@@ -2603,7 +2571,7 @@
     {
       "id": "test-094",
       "question": "如何识别那个小同学刚工作一年?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "如何识别那个小同学刚工作一年",
@@ -2628,7 +2596,7 @@
     {
       "id": "test-095",
       "question": "那个小同学刚工作一年和其内容会在下节介绍有什么区别?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "那个小同学刚工作一年和其内容会在下节介绍有什么区别",
@@ -2653,7 +2621,7 @@
     {
       "id": "test-096",
       "question": "总结一下那个小同学刚工作一年的主要要点",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "至理名言",
@@ -2678,7 +2646,7 @@
     {
       "id": "test-097",
       "question": "什么是复盘的结论?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "什么是复盘的结论",
@@ -2703,7 +2671,7 @@
     {
       "id": "test-098",
       "question": "什么是复盘的结论?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "什么是复盘的结论",
@@ -2728,7 +2696,7 @@
     {
       "id": "test-099",
       "question": "将这些认识知识化的特征是什么?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "将这些认识知识化的特征是什么",
@@ -2753,7 +2721,7 @@
     {
       "id": "test-100",
       "question": "如何识别将这些认识知识化?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "如何识别将这些认识知识化",
@@ -2778,7 +2746,7 @@
     {
       "id": "test-101",
       "question": "将这些认识知识化和复盘的实际情况有什么区别?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "将这些认识知识化和复盘的实际情况有什么区别",
@@ -2803,7 +2771,7 @@
     {
       "id": "test-102",
       "question": "总结一下将这些认识知识化的主要要点",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "总结一下将这些认识知识化的主要要点",
@@ -2828,7 +2796,7 @@
     {
       "id": "test-103",
       "question": "什么是不可完全套用?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "管理层保障团队健康运转",
@@ -2853,7 +2821,7 @@
     {
       "id": "test-104",
       "question": "什么是不可完全套用?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "什么是不可完全套用",
@@ -2878,7 +2846,7 @@
     {
       "id": "test-105",
       "question": "不可完全套用的特征是什么?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "不可完全套用的特征是什么",
@@ -2903,7 +2871,7 @@
     {
       "id": "test-106",
       "question": "如何识别不可完全套用?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "如何识别不可完全套用",
@@ -2928,7 +2896,7 @@
     {
       "id": "test-107",
       "question": "不可完全套用和有对会议结论持续追踪的机制有什么区别?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "不可完全套用和有对会议结论持续追踪的机制有什么区别",
@@ -2953,7 +2921,7 @@
     {
       "id": "test-108",
       "question": "总结一下不可完全套用的主要要点",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "管理层保障团队健康运转",
@@ -2978,7 +2946,7 @@
     {
       "id": "test-109",
       "question": "什么是这个就?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "信息传递",
@@ -3003,7 +2971,7 @@
     {
       "id": "test-110",
       "question": "什么是他也可以?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "复盘",
@@ -3028,7 +2996,7 @@
     {
       "id": "test-111",
       "question": "来保证多数信息的一致性的特征是什么?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "来保证多数信息的一致性的特征是什么",
@@ -3053,12 +3021,8 @@
     {
       "id": "test-112",
       "question": "如何做复盘，实操方面这里不多说，这里重点回顾下之前的**机制后置性问题**。 ### 问题过载 在一",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
-      "expected_chunks": [
-        "chunk_1147",
-        "chunk_1148",
-        "chunk_1149"
-      ],
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
+      "expected_chunks": [],
       "expected_keywords": [
         "实操方面这里不多说",
         "这里重点回顾下之前的",
@@ -3082,7 +3046,7 @@
     {
       "id": "test-113",
       "question": "来保证多数信息的一致性和协调资源有什么区别?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "信息传递",
@@ -3107,7 +3071,7 @@
     {
       "id": "test-114",
       "question": "总结一下来保证多数信息的一致性的主要要点",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "复盘",
@@ -3132,7 +3096,7 @@
     {
       "id": "test-115",
       "question": "什么是而因为经理的核心工作?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "总监",
@@ -3157,7 +3121,7 @@
     {
       "id": "test-116",
       "question": "什么是经理因为?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "什么是经理因为",
@@ -3182,7 +3146,7 @@
     {
       "id": "test-117",
       "question": "经理的管理范围一般是5的特征是什么?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "总监",
@@ -3207,7 +3171,7 @@
     {
       "id": "test-118",
       "question": "如何识别经理的管理范围一般是5?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "如何识别经理的管理范围一般是5",
@@ -3232,7 +3196,7 @@
     {
       "id": "test-119",
       "question": "经理的管理范围一般是5和50人有什么区别?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "经理的管理范围一般是5和50人有什么区别",
@@ -3257,7 +3221,7 @@
     {
       "id": "test-120",
       "question": "总结一下经理的管理范围一般是5的主要要点",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "总结一下经理的管理范围一般是5的主要要点",
@@ -3282,7 +3246,7 @@
     {
       "id": "test-121",
       "question": "什么是并且人们自古?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "什么是并且人们自古",
@@ -3307,12 +3271,8 @@
     {
       "id": "test-122",
       "question": "什么是**二、战略能力可以?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
-      "expected_chunks": [
-        "chunk_39",
-        "chunk_40",
-        "chunk_41"
-      ],
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
+      "expected_chunks": [],
       "expected_keywords": [
         "个人目标",
         "什么是",
@@ -3336,7 +3296,7 @@
     {
       "id": "test-123",
       "question": "战术能力的特征是什么?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "战术能力的特征是什么",
@@ -3361,12 +3321,8 @@
     {
       "id": "test-124",
       "question": "如何理解复盘？》](https://mp.weixin.qq.com/s/pvqp1yvP48Q2h",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
-      "expected_chunks": [
-        "chunk_89",
-        "chunk_143",
-        "chunk_207"
-      ],
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
+      "expected_chunks": [],
       "expected_keywords": [
         "https",
         "com",
@@ -3390,7 +3346,7 @@
     {
       "id": "test-125",
       "question": "战术能力和轻松平等有什么区别?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "战术能力和轻松平等有什么区别",
@@ -3415,7 +3371,7 @@
     {
       "id": "test-126",
       "question": "总结一下战术能力的主要要点",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "总结一下战术能力的主要要点",
@@ -3440,7 +3396,7 @@
     {
       "id": "test-127",
       "question": "什么是梯队建设其实更多的?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "什么是梯队建设其实更多的",
@@ -3465,7 +3421,7 @@
     {
       "id": "test-128",
       "question": "什么是梯队建设其实更多的?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "https",
@@ -3490,7 +3446,7 @@
     {
       "id": "test-129",
       "question": "bbc6的特征是什么?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "bbc6的特征是什么",
@@ -3515,7 +3471,7 @@
     {
       "id": "test-130",
       "question": "如何识别bbc6?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "资源协调",
@@ -3540,7 +3496,7 @@
     {
       "id": "test-131",
       "question": "bbc6和他是总监五件事中的重要模块有什么区别?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "bbc6和他是总监五件事中的重要模块有什么区别",
@@ -3565,7 +3521,7 @@
     {
       "id": "test-132",
       "question": "总结一下bbc6的主要要点",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "选题",
@@ -3590,7 +3546,7 @@
     {
       "id": "test-133",
       "question": "什么是宏观?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "什么是宏观",
@@ -3615,7 +3571,7 @@
     {
       "id": "test-134",
       "question": "什么是比如某CEO的成功?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "什么是比如某CEO的成功",
@@ -3640,7 +3596,7 @@
     {
       "id": "test-135",
       "question": "中层管理者需要对上承接战略需求的特征是什么?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "中层管理者需要对上承接战略需求的特征是什么",
@@ -3665,12 +3621,8 @@
     {
       "id": "test-136",
       "question": "方法，确保战略能够在日常操作中得以实现。 1. **创新与解决问题的能力**：在面对路径缺失时，能够",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
-      "expected_chunks": [
-        "chunk_1424",
-        "chunk_1425",
-        "chunk_1426"
-      ],
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
+      "expected_chunks": [],
       "expected_keywords": [
         "确保战略能够在日常操作中得以实现",
         "创新与解决问题的能力",
@@ -3694,7 +3646,7 @@
     {
       "id": "test-137",
       "question": "中层管理者需要对上承接战略需求和许多中层干部还是带有浓重的执行属性有什么区别?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "中层管理者需要对上承接战略需求和许多中层干部还是带有浓重的执行属性有什么区别",
@@ -3719,7 +3671,7 @@
     {
       "id": "test-138",
       "question": "总结一下中层管理者需要对上承接战略需求的主要要点",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "总结一下中层管理者需要对上承接战略需求的主要要点",
@@ -3744,7 +3696,7 @@
     {
       "id": "test-139",
       "question": "什么是疯言疯语?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "什么是疯言疯语",
@@ -3769,7 +3721,7 @@
     {
       "id": "test-140",
       "question": "什么是**所以控制权?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "什么是",
@@ -3794,7 +3746,7 @@
     {
       "id": "test-141",
       "question": "疯言疯语的特征是什么?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "疯言疯语的特征是什么",
@@ -3819,12 +3771,8 @@
     {
       "id": "test-142",
       "question": "方法论（SOP）。**",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
-      "expected_chunks": [
-        "chunk_559",
-        "chunk_1303",
-        "chunk_1304"
-      ],
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
+      "expected_chunks": [],
       "expected_keywords": [
         "SOP",
         "路径依赖",
@@ -3848,7 +3796,7 @@
     {
       "id": "test-143",
       "question": "疯言疯语和建设项目体系的总成本有什么区别?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "疯言疯语和建设项目体系的总成本有什么区别",
@@ -3873,7 +3821,7 @@
     {
       "id": "test-144",
       "question": "总结一下疯言疯语的主要要点",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "总结一下疯言疯语的主要要点",
@@ -3898,7 +3846,7 @@
     {
       "id": "test-145",
       "question": "什么是是不是必须合作?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "什么是是不是必须合作",
@@ -3923,7 +3871,7 @@
     {
       "id": "test-146",
       "question": "什么是而还有比较惨的?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "https",
@@ -3948,7 +3896,7 @@
     {
       "id": "test-147",
       "question": "是不是必须合作的特征是什么?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "软性抵抗",
@@ -3973,12 +3921,8 @@
     {
       "id": "test-148",
       "question": "怎么这么弱呢？** 这个哥们也很头疼：**找领导帮忙，但问题实际没有被解决，反而告状的人变多了，这找",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
-      "expected_chunks": [
-        "chunk_1507",
-        "chunk_1508",
-        "chunk_1509"
-      ],
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
+      "expected_chunks": [],
       "expected_keywords": [
         "这个哥们也很头疼",
         "找领导帮忙",
@@ -4002,7 +3946,7 @@
     {
       "id": "test-149",
       "question": "是不是必须合作和能力怎么这么弱呢有什么区别?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "部门墙",
@@ -4027,7 +3971,7 @@
     {
       "id": "test-150",
       "question": "总结一下是不是必须合作的主要要点",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "总结一下是不是必须合作的主要要点",
@@ -4052,7 +3996,7 @@
     {
       "id": "test-151",
       "question": "什么是什么是团伙、什么?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "什么是什么是团伙",
@@ -4077,7 +4021,7 @@
     {
       "id": "test-152",
       "question": "什么是这种关系?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "你顶我",
@@ -4102,7 +4046,7 @@
     {
       "id": "test-153",
       "question": "打王者荣耀的同学会更容易了解一个名称的特征是什么?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "前后",
@@ -4127,7 +4071,7 @@
     {
       "id": "test-154",
       "question": "如何识别打王者荣耀的同学会更容易了解一个名称?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "如何识别打王者荣耀的同学会更容易了解一个名称",
@@ -4152,7 +4096,7 @@
     {
       "id": "test-155",
       "question": "打王者荣耀的同学会更容易了解一个名称和你顶我有什么区别?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "亲卫队",
@@ -4177,7 +4121,7 @@
     {
       "id": "test-156",
       "question": "总结一下打王者荣耀的同学会更容易了解一个名称的主要要点",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "你顶我",
@@ -4202,7 +4146,7 @@
     {
       "id": "test-157",
       "question": "什么是苦劳也?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "https",
@@ -4227,7 +4171,7 @@
     {
       "id": "test-158",
       "question": "什么是png) 看上去?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "https",
@@ -4252,7 +4196,7 @@
     {
       "id": "test-159",
       "question": "事故数的特征是什么?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "事故数的特征是什么",
@@ -4277,7 +4221,7 @@
     {
       "id": "test-160",
       "question": "如何识别事故数?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "https",
@@ -4302,7 +4246,7 @@
     {
       "id": "test-161",
       "question": "事故数和那就强调合作共赢有什么区别?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "https",
@@ -4327,7 +4271,7 @@
     {
       "id": "test-162",
       "question": "总结一下事故数的主要要点",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "总结一下事故数的主要要点",
@@ -4352,7 +4296,7 @@
     {
       "id": "test-163",
       "question": "什么是**透明很可能面临的?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "评分",
@@ -4377,7 +4321,7 @@
     {
       "id": "test-164",
       "question": "什么是这也?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "于是给部门负责人来一句",
@@ -4402,7 +4346,7 @@
     {
       "id": "test-165",
       "question": "就觉得真香的同学的特征是什么?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "就觉得真香的同学的特征是什么",
@@ -4427,7 +4371,7 @@
     {
       "id": "test-166",
       "question": "如何识别就觉得真香的同学?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "所以",
@@ -4452,7 +4396,7 @@
     {
       "id": "test-167",
       "question": "就觉得真香的同学和于是给部门负责人来一句有什么区别?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "就觉得真香的同学和于是给部门负责人来一句有什么区别",
@@ -4477,7 +4421,7 @@
     {
       "id": "test-168",
       "question": "总结一下就觉得真香的同学的主要要点",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "所以",
@@ -4502,7 +4446,7 @@
     {
       "id": "test-169",
       "question": "什么是2） 总监下场?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "什么是2",
@@ -4527,7 +4471,7 @@
     {
       "id": "test-170",
       "question": "什么是** 汇报的第一原则?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "什么是",
@@ -4552,7 +4496,7 @@
     {
       "id": "test-171",
       "question": "但总监就不一样了的特征是什么?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "向上管理",
@@ -4577,12 +4521,8 @@
     {
       "id": "test-172",
       "question": "怎么证明他解决了，解决到什么程度，这些就是案例的核心内容。 其中大案例要足够干，**「足够给力」**",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
-      "expected_chunks": [
-        "chunk_1798",
-        "chunk_1799",
-        "chunk_1800"
-      ],
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
+      "expected_chunks": [],
       "expected_keywords": [
         "怎么证明他解决了",
         "解决到什么程度",
@@ -4606,7 +4546,7 @@
     {
       "id": "test-173",
       "question": "但总监就不一样了和管理老板的预期有什么区别?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "向上管理",
@@ -4631,7 +4571,7 @@
     {
       "id": "test-174",
       "question": "总结一下但总监就不一样了的主要要点",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "总结一下但总监就不一样了的主要要点",
@@ -4656,7 +4596,7 @@
     {
       "id": "test-175",
       "question": "什么是如果你?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "什么是如果你",
@@ -4681,7 +4621,7 @@
     {
       "id": "test-176",
       "question": "什么是如果你?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "什么是如果你",
@@ -4706,7 +4646,7 @@
     {
       "id": "test-177",
       "question": "有些论据不完善的特征是什么?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "最后",
@@ -4731,7 +4671,7 @@
     {
       "id": "test-178",
       "question": "如何识别有些论据不完善?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "如何识别有些论据不完善",
@@ -4756,7 +4696,7 @@
     {
       "id": "test-179",
       "question": "有些论据不完善和但管理能力不行有什么区别?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "最后",
@@ -4781,7 +4721,7 @@
     {
       "id": "test-180",
       "question": "总结一下有些论据不完善的主要要点",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "总结一下有些论据不完善的主要要点",
@@ -4806,7 +4746,7 @@
     {
       "id": "test-181",
       "question": "什么是上升通道建设则?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "什么是上升通道建设则",
@@ -4831,7 +4771,7 @@
     {
       "id": "test-182",
       "question": "什么是其核心?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "什么是其核心",
@@ -4856,7 +4796,7 @@
     {
       "id": "test-183",
       "question": "促进团队协作和风险管理的特征是什么?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "https",
@@ -4881,7 +4821,7 @@
     {
       "id": "test-184",
       "question": "如何识别促进团队协作和风险管理?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "如何识别促进团队协作和风险管理",
@@ -4906,7 +4846,7 @@
     {
       "id": "test-185",
       "question": "促进团队协作和风险管理和本质上有什么区别?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "促进团队协作和风险管理和本质上有什么区别",
@@ -4931,7 +4871,7 @@
     {
       "id": "test-186",
       "question": "总结一下促进团队协作和风险管理的主要要点",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "功能及目标",
@@ -4956,7 +4896,7 @@
     {
       "id": "test-187",
       "question": "什么是并且对于问题现状又极度的绝望?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "什么是并且对于问题现状又极度的绝望",
@@ -4981,7 +4921,7 @@
     {
       "id": "test-188",
       "question": "什么是特别?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "信息分级",
@@ -5006,7 +4946,7 @@
     {
       "id": "test-189",
       "question": "并且对于问题现状又极度的绝望的特征是什么?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "所以",
@@ -5031,7 +4971,7 @@
     {
       "id": "test-190",
       "question": "如何识别并且对于问题现状又极度的绝望?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "如何识别并且对于问题现状又极度的绝望",
@@ -5056,7 +4996,7 @@
     {
       "id": "test-191",
       "question": "并且对于问题现状又极度的绝望和团队隐患报告有什么区别?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "并且对于问题现状又极度的绝望和团队隐患报告有什么区别",
@@ -5081,7 +5021,7 @@
     {
       "id": "test-192",
       "question": "总结一下并且对于问题现状又极度的绝望的主要要点",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "总结一下并且对于问题现状又极度的绝望的主要要点",
@@ -5106,7 +5046,7 @@
     {
       "id": "test-193",
       "question": "什么是**\n\n## 什么?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "什么是",
@@ -5131,7 +5071,7 @@
     {
       "id": "test-194",
       "question": "什么是因为**正面价值观只?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "因为",
@@ -5156,7 +5096,7 @@
     {
       "id": "test-195",
       "question": "那么员工就不会认为复盘是整人的特征是什么?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "比如",
@@ -5181,12 +5121,8 @@
     {
       "id": "test-196",
       "question": "怎么做，也比较清晰了：**思考清楚要提倡什么、反对什么，反复问为什么，然后上方法。** 接下来以案例",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
-      "expected_chunks": [
-        "chunk_115",
-        "chunk_116",
-        "chunk_117"
-      ],
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
+      "expected_chunks": [],
       "expected_keywords": [
         "也比较清晰了",
         "思考清楚要提倡什么",
@@ -5210,7 +5146,7 @@
     {
       "id": "test-197",
       "question": "那么员工就不会认为复盘是整人和谁解决问题有什么区别?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "信任建立",
@@ -5235,7 +5171,7 @@
     {
       "id": "test-198",
       "question": "总结一下那么员工就不会认为复盘是整人的主要要点",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "文化价值观有用吗",
@@ -5260,7 +5196,7 @@
     {
       "id": "test-199",
       "question": "什么是在很多小公司就是?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "什么是在很多小公司就是",
@@ -5285,7 +5221,7 @@
     {
       "id": "test-200",
       "question": "什么是文化?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "br",
@@ -5310,7 +5246,7 @@
     {
       "id": "test-201",
       "question": "在很多小公司就是的特征是什么?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "在很多小公司就是的特征是什么",
@@ -5335,7 +5271,7 @@
     {
       "id": "test-202",
       "question": "如何识别在很多小公司就是?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "如何识别在很多小公司就是",
@@ -5360,7 +5296,7 @@
     {
       "id": "test-203",
       "question": "在很多小公司就是和管理规模约几十人有什么区别?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "在很多小公司就是和管理规模约几十人有什么区别",
@@ -5385,7 +5321,7 @@
     {
       "id": "test-204",
       "question": "总结一下在很多小公司就是的主要要点",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "总结一下在很多小公司就是的主要要点",
@@ -5410,7 +5346,7 @@
     {
       "id": "test-205",
       "question": "什么是> >因为其特点?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "什么是",
@@ -5435,7 +5371,7 @@
     {
       "id": "test-206",
       "question": "什么是变革?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "OKR体系与PMO体系",
@@ -5460,7 +5396,7 @@
     {
       "id": "test-207",
       "question": "还能通过不断发酵的特征是什么?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "OKR体系与PMO体系",
@@ -5485,12 +5421,8 @@
     {
       "id": "test-208",
       "question": "如何在复杂的系统里面客观的评价员工，特别是专业向员工，这会变得很重要。 **因为，没有客观评价，奖励",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
-      "expected_chunks": [
-        "chunk_2198",
-        "chunk_2199",
-        "chunk_2200"
-      ],
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
+      "expected_chunks": [],
       "expected_keywords": [
         "如何在复杂的系统里面客观的评价员工",
         "特别是专业向员工",
@@ -5514,7 +5446,7 @@
     {
       "id": "test-209",
       "question": "还能通过不断发酵和其本质是有什么区别?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "OKR体系与PMO体系",
@@ -5539,7 +5471,7 @@
     {
       "id": "test-210",
       "question": "总结一下还能通过不断发酵的主要要点",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "OKR体系与PMO体系",
@@ -5564,7 +5496,7 @@
     {
       "id": "test-211",
       "question": "什么是png)\n\n其核心?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "什么是png",
@@ -5589,7 +5521,7 @@
     {
       "id": "test-212",
       "question": "什么是这里的重要标志就是?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "什么是这里的重要标志就是",
@@ -5614,7 +5546,7 @@
     {
       "id": "test-213",
       "question": "这里的重要标志就是的特征是什么?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "例如",
@@ -5639,7 +5571,7 @@
     {
       "id": "test-214",
       "question": "这里的重要标志就是和线上页面有什么区别?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "这里的重要标志就是和线上页面有什么区别",
@@ -5664,7 +5596,7 @@
     {
       "id": "test-215",
       "question": "总结一下这里的重要标志就是的主要要点",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "总结一下这里的重要标志就是的主要要点",
@@ -5689,7 +5621,7 @@
     {
       "id": "test-216",
       "question": "什么是销售经理的角色就?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "什么是销售经理的角色就",
@@ -5714,7 +5646,7 @@
     {
       "id": "test-217",
       "question": "什么是懂得权衡各种利益关系?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "什么是懂得权衡各种利益关系",
@@ -5739,7 +5671,7 @@
     {
       "id": "test-218",
       "question": "懂得权衡各种利益关系的特征是什么?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "鞭策者",
@@ -5764,11 +5696,8 @@
     {
       "id": "test-219",
       "question": "如何去补足不同阶段的不足，是高管必修课。\n\n### 木桶理论\n团队角色是比较经典的**木桶理论**，",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
-      "expected_chunks": [
-        "chunk_2334",
-        "chunk_2333"
-      ],
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
+      "expected_chunks": [],
       "expected_keywords": [
         "木桶理论",
         "如何去补足不同阶段的不足",
@@ -5792,7 +5721,7 @@
     {
       "id": "test-220",
       "question": "懂得权衡各种利益关系和信息通畅与有效评价有什么区别?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "懂得权衡各种利益关系和信息通畅与有效评价有什么区别",
@@ -5817,7 +5746,7 @@
     {
       "id": "test-221",
       "question": "总结一下懂得权衡各种利益关系的主要要点",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "总结一下懂得权衡各种利益关系的主要要点",
@@ -5842,7 +5771,7 @@
     {
       "id": "test-222",
       "question": "什么是公司?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "https",
@@ -5867,7 +5796,7 @@
     {
       "id": "test-223",
       "question": "什么是- 企业?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "什么是",
@@ -5892,7 +5821,7 @@
     {
       "id": "test-224",
       "question": "swot分析的特征是什么?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "swot分析的特征是什么",
@@ -5917,12 +5846,8 @@
     {
       "id": "test-225",
       "question": "如何影响行业格局（如上游技术供应商）。\n1. **投资方向：**\n    1. 投资机构对新兴技术或",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
-      "expected_chunks": [
-        "chunk_2354",
-        "chunk_2355",
-        "chunk_0"
-      ],
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
+      "expected_chunks": [],
       "expected_keywords": [
         "如上游技术供应商",
         "投资方向",
@@ -5946,7 +5871,7 @@
     {
       "id": "test-226",
       "question": "swot分析和还是离不开系统循环图有什么区别?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "swot分析和还是离不开系统循环图有什么区别",
@@ -5971,7 +5896,7 @@
     {
       "id": "test-227",
       "question": "总结一下swot分析的主要要点",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "例如",
@@ -5996,7 +5921,7 @@
     {
       "id": "test-228",
       "question": "什么是### 利他心态?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "什么是",
@@ -6021,7 +5946,7 @@
     {
       "id": "test-229",
       "question": "什么是中层的核心任务?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "https",
@@ -6046,7 +5971,7 @@
     {
       "id": "test-230",
       "question": "随后我却发现一个现象的特征是什么?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "https",
@@ -6071,7 +5996,7 @@
     {
       "id": "test-231",
       "question": "如何识别随后我却发现一个现象?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "因此",
@@ -6096,7 +6021,7 @@
     {
       "id": "test-232",
       "question": "随后我却发现一个现象和a666有什么区别?",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "因此",
@@ -6121,7 +6046,7 @@
     {
       "id": "test-233",
       "question": "总结一下随后我却发现一个现象的主要要点",
-      "notebook_id": "7f2feb0f-8cfd-4911-b111-9c8e2122f3cc",
+      "notebook_id": "7f2feb0f8cfd4911b1119c8e2122f3cc",
       "expected_chunks": [],
       "expected_keywords": [
         "https",
