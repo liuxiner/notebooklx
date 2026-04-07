@@ -54,6 +54,21 @@ export interface SourceIngestionStatus {
   completed_at: string | null;
 }
 
+export interface CreateTextSourceData {
+  title?: string;
+  content: string;
+}
+
+export interface CreateUrlSourceData {
+  title?: string;
+  url: string;
+}
+
+export interface UploadSourceData {
+  title?: string;
+  file: File;
+}
+
 class ApiError extends Error {
   constructor(
     public status: number,
@@ -150,6 +165,81 @@ export const sourcesApi = {
   async getStatus(sourceId: string): Promise<SourceIngestionStatus> {
     const response = await fetch(`${API_URL}/api/sources/${sourceId}/status`);
     return handleResponse<SourceIngestionStatus>(response);
+  },
+
+  /**
+   * Enqueue ingestion for a source.
+   */
+  async ingest(sourceId: string): Promise<SourceIngestionStatus> {
+    const response = await fetch(`${API_URL}/api/sources/${sourceId}/ingest`, {
+      method: "POST",
+    });
+    return handleResponse<SourceIngestionStatus>(response);
+  },
+
+  /**
+   * Create a pasted text source for a notebook.
+   */
+  async createText(
+    notebookId: string,
+    data: CreateTextSourceData
+  ): Promise<NotebookSource> {
+    const response = await fetch(`${API_URL}/api/notebooks/${notebookId}/sources/text`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+    });
+    return handleResponse<NotebookSource>(response);
+  },
+
+  /**
+   * Create a URL source for a notebook.
+   */
+  async createUrl(
+    notebookId: string,
+    data: CreateUrlSourceData
+  ): Promise<NotebookSource> {
+    const response = await fetch(`${API_URL}/api/notebooks/${notebookId}/sources/url`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+    });
+    return handleResponse<NotebookSource>(response);
+  },
+
+  /**
+   * Upload a file-backed source for a notebook.
+   */
+  async upload(
+    notebookId: string,
+    data: UploadSourceData
+  ): Promise<NotebookSource> {
+    const formData = new FormData();
+    formData.append("file", data.file);
+
+    if (data.title?.trim()) {
+      formData.append("title", data.title.trim());
+    }
+
+    const response = await fetch(`${API_URL}/api/notebooks/${notebookId}/sources/upload`, {
+      method: "POST",
+      body: formData,
+    });
+    return handleResponse<NotebookSource>(response);
+  },
+
+  /**
+   * Delete a source from a notebook.
+   */
+  async delete(notebookId: string, sourceId: string): Promise<void> {
+    const response = await fetch(`${API_URL}/api/notebooks/${notebookId}/sources/${sourceId}`, {
+      method: "DELETE",
+    });
+    return handleResponse<void>(response);
   },
 };
 

@@ -458,17 +458,17 @@ This document outlines the detailed development plan, acceptance criteria, and t
 ### Feature 3.6: Source Management UI
 
 **Acceptance Criteria:**
-- [ ] Notebook detail workspace includes an add-source entry point
-- [ ] Users can add PDF sources via manual file upload
-- [ ] Users can add plain text sources via pasted clipboard content
-- [ ] Users can add URL sources via pasted clipboard content or manual entry
-- [ ] Upload UI validates supported source types: `pdf`, `txt`, and `url`
-- [ ] Upload UI shows loading and error states for each submission flow
-- [ ] Successful source creation refreshes the source list in the current notebook workspace
-- [ ] Each source row includes a delete action
-- [ ] Deleting a source requires a confirmation modal before the request is sent
-- [ ] Successful delete removes the source from the workspace without a full page reload
-- [ ] Delete failures show a user-facing error state and preserve the source row
+- [x] Notebook detail workspace includes an add-source entry point
+- [x] Users can add PDF sources via manual file upload
+- [x] Users can add plain text sources via pasted clipboard content
+- [x] Users can add URL sources via pasted clipboard content or manual entry
+- [x] Upload UI validates supported source types: `pdf`, `txt`, and `url`
+- [x] Upload UI shows loading and error states for each submission flow
+- [x] Successful source creation refreshes the source list in the current notebook workspace
+- [x] Each source row includes a delete action
+- [x] Deleting a source requires a confirmation modal before the request is sent
+- [x] Successful delete removes the source from the workspace without a full page reload
+- [x] Delete failures show a user-facing error state and preserve the source row
 
 **Tasks:**
 1. Create add-source trigger and source management controls in the notebook detail workspace
@@ -762,23 +762,23 @@ This document outlines the detailed development plan, acceptance criteria, and t
 ### Feature 6.2: Query Rewriting
 
 **Acceptance Criteria:**
-- [ ] Vague queries expanded with context
-- [ ] Follow-up questions include chat history
+- [x] Vague queries expanded with context
+- [x] Follow-up questions include chat history
 - [ ] Improved retrieval recall
 - [ ] User can see rewritten query (optional transparency)
 - [ ] Configurable rewriting strategies
 
 **Tasks:**
-1. Design query rewriting prompt
-2. Implement query rewriter function
+1. [x] Design query rewriting prompt
+2. [x] Implement query rewriter function
    - Analyze user query
    - Include chat history context
    - Generate improved query
 3. Integrate into chat flow (before retrieval)
 4. Add transparency option (show rewritten query)
-5. Test with various query types
+5. [x] Test with various query types
 6. Measure impact on retrieval quality
-7. Write unit tests
+7. [x] Write unit tests
 8. Add configuration options
 
 ---

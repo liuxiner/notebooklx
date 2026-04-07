@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { RefreshCw } from "lucide-react";
+import { Plus, RefreshCw, Trash2 } from "lucide-react";
 
+import { SourceDeleteDialog } from "@/components/notebooks/source-delete-dialog";
+import { SourceManagementDialog } from "@/components/notebooks/source-management-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
@@ -21,6 +23,8 @@ interface NotebookWorkspaceProps {
 interface WorkspaceSource extends NotebookSource {
   ingestion: SourceIngestionStatus | null;
 }
+
+const INGESTION_POLL_INTERVAL_MS = 1500;
 
 const statusStyles: Record<SourceStatus, string> = {
   pending: "border-slate-200 bg-slate-100 text-slate-900",
@@ -99,6 +103,10 @@ function getFailureMessage(source: WorkspaceSource): string | null {
   return source.ingestion?.error_message ?? null;
 }
 
+function isResolvedStatus(status: SourceStatus): boolean {
+  return status === "ready" || status === "failed";
+}
+
 async function buildWorkspaceSources(
   notebookId: string
 ): Promise<WorkspaceSource[]> {
@@ -128,57 +136,180 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isSourceDialogOpen, setIsSourceDialogOpen] = useState(false);
+  const [isSubmittingSource, setIsSubmittingSource] = useState(false);
+  const [trackedIngestionIds, setTrackedIngestionIds] = useState<string[]>([]);
+  const [sourcePendingDelete, setSourcePendingDelete] = useState<WorkspaceSource | null>(
+    null
+  );
+  const [isDeletingSource, setIsDeletingSource] = useState(false);
+  const [deleteErrorMessage, setDeleteErrorMessage] = useState<string | null>(null);
+
+  function reconcileTrackedIngestions(nextSources: WorkspaceSource[]) {
+    setTrackedIngestionIds((currentIds) =>
+      currentIds.filter((sourceId) => {
+        const source = nextSources.find((candidate) => candidate.id === sourceId);
+        return source ? !isResolvedStatus(getEffectiveStatus(source)) : false;
+      })
+    );
+  }
+
+  async function loadSources(options: { initial: boolean; silent?: boolean }) {
+    const { initial, silent = false } = options;
+
+    try {
+      if (initial) {
+        setIsLoading(true);
+      } else {
+        setIsRefreshing(true);
+      }
+
+      if (!silent) {
+        setErrorMessage(null);
+      }
+
+      const nextSources = await buildWorkspaceSources(notebookId);
+      setErrorMessage(null);
+      setSources(nextSources);
+      reconcileTrackedIngestions(nextSources);
+
+      return nextSources;
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : initial
+            ? "Failed to load notebook sources."
+            : "Failed to refresh notebook sources.";
+
+      if (initial) {
+        setSources([]);
+      }
+
+      if (!silent) {
+        setErrorMessage(message);
+      }
+      throw error;
+    } finally {
+      if (initial) {
+        setIsLoading(false);
+      } else {
+        setIsRefreshing(false);
+      }
+    }
+  }
 
   useEffect(() => {
     let isActive = true;
 
-    async function loadSources() {
+    async function hydrateSources() {
       try {
-        setIsLoading(true);
-        setErrorMessage(null);
-
         const nextSources = await buildWorkspaceSources(notebookId);
 
-        if (isActive) {
-          setSources(nextSources);
+        if (!isActive) {
+          return;
         }
+
+        setErrorMessage(null);
+        setSources(nextSources);
+        setTrackedIngestionIds([]);
       } catch (error) {
+        if (!isActive) {
+          return;
+        }
+
         const message =
           error instanceof Error
             ? error.message
             : "Failed to load notebook sources.";
 
-        if (isActive) {
-          setSources([]);
-          setErrorMessage(message);
-        }
+        setSources([]);
+        setErrorMessage(message);
       } finally {
-        if (isActive) {
-          setIsLoading(false);
+        if (!isActive) {
+          return;
         }
+
+        setIsLoading(false);
       }
     }
 
-    void loadSources();
+    setIsLoading(true);
+    setTrackedIngestionIds([]);
+    void hydrateSources();
 
     return () => {
       isActive = false;
     };
   }, [notebookId]);
 
+  useEffect(() => {
+    if (trackedIngestionIds.length === 0 || isLoading || isRefreshing) {
+      return;
+    }
+
+    const hasPendingTrackedIngestions = trackedIngestionIds.some((sourceId) => {
+      const source = sources.find((candidate) => candidate.id === sourceId);
+      return !source || !isResolvedStatus(getEffectiveStatus(source));
+    });
+
+    if (!hasPendingTrackedIngestions) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      void loadSources({ initial: false, silent: true }).catch(() => undefined);
+    }, INGESTION_POLL_INTERVAL_MS);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [isLoading, isRefreshing, notebookId, sources, trackedIngestionIds]);
+
   async function refreshSources() {
     try {
-      setIsRefreshing(true);
-      setErrorMessage(null);
-      setSources(await buildWorkspaceSources(notebookId));
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : "Failed to refresh notebook sources.";
-      setErrorMessage(message);
+      await loadSources({ initial: false });
+    } catch {}
+  }
+
+  async function handleSourceMutation(action: () => Promise<unknown>) {
+    try {
+      setIsSubmittingSource(true);
+      await action();
+      await loadSources({ initial: false });
+      setIsSourceDialogOpen(false);
     } finally {
-      setIsRefreshing(false);
+      setIsSubmittingSource(false);
+    }
+  }
+
+  function handleDeleteDialogChange(open: boolean) {
+    if (!open) {
+      setSourcePendingDelete(null);
+      setDeleteErrorMessage(null);
+      return;
+    }
+  }
+
+  async function handleDeleteSource() {
+    if (!sourcePendingDelete) {
+      return;
+    }
+
+    try {
+      setIsDeletingSource(true);
+      setDeleteErrorMessage(null);
+      await sourcesApi.delete(notebookId, sourcePendingDelete.id);
+      setSources((currentSources) =>
+        currentSources.filter((source) => source.id !== sourcePendingDelete.id)
+      );
+      setSourcePendingDelete(null);
+    } catch (error) {
+      setDeleteErrorMessage(
+        error instanceof Error ? error.message : "Failed to delete this source."
+      );
+    } finally {
+      setIsDeletingSource(false);
     }
   }
 
@@ -192,16 +323,25 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
               Track ingestion status for every source attached to this notebook.
             </CardDescription>
           </div>
-          <Button
-            variant="outline"
-            onClick={() => void refreshSources()}
-            disabled={isLoading || isRefreshing}
-          >
-            <RefreshCw
-              className={`mr-2 h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`}
-            />
-            Refresh
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              onClick={() => setIsSourceDialogOpen(true)}
+              disabled={isLoading || isRefreshing || isSubmittingSource}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Add source
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => void refreshSources()}
+              disabled={isLoading || isRefreshing || isSubmittingSource}
+            >
+              <RefreshCw
+                className={`mr-2 h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`}
+              />
+              Refresh
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -243,11 +383,26 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
                           <span>{`Added ${formatDate(source.created_at)}`}</span>
                         </div>
                       </div>
-                      <span
-                        className={`inline-flex w-fit rounded-full border px-3 py-1 text-xs font-semibold ${statusStyles[status]}`}
-                      >
-                        {formatStatusLabel(status)}
-                      </span>
+                      <div className="flex items-center gap-2 self-start">
+                        <span
+                          className={`inline-flex w-fit rounded-full border px-3 py-1 text-xs font-semibold ${statusStyles[status]}`}
+                        >
+                          {formatStatusLabel(status)}
+                        </span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="text-slate-600 hover:text-rose-700"
+                          onClick={() => {
+                            setDeleteErrorMessage(null);
+                            setSourcePendingDelete(source);
+                          }}
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Delete source
+                        </Button>
+                      </div>
                     </div>
 
                     {progressMessage ? (
@@ -264,6 +419,54 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
           )}
         </CardContent>
       </Card>
+
+      <SourceManagementDialog
+        open={isSourceDialogOpen}
+        onOpenChange={setIsSourceDialogOpen}
+        isSubmitting={isSubmittingSource}
+        onUpload={({ file, title }) =>
+          handleSourceMutation(async () => {
+            const source = await sourcesApi.upload(notebookId, { file, title });
+
+            try {
+              await sourcesApi.ingest(source.id);
+              setTrackedIngestionIds((currentIds) =>
+                currentIds.includes(source.id)
+                  ? currentIds
+                  : [...currentIds, source.id]
+              );
+            } catch (error) {
+              await loadSources({ initial: false }).catch(() => undefined);
+              throw error;
+            }
+          })
+        }
+        onCreateText={({ title, content }) =>
+          handleSourceMutation(() =>
+            sourcesApi.createText(notebookId, {
+              title,
+              content,
+            })
+          )
+        }
+        onCreateUrl={({ title, url }) =>
+          handleSourceMutation(() =>
+            sourcesApi.createUrl(notebookId, {
+              title,
+              url,
+            })
+          )
+        }
+      />
+
+      <SourceDeleteDialog
+        open={sourcePendingDelete !== null}
+        onOpenChange={handleDeleteDialogChange}
+        sourceTitle={sourcePendingDelete?.title ?? null}
+        onConfirm={handleDeleteSource}
+        isDeleting={isDeletingSource}
+        errorMessage={deleteErrorMessage}
+      />
 
       <div className="grid gap-4 xl:grid-cols-2">
         <Card className="border-slate-200 bg-white/90 shadow-sm">

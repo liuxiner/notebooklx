@@ -121,16 +121,16 @@ Quick reference checklist for tracking development progress. Check off items as 
 - ✓ Workspace refresh behavior
 - ✓ Frontend tests
 
-**Source Management UI**
-- ⬜ Add-source entry point
-- ⬜ PDF upload flow
-- ⬜ Text paste flow
-- ⬜ URL paste/manual entry flow
-- ⬜ Validation and loading states
-- ⬜ Delete action per source
-- ⬜ Confirm delete modal
-- ⬜ Refresh source list after create/delete
-- ⬜ Frontend tests
+**Source Management UI** ✓
+- ✓ Add-source entry point
+- ✓ PDF upload flow
+- ✓ Text paste flow
+- ✓ URL paste/manual entry flow
+- ✓ Validation and loading states
+- ✓ Delete action per source
+- ✓ Confirm delete modal
+- ✓ Refresh source list after create/delete
+- ✓ Frontend tests
 
 ---
 
@@ -206,8 +206,8 @@ Quick reference checklist for tracking development progress. Check off items as 
 - ⬜ A/B evaluation
 
 **Query Rewriting**
-- ⚡ Rewriter function
-- ⚡ Chat history integration
+- ✓ Rewriter function
+- ✓ Chat history integration
 - ⬜ Transparency option
 - ⬜ Quality testing
 
