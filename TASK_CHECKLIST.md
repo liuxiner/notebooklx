@@ -94,16 +94,16 @@ Quick reference checklist for tracking development progress. Check off items as 
 **Citation System**
 - ✓ Citation database model
 - ✓ Citation API
-- ⬜ Citation validation
+- ✓ Citation validation
 
 **Chat UI**
-- ⬜ Chat panel component
-- ⬜ Message bubbles
-- ⬜ Citation markers
-- ⬜ Citation cards
-- ⬜ SSE client
-- ⬜ Auto-scroll
-- ⬜ Input component
+- ✓ Chat panel component
+- ✓ Message bubbles
+- ✓ Citation markers
+- ✓ Citation cards
+- ✓ SSE client
+- ✓ Auto-scroll
+- ✓ Input component
 
 ---
 

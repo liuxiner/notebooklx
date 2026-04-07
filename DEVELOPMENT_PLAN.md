@@ -352,31 +352,31 @@ This document outlines the detailed development plan, acceptance criteria, and t
 ### Feature 3.3: Chat UI with Citations
 
 **Acceptance Criteria:**
-- [ ] Chat panel on right side of notebook detail page
-- [ ] Message history displayed with user/assistant bubbles
-- [ ] Citation markers [1][2] are clickable
-- [ ] Clicking citation shows quote and source info
-- [ ] Citation panel shows all sources used in answer
+- [x] Chat panel on right side of notebook detail page
+- [x] Message history displayed with user/assistant bubbles
+- [x] Citation markers [1][2] are clickable
+- [x] Clicking citation shows quote and source info
+- [x] Citation panel shows all sources used in answer
 - [ ] Streaming messages update in real-time
-- [ ] Input box always visible at bottom
-- [ ] Auto-scroll to latest message
-- [ ] Loading indicator while generating
+- [x] Input box always visible at bottom
+- [x] Auto-scroll to latest message
+- [x] Loading indicator while generating
 
 **Tasks:**
-1. Create chat panel component
-2. Create message bubble component (user/assistant variants)
-3. Create citation marker component
-4. Create citation card component
-5. Implement SSE client for streaming
-6. Implement message rendering with citation parsing
-7. Add auto-scroll behavior
-8. Create chat input component with textarea
-9. Implement send message action
-10. Add loading/typing indicator
-11. Style with Tailwind CSS
-12. Add keyboard shortcuts (Enter to send, Shift+Enter for newline)
-13. Implement citation click handler
-14. Add responsive design
+1. [x] Create chat panel component
+2. [x] Create message bubble component (user/assistant variants)
+3. [x] Create citation marker component
+4. [x] Create citation card component
+5. [x] Implement SSE client for streaming
+6. [x] Implement message rendering with citation parsing
+7. [x] Add auto-scroll behavior
+8. [x] Create chat input component with textarea
+9. [x] Implement send message action
+10. [x] Add loading/typing indicator
+11. [x] Style with Tailwind CSS
+12. [x] Add keyboard shortcuts (Enter to send, Shift+Enter for newline)
+13. [x] Implement citation click handler
+14. [x] Add responsive design
 
 ---
 
@@ -407,7 +407,7 @@ This document outlines the detailed development plan, acceptance criteria, and t
 6. ✓ Implement citation extraction from LLM response
 7. ✓ Implement chunk ID → citation marker mapping
 8. ✓ Create citation storage logic
-9. ⬜ Add citation validation (check chunk IDs exist)
+9. ✓ Add citation validation (check chunk IDs exist)
 10. ✓ Create citation API endpoint for fetching
 11. ✓ Write unit tests for citation logic
 12. ✓ Add database migration for citations table

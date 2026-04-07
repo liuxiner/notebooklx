@@ -2,6 +2,7 @@
 
 import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from "react";
 
+import { CitationCard } from "@/components/chat/citation-card";
 import { MessageBubble, type ChatMessage } from "@/components/chat/message-bubble";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,11 +30,40 @@ export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [activeCitationMessageId, setActiveCitationMessageId] = useState<string | null>(
+    null
+  );
+  const [activeCitationIndex, setActiveCitationIndex] = useState<number | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages, isStreaming]);
+
+  const latestAssistantMessageWithCitations = [...messages]
+    .reverse()
+    .find((message) => message.role === "assistant" && message.citations.length > 0);
+
+  const citationPanelMessage =
+    messages.find(
+      (message) =>
+        message.id === activeCitationMessageId &&
+        message.role === "assistant" &&
+        message.citations.length > 0
+    ) || latestAssistantMessageWithCitations;
+
+  const citationPanelCitations = citationPanelMessage
+    ? [...citationPanelMessage.citations].sort(
+        (left, right) => left.citation_index - right.citation_index
+      )
+    : [];
+
+  const selectedCitation =
+    citationPanelCitations.find(
+      (citation) =>
+        citationPanelMessage?.id === activeCitationMessageId &&
+        citation.citation_index === activeCitationIndex
+    ) || citationPanelCitations[0] || null;
 
   async function handleSubmit(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault();
@@ -88,6 +118,8 @@ export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
             ...current,
             citations,
           }));
+          setActiveCitationMessageId(assistantMessageId);
+          setActiveCitationIndex(citations[0]?.citation_index ?? null);
         },
         onAnswer: ({ answer }) => {
           updateAssistantMessage((current) => ({
@@ -127,6 +159,11 @@ export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
     }
   }
 
+  function handleCitationSelect(messageId: string, citationIndex: number) {
+    setActiveCitationMessageId(messageId);
+    setActiveCitationIndex(citationIndex);
+  }
+
   return (
     <Card className="flex h-full min-h-[70vh] flex-col overflow-hidden border-slate-200 bg-card/95 shadow-lg">
       <CardHeader className="border-b bg-slate-50/80">
@@ -151,7 +188,21 @@ export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
           ) : null}
 
           {messages.map((message) => (
-            <MessageBubble key={message.id} message={message} />
+            <MessageBubble
+              key={message.id}
+              message={message}
+              activeCitationIndex={
+                message.id === citationPanelMessage?.id
+                  ? selectedCitation?.citation_index ?? null
+                  : null
+              }
+              onCitationSelect={
+                message.role === "assistant"
+                  ? (citationIndex) =>
+                      handleCitationSelect(message.id, citationIndex)
+                  : undefined
+              }
+            />
           ))}
 
           {errorMessage ? (
@@ -161,6 +212,69 @@ export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
           ) : null}
 
           <div ref={bottomRef} />
+        </div>
+
+        <div className="border-t bg-slate-50/80 px-4 py-4 sm:px-5">
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-sm font-semibold text-slate-900">
+                Sources used in this answer
+              </h3>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                Select a citation marker to inspect the supporting quote and source
+                details.
+              </p>
+            </div>
+
+            {selectedCitation && citationPanelMessage ? (
+              <>
+                <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                        Citation [{selectedCitation.citation_index}]
+                      </p>
+                      <p className="mt-1 text-sm font-semibold text-slate-900">
+                        {selectedCitation.source_title}
+                      </p>
+                    </div>
+                    <div className="text-right text-xs text-muted-foreground">
+                      {selectedCitation.page ? <p>Page {selectedCitation.page}</p> : null}
+                      <p>Score {selectedCitation.score.toFixed(2)}</p>
+                    </div>
+                  </div>
+
+                  <blockquote className="mt-4 border-l-2 border-slate-300 pl-4 text-sm leading-6 text-slate-700">
+                    {selectedCitation.quote}
+                  </blockquote>
+
+                  {selectedCitation.content !== selectedCitation.quote ? (
+                    <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                      {selectedCitation.content}
+                    </p>
+                  ) : null}
+                </div>
+
+                <div className="grid gap-2">
+                  {citationPanelCitations.map((citation) => (
+                    <CitationCard
+                      key={`${citation.chunk_id}-${citation.citation_index}`}
+                      citation={citation}
+                      isActive={citation.citation_index === selectedCitation.citation_index}
+                      onSelect={(citationIndex) =>
+                        handleCitationSelect(citationPanelMessage.id, citationIndex)
+                      }
+                    />
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-white/80 p-4 text-sm text-muted-foreground">
+                Cited source details will appear here when an answer includes
+                grounded references.
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="border-t bg-background/95 p-4 backdrop-blur sm:p-5">

@@ -1,5 +1,6 @@
 "use client";
 
+import { CitationMarker } from "@/components/chat/citation-marker";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import type { ChatCitation } from "@/lib/chat-stream";
@@ -14,9 +15,51 @@ export interface ChatMessage {
 
 interface MessageBubbleProps {
   message: ChatMessage;
+  activeCitationIndex?: number | null;
+  onCitationSelect?: (index: number) => void;
 }
 
-export function MessageBubble({ message }: MessageBubbleProps) {
+function renderAssistantContent(
+  content: string,
+  citations: ChatCitation[],
+  activeCitationIndex: number | null | undefined,
+  onCitationSelect?: (index: number) => void
+) {
+  const citationIndexSet = new Set(citations.map((citation) => citation.citation_index));
+  const segments = content.split(/(\[\d+\])/g).filter(Boolean);
+
+  return (
+    <div className="whitespace-pre-wrap text-sm leading-6">
+      {segments.map((segment, index) => {
+        const match = /^\[(\d+)\]$/.exec(segment);
+
+        if (!match) {
+          return <span key={`${segment}-${index}`}>{segment}</span>;
+        }
+
+        const citationIndex = Number(match[1]);
+        if (!citationIndexSet.has(citationIndex)) {
+          return <span key={`${segment}-${index}`}>{segment}</span>;
+        }
+
+        return (
+          <CitationMarker
+            key={`${segment}-${index}`}
+            index={citationIndex}
+            isActive={activeCitationIndex === citationIndex}
+            onSelect={onCitationSelect}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+export function MessageBubble({
+  message,
+  activeCitationIndex,
+  onCitationSelect,
+}: MessageBubbleProps) {
   const isUser = message.role === "user";
   const showStatus = !isUser && message.statusMessage;
   const hasContent = Boolean(message.content.trim());
@@ -48,7 +91,16 @@ export function MessageBubble({ message }: MessageBubbleProps) {
         ) : null}
 
         {hasContent ? (
-          <p className="whitespace-pre-wrap text-sm leading-6">{message.content}</p>
+          isUser ? (
+            <p className="whitespace-pre-wrap text-sm leading-6">{message.content}</p>
+          ) : (
+            renderAssistantContent(
+              message.content,
+              message.citations,
+              activeCitationIndex,
+              onCitationSelect
+            )
+          )
         ) : null}
 
         {!isUser && message.citations.length > 0 ? (
