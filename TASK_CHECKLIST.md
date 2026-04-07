@@ -42,19 +42,23 @@ Quick reference checklist for tracking development progress. Check off items as 
 - ✓ Google Docs parser
 - ✓ Parser tests
 
-**Chunking**
+**Chunking** ⚡
 - ✓ Semantic chunking algorithm
 - ✓ Overlap implementation
 - ✓ Metadata extraction (page numbers, headings)
 - ✓ SourceChunk model
-- ✓ Chunking tests
+- ⚡ Offline-safe tokenizer loading
+- ⚡ Chunking tests in no-network environment
+- ⬜ Benchmark chunking performance
 
-**Embeddings**
+**Embeddings** ⚡
 - ✓ Embedding model setup
 - ✓ Batch generation
 - ✓ Rate limiting
 - ✓ Cost tracking
 - ✓ Vector storage
+- ⚡ Offline-safe token counting integration
+- ⚡ Embedding tests in no-network environment
 
 **Vector Search**
 - ✓ pgvector installation
@@ -107,15 +111,15 @@ Quick reference checklist for tracking development progress. Check off items as 
 - ✓ Auto-scroll
 - ✓ Input component
 
-**Notebook Workspace**
-- ⬜ Source list in notebook detail
-- ⬜ Ingestion status badges
-- ⬜ Progress/error state display
-- ⬜ Empty state for no sources
-- ⬜ Reserved summary section
-- ⬜ Reserved generated-assets section
-- ⬜ Workspace refresh behavior
-- ⬜ Frontend tests
+**Notebook Workspace** ✓
+- ✓ Source list in notebook detail
+- ✓ Ingestion status badges
+- ✓ Progress/error state display
+- ✓ Empty state for no sources
+- ✓ Reserved summary section
+- ✓ Reserved generated-assets section
+- ✓ Workspace refresh behavior
+- ✓ Frontend tests
 
 **Source Management UI**
 - ⬜ Add-source entry point
@@ -202,8 +206,8 @@ Quick reference checklist for tracking development progress. Check off items as 
 - ⬜ A/B evaluation
 
 **Query Rewriting**
-- ⬜ Rewriter function
-- ⬜ Chat history integration
+- ⚡ Rewriter function
+- ⚡ Chat history integration
 - ⬜ Transparency option
 - ⬜ Quality testing
 

@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 
 import NotebookDetailPage from "./page";
 import { notebooksApi, type Notebook } from "@/lib/api";
+import { sourcesApi } from "@/lib/api";
 import { streamNotebookChat } from "@/lib/chat-stream";
 
 jest.mock("next/navigation", () => ({
@@ -15,6 +16,10 @@ jest.mock("next/navigation", () => ({
 jest.mock("@/lib/api", () => ({
   notebooksApi: {
     get: jest.fn(),
+  },
+  sourcesApi: {
+    list: jest.fn(),
+    getStatus: jest.fn(),
   },
 }));
 
@@ -31,16 +36,99 @@ const mockNotebook: Notebook = {
   updated_at: "2026-04-07T12:00:00Z",
 };
 
+const mockSources = [
+  {
+    id: "source-1",
+    source_type: "pdf",
+    title: "Alpha Research Dossier",
+    status: "processing",
+    file_size: 1024,
+    created_at: "2026-04-07T12:00:00Z",
+    updated_at: "2026-04-07T12:00:00Z",
+  },
+  {
+    id: "source-2",
+    source_type: "url",
+    title: "Launch Risks Memo",
+    status: "failed",
+    file_size: null,
+    created_at: "2026-04-06T12:00:00Z",
+    updated_at: "2026-04-06T12:00:00Z",
+  },
+  {
+    id: "source-3",
+    source_type: "text",
+    title: "Queued Interview Notes",
+    status: "pending",
+    file_size: null,
+    created_at: "2026-04-05T12:00:00Z",
+    updated_at: "2026-04-05T12:00:00Z",
+  },
+  {
+    id: "source-4",
+    source_type: "gdocs",
+    title: "Customer Insights Brief",
+    status: "ready",
+    file_size: null,
+    created_at: "2026-04-04T12:00:00Z",
+    updated_at: "2026-04-04T12:00:00Z",
+  },
+];
+
 describe("NotebookDetailPage", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (notebooksApi.get as jest.Mock).mockResolvedValue(mockNotebook);
+    (sourcesApi.list as jest.Mock).mockResolvedValue(mockSources);
+    (sourcesApi.getStatus as jest.Mock).mockImplementation((sourceId: string) => {
+      if (sourceId === "source-1") {
+        return Promise.resolve({
+          source_id: sourceId,
+          status: "processing",
+          progress: {
+            current_step: "embedding",
+            percentage: 70,
+            embedded_chunks: 7,
+            total_chunks: 10,
+          },
+          error_message: null,
+        });
+      }
+
+      if (sourceId === "source-2") {
+        return Promise.resolve({
+          source_id: sourceId,
+          status: "failed",
+          progress: null,
+          error_message: "Could not parse the source content.",
+        });
+      }
+
+      if (sourceId === "source-3") {
+        return Promise.resolve({
+          source_id: sourceId,
+          status: "pending",
+          progress: {
+            message: "Queued for ingestion",
+          },
+          error_message: null,
+        });
+      }
+
+      return Promise.resolve({
+        source_id: sourceId,
+        status: "ready",
+        progress: null,
+        error_message: null,
+      });
+    });
   });
 
   it("renders the notebook workspace with a dedicated chat panel", async () => {
     render(<NotebookDetailPage />);
 
     expect(await screen.findByText("Deep Research Notes")).toBeInTheDocument();
+    expect(await screen.findByText("Notebook sources")).toBeInTheDocument();
     expect(screen.getByText("Grounded chat")).toBeInTheDocument();
     expect(
       screen.getByText("Ask questions against the sources in this notebook.")
@@ -48,6 +136,75 @@ describe("NotebookDetailPage", () => {
     expect(
       screen.getByPlaceholderText("Ask a source-grounded question...")
     ).toBeInTheDocument();
+  });
+
+  it("renders notebook sources with status badges, progress details, and reserved sections", async () => {
+    render(<NotebookDetailPage />);
+
+    expect(await screen.findByText("Alpha Research Dossier")).toBeInTheDocument();
+    expect(screen.getByText("Launch Risks Memo")).toBeInTheDocument();
+    expect(screen.getByText("Queued Interview Notes")).toBeInTheDocument();
+    expect(screen.getByText("Customer Insights Brief")).toBeInTheDocument();
+    expect(screen.getByText("PDF")).toBeInTheDocument();
+    expect(screen.getByText("URL")).toBeInTheDocument();
+    expect(screen.getByText("TEXT")).toBeInTheDocument();
+    expect(screen.getByText("Ready")).toBeInTheDocument();
+    expect(screen.getByText("Pending")).toHaveClass("bg-slate-100");
+    expect(screen.getByText("Processing")).toBeInTheDocument();
+    expect(screen.getByText("Failed")).toBeInTheDocument();
+    expect(screen.getByText("Embedding 7 of 10 chunks")).toBeInTheDocument();
+    expect(screen.getByText("Queued for ingestion")).toBeInTheDocument();
+    expect(screen.getByText("Could not parse the source content.")).toBeInTheDocument();
+    expect(screen.getByText("Added Apr 7, 2026")).toBeInTheDocument();
+    expect(screen.getByText("Notebook summary")).toBeInTheDocument();
+    expect(screen.getByText("Generated assets")).toBeInTheDocument();
+  });
+
+  it("shows an empty state when the notebook has no sources", async () => {
+    (sourcesApi.list as jest.Mock).mockResolvedValueOnce([]);
+
+    render(<NotebookDetailPage />);
+
+    expect(await screen.findByText("No sources yet")).toBeInTheDocument();
+    expect(
+      screen.getByText("Add a PDF, pasted text, or URL to start grounding this notebook.")
+    ).toBeInTheDocument();
+    expect(sourcesApi.getStatus).not.toHaveBeenCalled();
+  });
+
+  it("refreshes the notebook source list without leaving the page", async () => {
+    const user = userEvent.setup();
+
+    render(<NotebookDetailPage />);
+
+    expect(await screen.findByText("Alpha Research Dossier")).toBeInTheDocument();
+
+    await act(async () => {
+      await user.click(screen.getByRole("button", { name: "Refresh" }));
+    });
+
+    await waitFor(() => {
+      expect(sourcesApi.list).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it("shows a source loading error and retries in place", async () => {
+    const user = userEvent.setup();
+
+    (sourcesApi.list as jest.Mock)
+      .mockRejectedValueOnce(new Error("Sources API unavailable"))
+      .mockResolvedValueOnce(mockSources);
+
+    render(<NotebookDetailPage />);
+
+    expect(await screen.findByText("Sources API unavailable")).toBeInTheDocument();
+
+    await act(async () => {
+      await user.click(screen.getByRole("button", { name: "Refresh" }));
+    });
+
+    expect(await screen.findByText("Alpha Research Dossier")).toBeInTheDocument();
+    expect(sourcesApi.list).toHaveBeenCalledTimes(2);
   });
 
   it("adds user and assistant messages while the stream is active", async () => {

@@ -58,6 +58,8 @@ interface ParsedSseEvent {
   data: unknown;
 }
 
+const SSE_EVENT_DELIMITER = /\r?\n\r?\n/;
+
 function parseEventBlock(block: string): ParsedSseEvent | null {
   const lines = block.split(/\r?\n/);
   let event = "message";
@@ -174,11 +176,11 @@ export async function streamNotebookChat({
     const { done, value } = await reader.read();
     buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
 
-    const segments = buffer.split("\n\n");
+    const segments = buffer.split(SSE_EVENT_DELIMITER);
     buffer = segments.pop() || "";
 
     for (const segment of segments) {
-      dispatch(parseEventBlock(segment.trim()));
+      dispatch(parseEventBlock(segment));
     }
 
     if (done) {

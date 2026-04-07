@@ -23,6 +23,37 @@ export interface UpdateNotebookData {
   description?: string;
 }
 
+export type SourceType = "pdf" | "url" | "text" | "youtube" | "audio" | "gdocs";
+export type SourceStatus = "pending" | "processing" | "ready" | "failed";
+export type IngestionJobStatus =
+  | "queued"
+  | "running"
+  | "completed"
+  | "failed"
+  | "retrying";
+
+export interface NotebookSource {
+  id: string;
+  source_type: SourceType;
+  title: string;
+  status: SourceStatus;
+  file_size: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SourceIngestionStatus {
+  source_id: string;
+  status: SourceStatus;
+  job_id: string | null;
+  job_status: IngestionJobStatus | null;
+  task_id: string | null;
+  progress: Record<string, unknown> | null;
+  error_message: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+}
+
 class ApiError extends Error {
   constructor(
     public status: number,
@@ -101,6 +132,24 @@ export const notebooksApi = {
       method: "DELETE",
     });
     return handleResponse<void>(response);
+  },
+};
+
+export const sourcesApi = {
+  /**
+   * List sources for a notebook.
+   */
+  async list(notebookId: string): Promise<NotebookSource[]> {
+    const response = await fetch(`${API_URL}/api/notebooks/${notebookId}/sources`);
+    return handleResponse<NotebookSource[]>(response);
+  },
+
+  /**
+   * Get the latest ingestion status for a source.
+   */
+  async getStatus(sourceId: string): Promise<SourceIngestionStatus> {
+    const response = await fetch(`${API_URL}/api/sources/${sourceId}/status`);
+    return handleResponse<SourceIngestionStatus>(response);
   },
 };
 

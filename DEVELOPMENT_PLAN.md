@@ -180,6 +180,7 @@ This document outlines the detailed development plan, acceptance criteria, and t
 - [x] Each chunk includes source title and chunk index
 - [x] Chunks maintain character position offsets
 - [x] No information loss between chunks
+- [ ] Tokenization works without runtime network downloads in local and sandboxed environments
 
 **Tasks:**
 1. Install tokenizer library (tiktoken for OpenAI models)
@@ -202,6 +203,8 @@ This document outlines the detailed development plan, acceptance criteria, and t
 7. Add unit tests with various document structures
 8. Benchmark chunking performance
 9. Add database migration for source_chunks table
+10. Make tokenizer loading offline-safe (vendor/cache `cl100k_base` or add a local fallback)
+11. Re-run chunking verification in a no-network or sandboxed environment
 
 ---
 
@@ -215,6 +218,7 @@ This document outlines the detailed development plan, acceptance criteria, and t
 - [x] Handle API rate limits and retries
 - [x] Track embedding costs
 - [x] Embeddings are normalized for cosine similarity
+- [ ] Embedding token counting works without runtime network downloads in local and sandboxed environments
 
 **Tasks:**
 1. Choose and configure embedding model
@@ -228,6 +232,9 @@ This document outlines the detailed development plan, acceptance criteria, and t
 9. Add unit tests with mock API
 10. Monitor and log embedding costs
 11. Add database migration for vector column
+12. Reuse the offline-safe tokenizer path from Feature 2.2 for embedding token counting and cost tracking
+13. Re-run embedding verification in a no-network or sandboxed environment
+14. Add focused regression coverage for the offline tokenizer path
 
 ---
 
@@ -414,20 +421,20 @@ This document outlines the detailed development plan, acceptance criteria, and t
 
 ---
 
-### Feature 3.5: Notebook Workspace Surface
+### Feature 3.5: Notebook Workspace Surface ✅
 
 **Acceptance Criteria:**
-- [ ] Notebook detail page shows a source list for the current notebook
-- [ ] Each source row shows title, source type, created date, and current ingestion status
-- [ ] Source status is visually distinct for `pending`, `processing`, `ready`, and `failed`
-- [ ] Processing sources show available progress/status text from existing ingestion APIs
-- [ ] Failed sources show the stored error message
-- [ ] Source list refreshes on load and can be refreshed without leaving the page
-- [ ] Empty state is shown when a notebook has no sources
-- [ ] Workspace layout remains responsive with notebook surface on the left/main area and chat on the right
-- [ ] Notebook summary area is present as a reserved section with empty/loading state until Feature 4.1 lands
-- [ ] Generated assets area is present as a reserved section with empty state until Phase 5 assets land
-- [ ] Source summaries are not required in this slice; they remain deferred to future summary-generation work
+- [x] Notebook detail page shows a source list for the current notebook
+- [x] Each source row shows title, source type, created date, and current ingestion status
+- [x] Source status is visually distinct for `pending`, `processing`, `ready`, and `failed`
+- [x] Processing sources show available progress/status text from existing ingestion APIs
+- [x] Failed sources show the stored error message
+- [x] Source list refreshes on load and can be refreshed without leaving the page
+- [x] Empty state is shown when a notebook has no sources
+- [x] Workspace layout remains responsive with notebook surface on the left/main area and chat on the right
+- [x] Notebook summary area is present as a reserved section with empty/loading state until Feature 4.1 lands
+- [x] Generated assets area is present as a reserved section with empty state until Phase 5 assets land
+- [x] Source summaries are not required in this slice; they remain deferred to future summary-generation work
 
 **Tasks:**
 1. Create notebook workspace section component for the notebook detail page

@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 
 import { ChatPanel } from "@/components/chat/chat-panel";
+import { NotebookWorkspace } from "@/components/notebooks/notebook-workspace";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
@@ -130,23 +131,7 @@ export default function NotebookDetailPage() {
               </CardContent>
             </Card>
 
-            <Card className="border-slate-200 bg-white/90 shadow-sm">
-              <CardHeader>
-                <CardTitle className="text-xl">Workspace surface</CardTitle>
-                <CardDescription>
-                  Source browsing, summaries, and generated assets will attach to this
-                  notebook view as the next features land.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4 text-sm text-muted-foreground">
-                <div className="rounded-2xl border border-dashed border-border p-4">
-                  Source list and ingestion status
-                </div>
-                <div className="rounded-2xl border border-dashed border-border p-4">
-                  Notebook summaries and derived content
-                </div>
-              </CardContent>
-            </Card>
+            <NotebookWorkspace notebookId={notebook.id} />
           </section>
 
           <aside className="lg:sticky lg:top-8 lg:h-[calc(100vh-4rem)]">
