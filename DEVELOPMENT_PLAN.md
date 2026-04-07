@@ -352,7 +352,7 @@ This document outlines the detailed development plan, acceptance criteria, and t
 ### Feature 3.3: Chat UI with Citations
 
 **Acceptance Criteria:**
-- [x] Chat panel on right side of notebook detail page
+- [x] Chat panel on right side of notebook detail workspace
 - [x] Message history displayed with user/assistant bubbles
 - [x] Citation markers [1][2] are clickable
 - [x] Clicking citation shows quote and source info
@@ -411,6 +411,74 @@ This document outlines the detailed development plan, acceptance criteria, and t
 10. ✓ Create citation API endpoint for fetching
 11. ✓ Write unit tests for citation logic
 12. ✓ Add database migration for citations table
+
+---
+
+### Feature 3.5: Notebook Workspace Surface
+
+**Acceptance Criteria:**
+- [ ] Notebook detail page shows a source list for the current notebook
+- [ ] Each source row shows title, source type, created date, and current ingestion status
+- [ ] Source status is visually distinct for `pending`, `processing`, `ready`, and `failed`
+- [ ] Processing sources show available progress/status text from existing ingestion APIs
+- [ ] Failed sources show the stored error message
+- [ ] Source list refreshes on load and can be refreshed without leaving the page
+- [ ] Empty state is shown when a notebook has no sources
+- [ ] Workspace layout remains responsive with notebook surface on the left/main area and chat on the right
+- [ ] Notebook summary area is present as a reserved section with empty/loading state until Feature 4.1 lands
+- [ ] Generated assets area is present as a reserved section with empty state until Phase 5 assets land
+- [ ] Source summaries are not required in this slice; they remain deferred to future summary-generation work
+
+**Tasks:**
+1. Create notebook workspace section component for the notebook detail page
+2. Add source list query using existing `GET /api/notebooks/{id}/sources`
+3. Add ingestion-status lookup using existing `GET /api/sources/{source_id}/status`
+4. Design source row/card UI with status badges and failure/progress messaging
+5. Add empty state for notebooks with zero sources
+6. Add loading and refresh states for the workspace panel
+7. Replace the current placeholder "Workspace surface" card with functional sections
+8. Add reserved notebook summary section wired to future Feature 4.1 state
+9. Add reserved generated-assets section wired to future Phase 5 state
+10. Add frontend tests for source list, status rendering, empty state, and error state
+11. Update notebook detail page acceptance language so the page is treated as a composed workspace, not chat-only
+
+**Dependency Note:**
+- Depends on existing source list and ingestion status endpoints
+- Does not require notebook summary generation or generated-asset APIs to ship
+
+---
+
+### Feature 3.6: Source Management UI
+
+**Acceptance Criteria:**
+- [ ] Notebook detail workspace includes an add-source entry point
+- [ ] Users can add PDF sources via manual file upload
+- [ ] Users can add plain text sources via pasted clipboard content
+- [ ] Users can add URL sources via pasted clipboard content or manual entry
+- [ ] Upload UI validates supported source types: `pdf`, `txt`, and `url`
+- [ ] Upload UI shows loading and error states for each submission flow
+- [ ] Successful source creation refreshes the source list in the current notebook workspace
+- [ ] Each source row includes a delete action
+- [ ] Deleting a source requires a confirmation modal before the request is sent
+- [ ] Successful delete removes the source from the workspace without a full page reload
+- [ ] Delete failures show a user-facing error state and preserve the source row
+
+**Tasks:**
+1. Create add-source trigger and source management controls in the notebook detail workspace
+2. Build source upload modal or panel with separate PDF, text, and URL entry flows
+3. Wire PDF upload to existing `POST /api/notebooks/{id}/sources/upload`
+4. Wire text submission to existing `POST /api/notebooks/{id}/sources/text`
+5. Wire URL submission to existing `POST /api/notebooks/{id}/sources/url`
+6. Add clipboard-friendly inputs for pasted text and pasted URLs
+7. Add client-side validation for supported file type, required fields, and invalid URL input
+8. Refresh notebook source data after successful create actions
+9. Add per-source delete action wired to existing `DELETE /api/notebooks/{id}/sources/{source_id}`
+10. Create delete confirmation modal with loading and error states
+11. Add frontend tests for PDF upload, text upload, URL submission, delete confirmation, and failed requests
+
+**Dependency Note:**
+- Depends on existing source create and delete endpoints
+- Builds on the notebook workspace surface so newly created and deleted sources are reflected immediately
 
 ---
 

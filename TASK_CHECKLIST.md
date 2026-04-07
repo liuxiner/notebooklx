@@ -105,6 +105,27 @@ Quick reference checklist for tracking development progress. Check off items as 
 - ✓ Auto-scroll
 - ✓ Input component
 
+**Notebook Workspace**
+- ⬜ Source list in notebook detail
+- ⬜ Ingestion status badges
+- ⬜ Progress/error state display
+- ⬜ Empty state for no sources
+- ⬜ Reserved summary section
+- ⬜ Reserved generated-assets section
+- ⬜ Workspace refresh behavior
+- ⬜ Frontend tests
+
+**Source Management UI**
+- ⬜ Add-source entry point
+- ⬜ PDF upload flow
+- ⬜ Text paste flow
+- ⬜ URL paste/manual entry flow
+- ⬜ Validation and loading states
+- ⬜ Delete action per source
+- ⬜ Confirm delete modal
+- ⬜ Refresh source list after create/delete
+- ⬜ Frontend tests
+
 ---
 
 ## Phase 4: Auto-generated Content
