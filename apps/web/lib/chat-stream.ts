@@ -5,7 +5,9 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 export interface ChatCitation {
   citation_index: number;
   chunk_id: string;
+  source_id?: string | null;
   source_title: string;
+  chunk_index?: number | null;
   page: string | null;
   quote: string;
   content: string;
@@ -23,6 +25,23 @@ export interface ChatCitationsEvent {
   missing_citation_indices: number[];
 }
 
+export interface ChatRetrievalEvent {
+  chunk_count: number;
+  source_count: number;
+  chunks: ChatCitation[];
+}
+
+export interface ChatMetricsEvent {
+  model?: string | null;
+  query_embedding_seconds?: number | null;
+  retrieval_seconds?: number | null;
+  prepare_seconds?: number | null;
+  time_to_first_delta_seconds?: number | null;
+  llm_stream_seconds?: number | null;
+  delta_chunks_received?: number | null;
+  stream_delivery?: string | null;
+}
+
 export interface ChatAnswerEvent {
   answer: string;
   raw_answer: string;
@@ -36,9 +55,20 @@ export interface ChatDoneEvent {
   status: string;
 }
 
-interface ChatErrorEvent {
+export interface ChatErrorEvent {
   error: string;
   message: string;
+  title?: string;
+  hint?: string | null;
+  retryable?: boolean;
+}
+
+export interface ChatFailureState {
+  code: string;
+  title: string;
+  message: string;
+  hint: string | null;
+  retryable: boolean;
 }
 
 interface StreamNotebookChatOptions {
@@ -47,6 +77,8 @@ interface StreamNotebookChatOptions {
   topK?: number;
   signal?: AbortSignal;
   onStatus?: (payload: ChatStatusEvent) => void;
+  onMetrics?: (payload: ChatMetricsEvent) => void;
+  onRetrieval?: (payload: ChatRetrievalEvent) => void;
   onCitations?: (payload: ChatCitationsEvent) => void;
   onAnswerDelta?: (payload: ChatAnswerDeltaEvent) => void;
   onAnswer?: (payload: ChatAnswerEvent) => void;
@@ -59,6 +91,106 @@ interface ParsedSseEvent {
 }
 
 const SSE_EVENT_DELIMITER = /\r?\n\r?\n/;
+const DEFAULT_CHAT_FAILURE: ChatFailureState = {
+  code: "chat_failed",
+  title: "Chat could not complete",
+  message: "Failed to generate a grounded answer.",
+  hint: "Try again in a moment.",
+  retryable: true,
+};
+
+function isChatErrorPayload(value: unknown): value is Partial<ChatErrorEvent> {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  return (
+    typeof (value as Record<string, unknown>).message === "string" ||
+    typeof (value as Record<string, unknown>).error === "string" ||
+    typeof (value as Record<string, unknown>).title === "string"
+  );
+}
+
+export class ChatStreamError extends Error {
+  code: string;
+  title: string;
+  hint: string | null;
+  retryable: boolean;
+
+  constructor(payload: ChatErrorEvent) {
+    super(payload.message || DEFAULT_CHAT_FAILURE.message);
+    this.name = "ChatStreamError";
+    this.code = payload.error || DEFAULT_CHAT_FAILURE.code;
+    this.title = payload.title || DEFAULT_CHAT_FAILURE.title;
+    this.hint = payload.hint ?? DEFAULT_CHAT_FAILURE.hint;
+    this.retryable = payload.retryable ?? DEFAULT_CHAT_FAILURE.retryable;
+  }
+}
+
+export function normalizeChatFailure(error: unknown): ChatFailureState {
+  if (error instanceof ChatStreamError) {
+    return {
+      code: error.code,
+      title: error.title,
+      message: error.message,
+      hint: error.hint,
+      retryable: error.retryable,
+    };
+  }
+
+  if (isChatErrorPayload(error)) {
+    return {
+      code:
+        typeof error.error === "string" && error.error.trim()
+          ? error.error
+          : DEFAULT_CHAT_FAILURE.code,
+      title:
+        typeof error.title === "string" && error.title.trim()
+          ? error.title
+          : DEFAULT_CHAT_FAILURE.title,
+      message:
+        typeof error.message === "string" && error.message.trim()
+          ? error.message
+          : DEFAULT_CHAT_FAILURE.message,
+      hint: typeof error.hint === "string" ? error.hint : DEFAULT_CHAT_FAILURE.hint,
+      retryable:
+        typeof error.retryable === "boolean"
+          ? error.retryable
+          : DEFAULT_CHAT_FAILURE.retryable,
+    };
+  }
+
+  if (error instanceof ApiError) {
+    if (error.status === 404) {
+      return {
+        code: "notebook_unavailable",
+        title: "Notebook unavailable",
+        message: "This notebook is no longer available for chat.",
+        hint: "Reload the page or reopen the notebook list.",
+        retryable: false,
+      };
+    }
+
+    if (error.status === 503) {
+      return {
+        code: "ai_unavailable",
+        title: "AI service unavailable",
+        message: "This environment is not ready to generate notebook answers right now.",
+        hint: "Check the model configuration and try again.",
+        retryable: false,
+      };
+    }
+  }
+
+  if (error instanceof Error && error.message.trim()) {
+    return {
+      ...DEFAULT_CHAT_FAILURE,
+      message: error.message,
+    };
+  }
+
+  return DEFAULT_CHAT_FAILURE;
+}
 
 function parseEventBlock(block: string): ParsedSseEvent | null {
   const lines = block.split(/\r?\n/);
@@ -112,6 +244,8 @@ export async function streamNotebookChat({
   topK = 5,
   signal,
   onStatus,
+  onMetrics,
+  onRetrieval,
   onCitations,
   onAnswerDelta,
   onAnswer,
@@ -151,6 +285,12 @@ export async function streamNotebookChat({
       case "status":
         onStatus?.(parsedEvent.data as ChatStatusEvent);
         break;
+      case "metrics":
+        onMetrics?.(parsedEvent.data as ChatMetricsEvent);
+        break;
+      case "retrieval":
+        onRetrieval?.(parsedEvent.data as ChatRetrievalEvent);
+        break;
       case "citations":
         onCitations?.(parsedEvent.data as ChatCitationsEvent);
         break;
@@ -165,7 +305,7 @@ export async function streamNotebookChat({
         break;
       case "error": {
         const payload = parsedEvent.data as ChatErrorEvent;
-        throw new Error(payload.message || "The chat stream failed.");
+        throw new ChatStreamError(payload);
       }
       default:
         break;

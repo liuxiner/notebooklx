@@ -10,6 +10,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from services.api.modules.chat.service import (
+    ChatTimingMetrics,
     EvidenceChunk,
     GroundedQAPreparation,
     GroundedQAResponse,
@@ -20,7 +21,9 @@ def _make_citation_chunk(index: int = 1) -> EvidenceChunk:
     return EvidenceChunk(
         citation_index=index,
         chunk_id=f"chunk-{index}",
+        source_id=f"source-{index}",
         source_title="Alpha Guide",
+        chunk_index=index - 1,
         page="12",
         quote="Alpha is supported here.",
         content="Alpha is supported here in full context.",
@@ -66,6 +69,12 @@ class TestGroundedChatStream:
                         {"role": "system", "content": "Use evidence only."},
                         {"role": "user", "content": question},
                     ],
+                    metrics=ChatTimingMetrics(
+                        model="glm-4.7",
+                        query_embedding_seconds=6.41,
+                        retrieval_seconds=0.16,
+                        prepare_seconds=6.57,
+                    ),
                 )
 
             def stream_answer(self, messages):
@@ -101,16 +110,256 @@ class TestGroundedChatStream:
             body = "".join(stream.iter_text())
 
         assert "event: status" in body
+        assert "event: metrics" in body
+        assert "event: retrieval" in body
         assert body.count("event: answer_delta") == 2
         assert "event: citations" in body
         assert "event: answer" in body
         assert "event: done" in body
+        assert '"stage": "embedding_query"' in body
+        assert '"stage": "waiting_model"' in body
+        assert '"stage": "streaming"' in body
+        assert '"stage": "grounding"' in body
+        assert '"model": "glm-4.7"' in body
+        assert '"query_embedding_seconds": 6.41' in body
+        assert '"retrieval_seconds": 0.16' in body
+        assert '"prepare_seconds": 6.57' in body
+        assert '"chunk_count": 1' in body
+        assert '"source_count": 1' in body
+        assert '"source_id": "source-1"' in body
+        assert '"delta_chunks_received": 2' in body
+        assert '"stream_delivery": "streaming"' in body
         assert '"answer": "Alpha is supported."' in body
         assert '"delta": "Alpha "' in body
         assert '"delta": "is supported."' in body
         assert '"citation_indices": [1]' in body
         assert service.calls == [("What is Alpha?", notebook_id, 5)]
         assert service.finalize_calls == ["Alpha is supported."]
+
+        assert body.index('"stage": "embedding_query"') < body.index('"query_embedding_seconds": 6.41')
+        assert body.index('"query_embedding_seconds": 6.41') < body.index("event: retrieval")
+        assert body.index("event: retrieval") < body.index('"stage": "waiting_model"')
+        assert body.index('"stage": "waiting_model"') < body.index('"stage": "streaming"')
+        assert body.index('"stage": "streaming"') < body.index("event: answer_delta")
+
+    def test_stream_endpoint_sets_sse_no_buffering_headers(
+        self,
+        client: TestClient,
+        sample_notebook_data: dict,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """
+        AC: Streaming response for better UX.
+
+        The SSE endpoint should send anti-buffering headers so browsers and
+        reverse proxies do not coalesce the stream into a single late response.
+        """
+        from services.api.modules.chat import routes as chat_routes
+
+        notebook_response = client.post("/api/notebooks", json=sample_notebook_data)
+        assert notebook_response.status_code == 201
+        notebook_id = notebook_response.json()["id"]
+
+        class FakeGroundedQAService:
+            async def prepare_answer(
+                self,
+                question: str,
+                notebook_id: str,
+                *,
+                top_k: int = 5,
+            ):
+                evidence = [_make_citation_chunk()]
+                return GroundedQAPreparation(
+                    evidence=evidence,
+                    messages=[
+                        {"role": "system", "content": "Use evidence only."},
+                        {"role": "user", "content": question},
+                    ],
+                )
+
+            def stream_answer(self, messages):
+                _ = messages
+                yield "Alpha is supported."
+
+            def finalize_answer(self, raw_answer, evidence, messages) -> GroundedQAResponse:
+                return GroundedQAResponse(
+                    answer=raw_answer,
+                    evidence=evidence,
+                    citations=evidence,
+                    citation_indices=[1],
+                    missing_citation_indices=[],
+                    raw_answer=raw_answer,
+                    messages=messages,
+                )
+
+        monkeypatch.setattr(
+            chat_routes,
+            "get_grounded_qa_service",
+            lambda _db: FakeGroundedQAService(),
+        )
+
+        response = client.stream(
+            "POST",
+            f"/api/notebooks/{notebook_id}/chat/stream",
+            json={"question": "What is Alpha?"},
+        )
+
+        with response as stream:
+            assert stream.status_code == 200
+            assert stream.headers["cache-control"] == "no-cache, no-transform"
+            assert stream.headers["x-accel-buffering"] == "no"
+            _ = "".join(stream.iter_text())
+
+    def test_stream_endpoint_emits_error_event_without_aborting_connection(
+        self,
+        client: TestClient,
+        sample_notebook_data: dict,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """
+        AC: Streaming response for better UX.
+
+        If the upstream AI call fails after the stream has started, the endpoint
+        should emit an SSE error event and end cleanly so clients can surface the
+        error instead of treating it as a transport failure.
+        """
+        from services.api.modules.chat import routes as chat_routes
+
+        notebook_response = client.post("/api/notebooks", json=sample_notebook_data)
+        assert notebook_response.status_code == 201
+        notebook_id = notebook_response.json()["id"]
+
+        class FakeGroundedQAService:
+            async def prepare_answer(
+                self,
+                question: str,
+                notebook_id: str,
+                *,
+                top_k: int = 5,
+            ):
+                _ = (question, notebook_id, top_k)
+                raise RuntimeError("Unexpected upstream failure")
+
+        monkeypatch.setattr(
+            chat_routes,
+            "get_grounded_qa_service",
+            lambda _db: FakeGroundedQAService(),
+        )
+
+        response = client.stream(
+            "POST",
+            f"/api/notebooks/{notebook_id}/chat/stream",
+            json={"question": "What is Alpha?"},
+        )
+
+        with response as stream:
+            assert stream.status_code == 200
+            body = "".join(stream.iter_text())
+
+        assert "event: status" in body
+        assert "event: error" in body
+        assert '"error": "internal_error"' in body
+        assert '"message": "An unexpected error occurred"' in body
+
+    def test_stream_endpoint_maps_provider_quota_errors_to_guardrail_payload(
+        self,
+        client: TestClient,
+        sample_notebook_data: dict,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """
+        AC: Provider quota/balance failures return a user-friendly guardrail payload.
+        """
+        from services.api.modules.chat import routes as chat_routes
+
+        notebook_response = client.post("/api/notebooks", json=sample_notebook_data)
+        assert notebook_response.status_code == 201
+        notebook_id = notebook_response.json()["id"]
+
+        class FakeGroundedQAService:
+            async def prepare_answer(
+                self,
+                question: str,
+                notebook_id: str,
+                *,
+                top_k: int = 5,
+            ):
+                _ = (question, notebook_id, top_k)
+                raise RuntimeError(
+                    "openai.RateLimitError: Error code: 429 - "
+                    "{'error': {'code': '1113', 'message': '余额不足或无可用资源包,请充值。'}}"
+                )
+
+        monkeypatch.setattr(
+            chat_routes,
+            "get_grounded_qa_service",
+            lambda _db: FakeGroundedQAService(),
+        )
+
+        response = client.stream(
+            "POST",
+            f"/api/notebooks/{notebook_id}/chat/stream",
+            json={"question": "What is Alpha?"},
+        )
+
+        with response as stream:
+            assert stream.status_code == 200
+            body = "".join(stream.iter_text())
+
+        assert "event: error" in body
+        assert '"error": "quota_exhausted"' in body
+        assert '"title": "AI credits unavailable"' in body
+        assert '"retryable": false' in body
+        assert "余额不足或无可用资源包" not in body
+
+    def test_stream_endpoint_maps_safety_errors_to_rephrase_guardrail(
+        self,
+        client: TestClient,
+        sample_notebook_data: dict,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """
+        AC: Safety/policy failures tell the user to rephrase instead of leaking provider text.
+        """
+        from services.api.modules.chat import routes as chat_routes
+
+        notebook_response = client.post("/api/notebooks", json=sample_notebook_data)
+        assert notebook_response.status_code == 201
+        notebook_id = notebook_response.json()["id"]
+
+        class FakeGroundedQAService:
+            async def prepare_answer(
+                self,
+                question: str,
+                notebook_id: str,
+                *,
+                top_k: int = 5,
+            ):
+                _ = (question, notebook_id, top_k)
+                raise RuntimeError(
+                    "Request blocked by content policy because it may contain violative terms."
+                )
+
+        monkeypatch.setattr(
+            chat_routes,
+            "get_grounded_qa_service",
+            lambda _db: FakeGroundedQAService(),
+        )
+
+        response = client.stream(
+            "POST",
+            f"/api/notebooks/{notebook_id}/chat/stream",
+            json={"question": "What is Alpha?"},
+        )
+
+        with response as stream:
+            assert stream.status_code == 200
+            body = "".join(stream.iter_text())
+
+        assert "event: error" in body
+        assert '"error": "input_not_allowed"' in body
+        assert '"title": "Question needs rewording"' in body
+        assert '"retryable": true' in body
 
     def test_stream_endpoint_persists_completed_chat_exchange(
         self,

@@ -63,6 +63,8 @@ class EvidenceChunk:
     quote: str
     content: str
     score: float
+    source_id: str | None = None
+    chunk_index: int | None = None
 
 
 @dataclass(frozen=True)
@@ -84,6 +86,30 @@ class GroundedQAPreparation:
 
     evidence: list[EvidenceChunk] = field(default_factory=list)
     messages: list[dict[str, Any]] = field(default_factory=list)
+    metrics: "ChatTimingMetrics | None" = None
+
+
+@dataclass(frozen=True)
+class RetrievalDiagnostics:
+    """UI-friendly retrieval summary emitted before answer generation."""
+
+    chunk_count: int
+    source_count: int
+    chunks: list[EvidenceChunk] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class ChatTimingMetrics:
+    """Timing and delivery diagnostics for chat-stage observability."""
+
+    model: str | None = None
+    query_embedding_seconds: float | None = None
+    retrieval_seconds: float | None = None
+    prepare_seconds: float | None = None
+    time_to_first_delta_seconds: float | None = None
+    llm_stream_seconds: float | None = None
+    delta_chunks_received: int | None = None
+    stream_delivery: str | None = None
 
 
 @dataclass(frozen=True)
@@ -131,10 +157,27 @@ def format_evidence_pack(results: list[HybridSearchResult]) -> list[EvidenceChun
                 quote=_extract_quote(result),
                 content=result.content,
                 score=result.score,
+                source_id=result.source_id,
+                chunk_index=result.chunk_index,
             )
         )
 
     return evidence
+
+
+def build_retrieval_diagnostics(evidence: list[EvidenceChunk]) -> RetrievalDiagnostics:
+    """Summarize retrieved evidence for chat-stream observability."""
+    source_keys = {
+        chunk.source_id or chunk.source_title
+        for chunk in evidence
+        if (chunk.source_id or chunk.source_title)
+    }
+
+    return RetrievalDiagnostics(
+        chunk_count=len(evidence),
+        source_count=len(source_keys),
+        chunks=evidence,
+    )
 
 
 def build_grounded_messages(
@@ -348,7 +391,18 @@ class GroundedQAService:
 
         evidence = format_evidence_pack(retrieved)
         messages = build_grounded_messages(question, evidence)
-        return GroundedQAPreparation(evidence=evidence, messages=messages)
+        prepare_duration = embed_duration + search_duration
+        metrics = ChatTimingMetrics(
+            model=getattr(self.chat_provider, "model", None),
+            query_embedding_seconds=round(embed_duration, 2),
+            retrieval_seconds=round(search_duration, 2),
+            prepare_seconds=round(prepare_duration, 2),
+        )
+        return GroundedQAPreparation(
+            evidence=evidence,
+            messages=messages,
+            metrics=metrics,
+        )
 
     def stream_answer(
         self,

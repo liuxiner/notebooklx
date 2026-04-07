@@ -2,23 +2,32 @@
 Main FastAPI application for NotebookLX.
 """
 import logging
-import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-# Load environment variables from .env file
-try:
-    from dotenv import load_dotenv
-    # Try to load .env from the repository root
-    env_path = Path(__file__).parent.parent.parent / ".env"
-    load_dotenv(env_path)
-    logging.info(f"Loaded environment variables from {env_path}")
-except ImportError:
-    logging.warning("python-dotenv not installed, environment variables must be set manually")
-except Exception as e:
-    logging.warning(f"Could not load .env file: {e}")
+def load_repository_env(env_path: Path | None = None) -> Path | None:
+    """Load the repository .env file and override inherited stale values."""
+    try:
+        from dotenv import load_dotenv
+    except ImportError:
+        logging.warning("python-dotenv not installed, environment variables must be set manually")
+        return None
+
+    resolved_env_path = env_path or (Path(__file__).parent.parent.parent / ".env")
+
+    try:
+        load_dotenv(resolved_env_path, override=True)
+    except Exception as exc:
+        logging.warning(f"Could not load .env file: {exc}")
+        return None
+
+    logging.info(f"Loaded environment variables from {resolved_env_path}")
+    return resolved_env_path
+
+
+load_repository_env()
 
 from services.api.core.database import initialize_database
 from services.api.modules.chat.routes import router as chat_router

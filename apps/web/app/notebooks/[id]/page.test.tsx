@@ -149,7 +149,7 @@ describe("NotebookDetailPage", () => {
     expect(screen.getByText("URL")).toBeInTheDocument();
     expect(screen.getByText("TEXT")).toBeInTheDocument();
     expect(screen.getByText("Ready")).toBeInTheDocument();
-    expect(screen.getByText("Pending")).toHaveClass("bg-slate-100");
+    expect(screen.getAllByText("Pending")[0]).toHaveClass("bg-slate-100");
     expect(screen.getByText("Processing")).toBeInTheDocument();
     expect(screen.getByText("Failed")).toBeInTheDocument();
     expect(screen.getByText("Embedding 7 of 10 chunks")).toBeInTheDocument();
@@ -224,12 +224,12 @@ describe("NotebookDetailPage", () => {
         onDone: (payload: { status: string }) => void;
       }) => {
         onStatus({
-          stage: "retrieving",
-          message: "Searching sources in notebook notebook-123",
+          stage: "embedding_query",
+          message: "Embedding your question for notebook retrieval",
         });
         onStatus({
-          stage: "generating",
-          message: "Generating grounded answer",
+          stage: "waiting_model",
+          message: "Waiting for the model to send the first answer chunk",
         });
         onAnswerDelta({ delta: "Alpha launch" });
 
@@ -260,8 +260,8 @@ describe("NotebookDetailPage", () => {
     expect(
       screen.getByText("What do the sources say about Alpha?")
     ).toBeInTheDocument();
-    expect(screen.getByText("Generating grounded answer")).toBeInTheDocument();
-    expect(screen.getByText("Generating answer")).toBeInTheDocument();
+    expect(screen.getByText("Working through notebook sources")).toBeInTheDocument();
+    expect(screen.getAllByText("Waiting for the first answer chunk from the model")).toHaveLength(2);
     expect(screen.getByText("Alpha launch")).toBeInTheDocument();
 
     await act(async () => {
@@ -280,7 +280,7 @@ describe("NotebookDetailPage", () => {
     );
 
     await waitFor(() => {
-      expect(screen.queryByText("Generating answer")).not.toBeInTheDocument();
+      expect(screen.getByText("Grounded answer ready")).toBeInTheDocument();
     });
     expect(Element.prototype.scrollIntoView).toHaveBeenCalled();
   });
@@ -313,8 +313,8 @@ describe("NotebookDetailPage", () => {
         onDone: (payload: { status: string }) => void;
       }) => {
         onStatus({
-          stage: "retrieving",
-          message: "Searching sources in notebook notebook-123",
+          stage: "embedding_query",
+          message: "Embedding your question for notebook retrieval",
         });
         onCitations({
           citations: [

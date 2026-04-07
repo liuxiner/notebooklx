@@ -124,13 +124,36 @@ Quick reference checklist for tracking development progress. Check off items as 
 **Source Management UI** ✓
 - ✓ Add-source entry point
 - ✓ PDF upload flow
+- ✓ Filename-based default upload title
 - ✓ Text paste flow
 - ✓ URL paste/manual entry flow
 - ✓ Validation and loading states
+- ✓ Auto-enqueue ingestion after upload
+- ✓ Poll upload-started ingestion status to terminal state
 - ✓ Delete action per source
 - ✓ Confirm delete modal
 - ✓ Refresh source list after create/delete
 - ✓ Frontend tests
+
+**Chat Guardrails & Workflow UX** ✓
+- ✓ Structured chat error categories
+- ✓ Friendly quota / balance handling
+- ✓ Friendly safety / policy handling
+- ✓ Transient failure retry guidance
+- ✓ Notebook-oriented workflow status copy
+- ✓ Empty-state starter prompts
+- ✓ Retry CTA for transient chat failures
+- ✓ Backend and frontend tests
+
+**Streaming Observability & Retrieval Transparency** ⚡
+- ✓ Chat preparation timing visibility
+- ✓ Time-to-first-answer visibility
+- ✓ Stream delivery mode visibility
+- ✓ Retrieved chunk count visibility
+- ✓ Chunk-to-source relationship panel
+- ✓ Incremental assistant bubble streaming
+- ✓ Stable stream finalization without duplicate bubbles
+- ✓ Backend and frontend tests
 
 ---
 

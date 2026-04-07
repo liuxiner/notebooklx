@@ -3,6 +3,7 @@ Tests for application startup behavior.
 """
 from __future__ import annotations
 
+import importlib
 import os
 import subprocess
 import sys
@@ -44,3 +45,19 @@ print("imported main")
 
     assert result.returncode == 0, result.stderr
     assert "imported main" in result.stdout
+
+
+def test_load_repository_env_overrides_stale_inherited_values(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    """Reloading the app should pick up updated .env values under --reload."""
+
+    env_path = tmp_path / ".env"
+    env_path.write_text("ZHIPUAI_API_KEY=new-key\n", encoding="utf-8")
+    monkeypatch.setenv("ZHIPUAI_API_KEY", "old-key")
+
+    main = importlib.import_module("services.api.main")
+    main.load_repository_env(env_path)
+
+    assert os.environ["ZHIPUAI_API_KEY"] == "new-key"

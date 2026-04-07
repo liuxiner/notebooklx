@@ -2,8 +2,13 @@
 
 import { CitationMarker } from "@/components/chat/citation-marker";
 import { Spinner } from "@/components/ui/spinner";
+import type {
+  ChatCitation,
+  ChatFailureState,
+  ChatMetricsEvent,
+  ChatRetrievalEvent,
+} from "@/lib/chat-stream";
 import { cn } from "@/lib/utils";
-import type { ChatCitation } from "@/lib/chat-stream";
 
 export interface ChatMessage {
   id: string;
@@ -11,6 +16,9 @@ export interface ChatMessage {
   content: string;
   citations: ChatCitation[];
   statusMessage?: string | null;
+  guardrail?: ChatFailureState | null;
+  retrieval?: ChatRetrievalEvent | null;
+  metrics?: ChatMetricsEvent | null;
 }
 
 interface MessageBubbleProps {
@@ -62,6 +70,7 @@ export function MessageBubble({
 }: MessageBubbleProps) {
   const isUser = message.role === "user";
   const showStatus = !isUser && message.statusMessage;
+  const hasGuardrail = !isUser && Boolean(message.guardrail);
   const hasContent = Boolean(message.content.trim());
 
   return (
@@ -90,16 +99,41 @@ export function MessageBubble({
           </div>
         ) : null}
 
-        {hasContent ? (
+        {hasGuardrail ? (
+          <div
+            className={cn(
+              "space-y-2 rounded-2xl border px-4 py-3",
+              message.guardrail?.retryable
+                ? "border-amber-200 bg-amber-50 text-amber-950"
+                : "border-rose-200 bg-rose-50 text-rose-950"
+            )}
+          >
+            <p className="text-sm font-semibold">{message.guardrail?.title}</p>
+            <p className="text-sm leading-6">{message.guardrail?.message}</p>
+            {message.guardrail?.hint ? (
+              <p className="text-xs leading-5 text-current/80">{message.guardrail.hint}</p>
+            ) : null}
+          </div>
+        ) : null}
+
+        {!hasGuardrail && hasContent ? (
           isUser ? (
             <p className="whitespace-pre-wrap text-sm leading-6">{message.content}</p>
           ) : (
-            renderAssistantContent(
-              message.content,
-              message.citations,
-              activeCitationIndex,
-              onCitationSelect
-            )
+            <div className="flex items-end gap-1">
+              {renderAssistantContent(
+                message.content,
+                message.citations,
+                activeCitationIndex,
+                onCitationSelect
+              )}
+              {showStatus ? (
+                <span
+                  aria-hidden="true"
+                  className="mb-1 inline-block h-4 w-1.5 animate-pulse rounded-full bg-slate-300"
+                />
+              ) : null}
+            </div>
           )
         ) : null}
 

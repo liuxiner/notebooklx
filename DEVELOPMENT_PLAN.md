@@ -462,9 +462,12 @@ This document outlines the detailed development plan, acceptance criteria, and t
 - [x] Users can add PDF sources via manual file upload
 - [x] Users can add plain text sources via pasted clipboard content
 - [x] Users can add URL sources via pasted clipboard content or manual entry
+- [x] Upload source title defaults to the selected filename while remaining editable
 - [x] Upload UI validates supported source types: `pdf`, `txt`, and `url`
 - [x] Upload UI shows loading and error states for each submission flow
 - [x] Successful source creation refreshes the source list in the current notebook workspace
+- [x] Successful file upload automatically enqueues ingestion for the new source
+- [x] Upload-started ingestion status refreshes in the workspace until the source resolves to `ready` or `failed`
 - [x] Each source row includes a delete action
 - [x] Deleting a source requires a confirmation modal before the request is sent
 - [x] Successful delete removes the source from the workspace without a full page reload
@@ -478,14 +481,76 @@ This document outlines the detailed development plan, acceptance criteria, and t
 5. Wire URL submission to existing `POST /api/notebooks/{id}/sources/url`
 6. Add clipboard-friendly inputs for pasted text and pasted URLs
 7. Add client-side validation for supported file type, required fields, and invalid URL input
-8. Refresh notebook source data after successful create actions
-9. Add per-source delete action wired to existing `DELETE /api/notebooks/{id}/sources/{source_id}`
-10. Create delete confirmation modal with loading and error states
-11. Add frontend tests for PDF upload, text upload, URL submission, delete confirmation, and failed requests
+8. Auto-fill the upload title input from the selected filename while allowing manual override
+9. Refresh notebook source data after successful create actions
+10. After successful file upload, call existing `POST /api/sources/{source_id}/ingest`
+11. Poll tracked upload-started source statuses until they reach `ready` or `failed`
+12. Add per-source delete action wired to existing `DELETE /api/notebooks/{id}/sources/{source_id}`
+13. Create delete confirmation modal with loading and error states
+14. Add frontend tests for PDF upload, upload-triggered ingestion polling, text upload, URL submission, delete confirmation, and failed requests
 
 **Dependency Note:**
 - Depends on existing source create and delete endpoints
 - Builds on the notebook workspace surface so newly created and deleted sources are reflected immediately
+
+---
+
+### Feature 3.7: Chat Guardrails & Workflow UX ✅
+
+**Acceptance Criteria:**
+- [x] Streaming chat failures are classified into user-friendly guardrail categories instead of leaking provider exception strings
+- [x] Provider quota or balance failures surface a clear action-required message for the notebook user
+- [x] Safety or policy failures instruct the user to rephrase the question instead of showing raw upstream text
+- [x] Temporary upstream failures show retry guidance without implying notebook/source data loss
+- [x] Chat workflow status text is expressed in notebook-grounded language during retrieval and answer generation
+- [x] Empty chat state includes notebook-specific starter guidance instead of a blank panel
+- [x] Chat UI exposes a retry action for transient failures and preserves the normal grounded-answer citation workflow after recovery
+
+**Tasks:**
+1. Add backend chat exception classification for provider quota, safety, temporary-upstream, and unexpected failures
+2. Emit structured SSE error payloads with stable fields such as `error`, `title`, `message`, `hint`, and `retryable`
+3. Normalize streaming status text in the web client so retrieval/generation copy reflects notebook workflow rather than raw backend strings
+4. Add a persistent chat workflow notice card to explain current state, next step, and follow-up guidance
+5. Add notebook-specific starter prompts to the empty chat state
+6. Render guardrail assistant states for blocked or failed chat attempts instead of treating failures as normal answers
+7. Add a retry CTA for transient failures and rewording guidance for policy-blocked questions
+8. Add backend and frontend tests that cover structured SSE guardrail payloads, quota/policy handling, and retry-friendly chat UX
+
+**Dependency Note:**
+- Builds on the existing notebook chat stream endpoint and chat panel
+- Does not require new LLM providers or a separate moderation service to ship this refinement slice
+
+---
+
+### Feature 3.8: Streaming Observability & Retrieval Transparency
+
+**Acceptance Criteria:**
+- [ ] Successful source upload shows an explicit UI confirmation before downstream ingestion completes
+- [ ] Source rows visualize live embedding progress with elapsed time and chunk counts while ingestion is running
+- [ ] Completed or failed ingestion states retain the latest elapsed time and progress summary for the source row
+- [x] Chat workflow surfaces question-embedding and retrieval timing so users can see how long notebook search preparation took
+- [x] Chat workflow shows how long it took to receive the first answer chunk and whether the provider delivered incremental deltas or a single final chunk
+- [x] Chat workflow surfaces retrieval diagnostics, including how many chunks were selected for the active answer
+- [x] Retrieved chunks shown in the UI can be traced back to their original source via source title and chunk/location metadata
+- [x] Assistant answers stream into a single chat bubble incrementally as LLM deltas arrive instead of appearing only after the stream finishes
+- [x] Stream finalization preserves the same assistant bubble and attaches citations/retrieval metadata without duplicate messages or flicker
+
+**Tasks:**
+1. Extend ingestion progress payloads to include upload confirmation copy, step-level elapsed timing, and embedding counters suitable for UI rendering
+2. Ensure source status APIs expose the latest progress snapshot for `uploaded`, `processing`, `ready`, and `failed` states without requiring a page reload
+3. Update notebook workspace source rows to render an ingestion lifecycle view with upload-success messaging, elapsed time, and embedding progress details
+4. Add frontend polling/state handling so progress timing and chunk counters update smoothly while a source is embedding
+5. [x] Extend chat stream events to expose chat-stage timing metrics for query embedding, retrieval preparation, time to first answer delta, and stream chunk delivery
+6. [x] Extend chat stream events or final grounded-answer payloads to expose retrieval diagnostics such as retrieved chunk count and per-chunk source metadata
+7. [x] Add a chat timing panel in the UI that renders the latest model, preparation timings, time-to-first-chunk, and stream chunk count for the active answer
+8. [x] Add a retrieval transparency panel in the chat UI that groups retrieved chunks by source and shows the source relationship for each chunk used in the answer flow
+9. [x] Refine assistant streaming state management so the first text delta creates the assistant bubble immediately and subsequent deltas append in place
+10. [x] Preserve partial streamed text during citation binding/finalization and avoid replacing the in-flight assistant message with a second rendered message
+11. [x] Add backend and frontend tests covering chat timing payloads, retrieval transparency rendering, and incremental assistant bubble streaming
+
+**Dependency Note:**
+- Builds on existing source upload, source status polling, hybrid retrieval, and notebook chat stream infrastructure
+- Reuses current chunk metadata and citation structures; does not require reranking or a new retrieval engine to ship this slice
 
 ---
 

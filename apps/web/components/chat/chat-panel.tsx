@@ -14,22 +14,125 @@ import {
 } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
-import { streamNotebookChat } from "@/lib/chat-stream";
+import {
+  normalizeChatFailure,
+  streamNotebookChat,
+  type ChatCitation,
+  type ChatFailureState,
+  type ChatMetricsEvent,
+  type ChatRetrievalEvent,
+  type ChatStatusEvent,
+} from "@/lib/chat-stream";
 
 interface ChatPanelProps {
   notebookId: string;
   notebookName: string;
 }
 
+type WorkflowTone = "default" | "active" | "warning" | "blocked" | "success";
+
+const STARTER_PROMPTS = [
+  "Summarize the main ideas",
+  "Where do the sources disagree?",
+  "What evidence supports the key claim?",
+];
+
 function createMessageId(prefix: "user" | "assistant") {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function formatCount(count: number, singular: string, plural = `${singular}s`) {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
+function formatSeconds(value: number) {
+  return `${value.toFixed(2)}s`;
+}
+
+function mergeMetrics(
+  current: ChatMetricsEvent | null | undefined,
+  incoming: ChatMetricsEvent
+): ChatMetricsEvent {
+  return {
+    ...(current ?? {}),
+    ...incoming,
+  };
+}
+
+function groupRetrievalChunks(chunks: ChatCitation[]) {
+  const groups = new Map<
+    string,
+    {
+      key: string;
+      sourceTitle: string;
+      chunks: ChatCitation[];
+    }
+  >();
+
+  for (const chunk of chunks) {
+    const sourceTitle = chunk.source_title || "Untitled source";
+    const key = chunk.source_id || sourceTitle;
+    const existing = groups.get(key);
+
+    if (existing) {
+      existing.chunks.push(chunk);
+      continue;
+    }
+
+    groups.set(key, {
+      key,
+      sourceTitle,
+      chunks: [chunk],
+    });
+  }
+
+  return Array.from(groups.values());
+}
+
+function formatChatStatus(payload: ChatStatusEvent): string {
+  switch (payload.stage) {
+    case "embedding_query":
+      return "Embedding your question for retrieval";
+    case "retrieving":
+      return "Searching this notebook's sources";
+    case "waiting_model":
+      return "Waiting for the first answer chunk from the model";
+    case "streaming":
+      return "Streaming the answer into the chat";
+    case "grounding":
+      return "Checking citation alignment";
+    default:
+      return payload.message;
+  }
+}
+
+function getWorkflowCardClasses(tone: WorkflowTone): string {
+  switch (tone) {
+    case "active":
+      return "border-sky-200 bg-sky-50 text-sky-950";
+    case "warning":
+      return "border-amber-200 bg-amber-50 text-amber-950";
+    case "blocked":
+      return "border-rose-200 bg-rose-50 text-rose-950";
+    case "success":
+      return "border-emerald-200 bg-emerald-50 text-emerald-950";
+    default:
+      return "border-slate-200 bg-slate-50 text-slate-900";
+  }
 }
 
 export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
   const [draft, setDraft] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [chatFailure, setChatFailure] = useState<ChatFailureState | null>(null);
+  const [workflowStage, setWorkflowStage] = useState<string>("idle");
+  const [workflowStageStartedAt, setWorkflowStageStartedAt] = useState<number | null>(null);
+  const [stageNow, setStageNow] = useState<number>(Date.now());
+  const [workflowStatus, setWorkflowStatus] = useState(
+    "We search this notebook's sources, draft an answer from the evidence, and show citations you can inspect."
+  );
+  const [lastSubmittedQuestion, setLastSubmittedQuestion] = useState<string | null>(null);
   const [activeCitationMessageId, setActiveCitationMessageId] = useState<string | null>(
     null
   );
@@ -40,9 +143,39 @@ export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages, isStreaming]);
 
+  useEffect(() => {
+    if (!isStreaming || workflowStageStartedAt === null) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      setStageNow(Date.now());
+    }, 250);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [isStreaming, workflowStageStartedAt]);
+
   const latestAssistantMessageWithCitations = [...messages]
     .reverse()
     .find((message) => message.role === "assistant" && message.citations.length > 0);
+  const latestAssistantMessageWithRetrieval = [...messages]
+    .reverse()
+    .find(
+      (message) =>
+        message.role === "assistant" && (message.retrieval?.chunks.length ?? 0) > 0
+    );
+  const latestAssistantMessageWithMetrics = [...messages]
+    .reverse()
+    .find((message) => message.role === "assistant" && Boolean(message.metrics));
+  const latestCompletedAssistantMessage = [...messages].reverse().find(
+    (message) =>
+      message.role === "assistant" &&
+      !message.guardrail &&
+      !message.statusMessage &&
+      Boolean(message.content.trim())
+  );
 
   const citationPanelMessage =
     messages.find(
@@ -51,12 +184,31 @@ export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
         message.role === "assistant" &&
         message.citations.length > 0
     ) || latestAssistantMessageWithCitations;
+  const retrievalPanelMessage =
+    messages.find(
+      (message) =>
+        message.id === activeCitationMessageId &&
+        message.role === "assistant" &&
+        (message.retrieval?.chunks.length ?? 0) > 0
+    ) || latestAssistantMessageWithRetrieval;
+  const metricsPanelMessage =
+    messages.find(
+      (message) =>
+        message.id === activeCitationMessageId &&
+        message.role === "assistant" &&
+        Boolean(message.metrics)
+    ) || latestAssistantMessageWithMetrics;
 
   const citationPanelCitations = citationPanelMessage
     ? [...citationPanelMessage.citations].sort(
         (left, right) => left.citation_index - right.citation_index
       )
     : [];
+  const retrievalDiagnostics = retrievalPanelMessage?.retrieval ?? null;
+  const retrievalGroups = groupRetrievalChunks(retrievalDiagnostics?.chunks ?? []);
+  const chatMetrics = metricsPanelMessage?.metrics ?? null;
+  const liveStageSeconds =
+    workflowStageStartedAt !== null ? Math.max(0, (stageNow - workflowStageStartedAt) / 1000) : null;
 
   const selectedCitation =
     citationPanelCitations.find(
@@ -65,10 +217,109 @@ export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
         citation.citation_index === activeCitationIndex
     ) || citationPanelCitations[0] || null;
 
-  async function handleSubmit(event?: FormEvent<HTMLFormElement>) {
-    event?.preventDefault();
+  const queryEmbeddingDisplay =
+    typeof chatMetrics?.query_embedding_seconds === "number"
+      ? formatSeconds(chatMetrics.query_embedding_seconds)
+      : workflowStage === "embedding_query" && liveStageSeconds !== null
+        ? `${liveStageSeconds.toFixed(1)}s...`
+        : "Pending";
+  const retrievalDisplay =
+    typeof chatMetrics?.retrieval_seconds === "number"
+      ? formatSeconds(chatMetrics.retrieval_seconds)
+      : workflowStage === "retrieving" && liveStageSeconds !== null
+        ? `${liveStageSeconds.toFixed(1)}s...`
+        : "Pending";
+  const firstChunkDisplay =
+    typeof chatMetrics?.time_to_first_delta_seconds === "number"
+      ? formatSeconds(chatMetrics.time_to_first_delta_seconds)
+      : workflowStage === "waiting_model" && liveStageSeconds !== null
+        ? `${liveStageSeconds.toFixed(1)}s...`
+        : "Waiting";
+  const streamDeliveryMessage =
+    chatMetrics?.stream_delivery === "single_chunk"
+      ? "Provider returned a single final stream chunk."
+      : chatMetrics?.stream_delivery === "streaming"
+        ? "Provider delivered incremental stream chunks."
+        : chatMetrics?.stream_delivery === "no_chunks"
+          ? "No LLM deltas were received before finalization."
+          : null;
 
-    const question = draft.trim();
+  const workflowCard = chatFailure
+    ? ({
+        tone: chatFailure.retryable ? "warning" : "blocked",
+        title: chatFailure.title,
+        message: chatFailure.message,
+        hint: chatFailure.hint,
+      } satisfies {
+        tone: WorkflowTone;
+        title: string;
+        message: string;
+        hint: string | null;
+      })
+    : isStreaming
+      ? ({
+          tone: "active",
+          title: "Working through notebook sources",
+          message: workflowStatus,
+          hint: "Answers stay grounded in the sources added to this notebook.",
+        } satisfies {
+          tone: WorkflowTone;
+          title: string;
+          message: string;
+          hint: string | null;
+        })
+      : latestCompletedAssistantMessage
+        ? ({
+            tone: "success",
+            title: "Grounded answer ready",
+            message:
+              latestCompletedAssistantMessage.citations.length > 0
+                ? "Review the answer above and inspect the citation panel for supporting evidence."
+                : "Review the answer above. Citation details will appear here when the response includes grounded references.",
+            hint:
+              latestCompletedAssistantMessage.citations.length > 0
+                ? latestCompletedAssistantMessage.retrieval
+                  ? `Retrieved ${formatCount(
+                      latestCompletedAssistantMessage.retrieval.chunk_count,
+                      "chunk"
+                    )} from ${formatCount(
+                      latestCompletedAssistantMessage.retrieval.source_count,
+                      "source"
+                    )}; cited ${formatCount(
+                      latestCompletedAssistantMessage.citations.length,
+                      "source"
+                    )} in the final answer.`
+                  : `This answer cited ${latestCompletedAssistantMessage.citations.length} source${
+                      latestCompletedAssistantMessage.citations.length === 1 ? "" : "s"
+                    }.`
+                : "Ask more specific source-grounded follow-ups if you need a tighter evidence trail.",
+          } satisfies {
+            tone: WorkflowTone;
+            title: string;
+            message: string;
+            hint: string | null;
+          })
+        : ({
+            tone: "default",
+            title: "Notebook-only answers",
+            message:
+              "We search this notebook's sources, draft an answer from the evidence, and show citations you can inspect.",
+            hint: "Use concise, source-focused questions for the best grounded answers.",
+          } satisfies {
+            tone: WorkflowTone;
+            title: string;
+            message: string;
+            hint: string | null;
+          });
+
+  const canRetryLastQuestion =
+    Boolean(lastSubmittedQuestion) &&
+    Boolean(chatFailure?.retryable) &&
+    chatFailure?.code !== "input_not_allowed" &&
+    !isStreaming;
+
+  async function submitQuestion(questionInput: string) {
+    const question = questionInput.trim();
     if (!question || isStreaming) {
       return;
     }
@@ -76,7 +327,12 @@ export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
     const assistantMessageId = createMessageId("assistant");
 
     setDraft("");
-    setErrorMessage(null);
+    setChatFailure(null);
+    setLastSubmittedQuestion(question);
+    setWorkflowStage("embedding_query");
+    setWorkflowStageStartedAt(Date.now());
+    setStageNow(Date.now());
+    setWorkflowStatus("Embedding your question for retrieval");
     setIsStreaming(true);
     setMessages((current) => [
       ...current,
@@ -91,7 +347,10 @@ export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
         role: "assistant",
         content: "",
         citations: [],
-        statusMessage: "Searching sources",
+        metrics: null,
+        retrieval: null,
+        statusMessage: "Embedding your question for retrieval",
+        guardrail: null,
       },
     ]);
 
@@ -107,10 +366,27 @@ export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
       await streamNotebookChat({
         notebookId,
         question,
-        onStatus: ({ message }) => {
+        onStatus: (payload) => {
+          const friendlyStatus = formatChatStatus(payload);
+          setWorkflowStage(payload.stage);
+          setWorkflowStageStartedAt(Date.now());
+          setStageNow(Date.now());
+          setWorkflowStatus(friendlyStatus);
           updateAssistantMessage((current) => ({
             ...current,
-            statusMessage: message,
+            statusMessage: friendlyStatus,
+          }));
+        },
+        onMetrics: (payload: ChatMetricsEvent) => {
+          updateAssistantMessage((current) => ({
+            ...current,
+            metrics: mergeMetrics(current.metrics, payload),
+          }));
+        },
+        onRetrieval: (payload: ChatRetrievalEvent) => {
+          updateAssistantMessage((current) => ({
+            ...current,
+            retrieval: payload,
           }));
         },
         onCitations: ({ citations }) => {
@@ -132,9 +408,13 @@ export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
             ...current,
             content: answer,
             statusMessage: null,
+            guardrail: null,
           }));
         },
         onDone: () => {
+          setWorkflowStage("done");
+          setWorkflowStageStartedAt(null);
+          setWorkflowStatus("Grounded answer ready");
           updateAssistantMessage((current) => ({
             ...current,
             statusMessage: null,
@@ -142,20 +422,30 @@ export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
         },
       });
     } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : "Failed to generate a grounded answer.";
+      const failure = normalizeChatFailure(error);
+      setChatFailure(failure);
+      setWorkflowStage("error");
+      setWorkflowStageStartedAt(null);
+      setWorkflowStatus(failure.message);
 
-      setErrorMessage(message);
+      if (failure.code === "input_not_allowed") {
+        setDraft(question);
+      }
+
       updateAssistantMessage((current) => ({
         ...current,
-        content: message,
+        content: failure.message,
         statusMessage: null,
+        guardrail: failure,
       }));
     } finally {
       setIsStreaming(false);
     }
+  }
+
+  async function handleSubmit(event?: FormEvent<HTMLFormElement>) {
+    event?.preventDefault();
+    await submitQuestion(draft);
   }
 
   function handleTextareaKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
@@ -190,6 +480,19 @@ export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
                 Ask about themes, compare sources, or request a concise summary for{" "}
                 {notebookName}.
               </p>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                {STARTER_PROMPTS.map((prompt) => (
+                  <button
+                    key={prompt}
+                    type="button"
+                    className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-100"
+                    onClick={() => setDraft(prompt)}
+                  >
+                    {prompt}
+                  </button>
+                ))}
+              </div>
             </div>
           ) : null}
 
@@ -204,92 +507,263 @@ export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
               }
               onCitationSelect={
                 message.role === "assistant"
-                  ? (citationIndex) =>
-                      handleCitationSelect(message.id, citationIndex)
+                  ? (citationIndex) => handleCitationSelect(message.id, citationIndex)
                   : undefined
               }
             />
           ))}
 
-          {errorMessage ? (
-            <p role="alert" className="text-sm text-destructive">
-              {errorMessage}
-            </p>
-          ) : null}
-
           <div ref={bottomRef} />
         </div>
 
         <div className="border-t bg-slate-50/80 px-4 py-4 sm:px-5">
-          <div className="space-y-4">
-            <div>
-              <h3 className="text-sm font-semibold text-slate-900">
-                Sources used in this answer
-              </h3>
-              <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                Select a citation marker to inspect the supporting quote and source
-                details.
-              </p>
+          <div className="space-y-6">
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900">Chat timing</h3>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  Query embedding, retrieval, and model delivery timings for the
+                  current answer.
+                </p>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    Model
+                  </p>
+                  <p className="mt-2 text-sm font-semibold text-slate-900">
+                    {chatMetrics?.model || "Pending"}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    Question Embedding
+                  </p>
+                  <p className="mt-2 text-sm font-semibold text-slate-900">
+                    {queryEmbeddingDisplay}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    Retrieval
+                  </p>
+                  <p className="mt-2 text-sm font-semibold text-slate-900">
+                    {retrievalDisplay}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    First Answer Chunk
+                  </p>
+                  <p className="mt-2 text-sm font-semibold text-slate-900">
+                    {firstChunkDisplay}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    Stream Duration
+                  </p>
+                  <p className="mt-2 text-sm font-semibold text-slate-900">
+                    {typeof chatMetrics?.llm_stream_seconds === "number"
+                      ? formatSeconds(chatMetrics.llm_stream_seconds)
+                      : workflowStage === "streaming" && liveStageSeconds !== null
+                        ? `${liveStageSeconds.toFixed(1)}s...`
+                        : "Pending"}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    Stream Chunks
+                  </p>
+                  <p className="mt-2 text-sm font-semibold text-slate-900">
+                    {typeof chatMetrics?.delta_chunks_received === "number"
+                      ? String(chatMetrics.delta_chunks_received)
+                      : "Pending"}
+                  </p>
+                </div>
+              </div>
+
+              {streamDeliveryMessage ? (
+                <div className="rounded-2xl border border-slate-200 bg-white/90 p-4 text-sm text-slate-700 shadow-sm">
+                  {streamDeliveryMessage}
+                </div>
+              ) : null}
             </div>
 
-            {selectedCitation && citationPanelMessage ? (
-              <>
-                <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                        Citation [{selectedCitation.citation_index}]
-                      </p>
-                      <p className="mt-1 text-sm font-semibold text-slate-900">
-                        {selectedCitation.source_title}
-                      </p>
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900">Retrieved evidence</h3>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  {retrievalDiagnostics
+                    ? `${formatCount(
+                        retrievalDiagnostics.chunk_count,
+                        "chunk"
+                      )} from ${formatCount(
+                        retrievalDiagnostics.source_count,
+                        "source"
+                      )} were selected before answer generation.`
+                    : "Retrieved chunk diagnostics will appear here once notebook search finishes."}
+                </p>
+              </div>
+
+              {retrievalDiagnostics ? (
+                <div className="grid gap-3">
+                  {retrievalGroups.map((group) => (
+                    <div
+                      key={group.key}
+                      className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                            Source
+                          </p>
+                          <p className="mt-1 text-sm font-semibold text-slate-900">
+                            {group.sourceTitle}
+                          </p>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {formatCount(group.chunks.length, "chunk")}
+                        </p>
+                      </div>
+
+                      <div className="mt-3 space-y-2">
+                        {group.chunks.map((chunk) => (
+                          <div
+                            key={`${chunk.chunk_id}-${chunk.citation_index}`}
+                            className="rounded-xl border border-slate-100 bg-slate-50/80 px-3 py-3"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                                Chunk{" "}
+                                {typeof chunk.chunk_index === "number"
+                                  ? chunk.chunk_index + 1
+                                  : chunk.citation_index}
+                              </p>
+                              <div className="text-right text-xs text-muted-foreground">
+                                {chunk.page ? <p>Page {chunk.page}</p> : null}
+                                <p>Score {chunk.score.toFixed(2)}</p>
+                              </div>
+                            </div>
+                            <p className="mt-2 text-sm leading-6 text-slate-700">
+                              {chunk.quote}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    <div className="text-right text-xs text-muted-foreground">
-                      {selectedCitation.page ? <p>Page {selectedCitation.page}</p> : null}
-                      <p>Score {selectedCitation.score.toFixed(2)}</p>
-                    </div>
-                  </div>
-
-                  <blockquote className="mt-4 border-l-2 border-slate-300 pl-4 text-sm leading-6 text-slate-700">
-                    {selectedCitation.quote}
-                  </blockquote>
-
-                  {selectedCitation.content !== selectedCitation.quote ? (
-                    <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                      {selectedCitation.content}
-                    </p>
-                  ) : null}
-                </div>
-
-                <div className="grid gap-2">
-                  {citationPanelCitations.map((citation) => (
-                    <CitationCard
-                      key={`${citation.chunk_id}-${citation.citation_index}`}
-                      citation={citation}
-                      isActive={citation.citation_index === selectedCitation.citation_index}
-                      onSelect={(citationIndex) =>
-                        handleCitationSelect(citationPanelMessage.id, citationIndex)
-                      }
-                    />
                   ))}
                 </div>
-              </>
-            ) : (
-              <div className="rounded-2xl border border-dashed border-slate-200 bg-white/80 p-4 text-sm text-muted-foreground">
-                Cited source details will appear here when an answer includes
-                grounded references.
+              ) : (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-white/80 p-4 text-sm text-muted-foreground">
+                  Retrieved chunk diagnostics will appear here once notebook search
+                  completes.
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900">
+                  Sources used in this answer
+                </h3>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  Select a citation marker to inspect the supporting quote and source
+                  details.
+                </p>
               </div>
-            )}
+
+              {selectedCitation && citationPanelMessage ? (
+                <>
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Citation [{selectedCitation.citation_index}]
+                        </p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900">
+                          {selectedCitation.source_title}
+                        </p>
+                      </div>
+                      <div className="text-right text-xs text-muted-foreground">
+                        {selectedCitation.page ? <p>Page {selectedCitation.page}</p> : null}
+                        <p>Score {selectedCitation.score.toFixed(2)}</p>
+                      </div>
+                    </div>
+
+                    <blockquote className="mt-4 border-l-2 border-slate-300 pl-4 text-sm leading-6 text-slate-700">
+                      {selectedCitation.quote}
+                    </blockquote>
+
+                    {selectedCitation.content !== selectedCitation.quote ? (
+                      <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                        {selectedCitation.content}
+                      </p>
+                    ) : null}
+                  </div>
+
+                  <div className="grid gap-2">
+                    {citationPanelCitations.map((citation) => (
+                      <CitationCard
+                        key={`${citation.chunk_id}-${citation.citation_index}`}
+                        citation={citation}
+                        isActive={citation.citation_index === selectedCitation.citation_index}
+                        onSelect={(citationIndex) =>
+                          handleCitationSelect(citationPanelMessage.id, citationIndex)
+                        }
+                      />
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-white/80 p-4 text-sm text-muted-foreground">
+                  Cited source details will appear here when an answer includes
+                  grounded references.
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
         <div className="border-t bg-background/95 p-4 backdrop-blur sm:p-5">
-          {isStreaming ? (
-            <div className="mb-3 flex items-center gap-2 text-sm text-muted-foreground">
-              <Spinner size="sm" className="text-muted-foreground" />
-              <span>Generating answer</span>
+          <div
+            className={`mb-4 rounded-3xl border px-4 py-4 ${getWorkflowCardClasses(
+              workflowCard.tone
+            )}`}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-1.5">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-current/70">
+                  Chat workflow
+                </p>
+                <p className="text-sm font-semibold">{workflowCard.title}</p>
+                <p className="text-sm leading-6">{workflowCard.message}</p>
+                {workflowCard.hint ? (
+                  <p className="text-xs leading-5 text-current/80">{workflowCard.hint}</p>
+                ) : null}
+              </div>
+
+              {isStreaming ? <Spinner size="sm" className="mt-1 text-current" /> : null}
             </div>
-          ) : null}
+
+            {canRetryLastQuestion ? (
+              <div className="mt-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => void submitQuestion(lastSubmittedQuestion ?? "")}
+                >
+                  Try again
+                </Button>
+              </div>
+            ) : null}
+          </div>
 
           <form className="space-y-3" onSubmit={handleSubmit}>
             <label className="sr-only" htmlFor="chat-question">
