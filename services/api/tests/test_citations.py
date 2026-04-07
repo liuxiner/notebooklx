@@ -255,3 +255,235 @@ class TestCitationModel:
         # Verify citation was deleted
         remaining = db.query(Citation).filter(Citation.id == citation_id).first()
         assert remaining is None
+
+
+class TestCitationValidation:
+    """
+    Test citation validation functionality.
+
+    Feature 3.4: Two-Layer Citation System
+    Task 9: Add citation validation (check chunk IDs exist)
+    """
+
+    def test_validate_chunk_ids_all_valid(self, db: Session):
+        """AC: Validation passes when all chunk IDs exist."""
+        from services.api.modules.citations.validation import validate_chunk_ids
+
+        # Create test data
+        user = User(email="test@example.com")
+        db.add(user)
+        db.commit()
+
+        notebook = Notebook(user_id=user.id, name="Test Notebook")
+        db.add(notebook)
+        db.commit()
+
+        source = Source(
+            notebook_id=notebook.id,
+            source_type=SourceType.TEXT,
+            title="Test Source",
+            status=SourceStatus.READY,
+        )
+        db.add(source)
+        db.commit()
+
+        # Create two chunks
+        chunk1 = SourceChunk(
+            source_id=source.id,
+            chunk_index=0,
+            content="Chunk 1 content",
+            token_count=3,
+            char_start=0,
+            char_end=15,
+        )
+        chunk2 = SourceChunk(
+            source_id=source.id,
+            chunk_index=1,
+            content="Chunk 2 content",
+            token_count=3,
+            char_start=16,
+            char_end=31,
+        )
+        db.add_all([chunk1, chunk2])
+        db.commit()
+
+        # Validate chunk IDs
+        chunk_ids = [str(chunk1.id), str(chunk2.id)]
+        valid_ids, invalid_ids = validate_chunk_ids(db, chunk_ids)
+
+        assert len(valid_ids) == 2
+        assert str(chunk1.id) in valid_ids
+        assert str(chunk2.id) in valid_ids
+        assert len(invalid_ids) == 0
+
+    def test_validate_chunk_ids_some_invalid(self, db: Session):
+        """AC: Validation returns invalid IDs when some don't exist."""
+        from services.api.modules.citations.validation import validate_chunk_ids
+
+        # Create test data
+        user = User(email="test@example.com")
+        db.add(user)
+        db.commit()
+
+        notebook = Notebook(user_id=user.id, name="Test Notebook")
+        db.add(notebook)
+        db.commit()
+
+        source = Source(
+            notebook_id=notebook.id,
+            source_type=SourceType.TEXT,
+            title="Test Source",
+            status=SourceStatus.READY,
+        )
+        db.add(source)
+        db.commit()
+
+        chunk = SourceChunk(
+            source_id=source.id,
+            chunk_index=0,
+            content="Valid chunk",
+            token_count=2,
+            char_start=0,
+            char_end=11,
+        )
+        db.add(chunk)
+        db.commit()
+
+        # Validate with one valid and one fake ID
+        fake_id = str(uuid.uuid4())
+        chunk_ids = [str(chunk.id), fake_id]
+        valid_ids, invalid_ids = validate_chunk_ids(db, chunk_ids)
+
+        assert len(valid_ids) == 1
+        assert str(chunk.id) in valid_ids
+        assert len(invalid_ids) == 1
+        assert fake_id in invalid_ids
+
+    def test_validate_chunk_ids_all_invalid(self, db: Session):
+        """AC: Validation returns all invalid when none exist."""
+        from services.api.modules.citations.validation import validate_chunk_ids
+
+        # No chunks in database
+        fake_id1 = str(uuid.uuid4())
+        fake_id2 = str(uuid.uuid4())
+        chunk_ids = [fake_id1, fake_id2]
+        valid_ids, invalid_ids = validate_chunk_ids(db, chunk_ids)
+
+        assert len(valid_ids) == 0
+        assert len(invalid_ids) == 2
+        assert fake_id1 in invalid_ids
+        assert fake_id2 in invalid_ids
+
+    def test_validate_chunk_ids_empty_list(self, db: Session):
+        """AC: Validation handles empty input gracefully."""
+        from services.api.modules.citations.validation import validate_chunk_ids
+
+        valid_ids, invalid_ids = validate_chunk_ids(db, [])
+
+        assert len(valid_ids) == 0
+        assert len(invalid_ids) == 0
+
+    def test_validate_chunk_ids_with_duplicates(self, db: Session):
+        """AC: Validation handles duplicate IDs correctly."""
+        from services.api.modules.citations.validation import validate_chunk_ids
+
+        # Create test data
+        user = User(email="test@example.com")
+        db.add(user)
+        db.commit()
+
+        notebook = Notebook(user_id=user.id, name="Test Notebook")
+        db.add(notebook)
+        db.commit()
+
+        source = Source(
+            notebook_id=notebook.id,
+            source_type=SourceType.TEXT,
+            title="Test Source",
+            status=SourceStatus.READY,
+        )
+        db.add(source)
+        db.commit()
+
+        chunk = SourceChunk(
+            source_id=source.id,
+            chunk_index=0,
+            content="Content",
+            token_count=1,
+            char_start=0,
+            char_end=7,
+        )
+        db.add(chunk)
+        db.commit()
+
+        # Validate with duplicate IDs
+        chunk_ids = [str(chunk.id), str(chunk.id), str(chunk.id)]
+        valid_ids, invalid_ids = validate_chunk_ids(db, chunk_ids)
+
+        # Should deduplicate - only one valid ID returned
+        assert len(valid_ids) == 1
+        assert str(chunk.id) in valid_ids
+        assert len(invalid_ids) == 0
+
+    def test_filter_citations_by_valid_chunks(self, db: Session):
+        """AC: Citations with invalid chunk IDs are filtered out."""
+        from services.api.modules.citations.validation import filter_citations_by_valid_chunks
+        from services.api.modules.chat.service import EvidenceChunk
+
+        # Create test data
+        user = User(email="test@example.com")
+        db.add(user)
+        db.commit()
+
+        notebook = Notebook(user_id=user.id, name="Test Notebook")
+        db.add(notebook)
+        db.commit()
+
+        source = Source(
+            notebook_id=notebook.id,
+            source_type=SourceType.TEXT,
+            title="Test Source",
+            status=SourceStatus.READY,
+        )
+        db.add(source)
+        db.commit()
+
+        chunk = SourceChunk(
+            source_id=source.id,
+            chunk_index=0,
+            content="Valid content",
+            token_count=2,
+            char_start=0,
+            char_end=13,
+        )
+        db.add(chunk)
+        db.commit()
+
+        # Create evidence chunks - one valid, one invalid
+        fake_id = str(uuid.uuid4())
+        citations = [
+            EvidenceChunk(
+                citation_index=1,
+                chunk_id=str(chunk.id),
+                source_title="Test Source",
+                page="1",
+                quote="Valid content",
+                content="Valid content",
+                score=0.9,
+            ),
+            EvidenceChunk(
+                citation_index=2,
+                chunk_id=fake_id,
+                source_title="Fake Source",
+                page="2",
+                quote="Fake content",
+                content="Fake content",
+                score=0.8,
+            ),
+        ]
+
+        valid_citations, filtered_count = filter_citations_by_valid_chunks(db, citations)
+
+        assert len(valid_citations) == 1
+        assert valid_citations[0].chunk_id == str(chunk.id)
+        assert filtered_count == 1
