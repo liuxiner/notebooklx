@@ -38,6 +38,14 @@ export function CitationCard({
             Citation [{citation.citation_index}]
           </p>
           <p className="mt-1 truncate text-sm font-semibold">{citation.source_title}</p>
+          <p
+            className={cn(
+              "mt-2 text-sm leading-5",
+              isActive ? "text-white/90" : "text-slate-600"
+            )}
+          >
+            {citation.quote}
+          </p>
         </div>
         <div
           className={cn(

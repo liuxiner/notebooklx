@@ -357,7 +357,7 @@ This document outlines the detailed development plan, acceptance criteria, and t
 - [x] Citation markers [1][2] are clickable
 - [x] Clicking citation shows quote and source info
 - [x] Citation panel shows all sources used in answer
-- [ ] Streaming messages update in real-time
+- [x] Streaming messages update in real-time
 - [x] Input box always visible at bottom
 - [x] Auto-scroll to latest message
 - [x] Loading indicator while generating
@@ -389,7 +389,7 @@ This document outlines the detailed development plan, acceptance criteria, and t
 - [x] Citations include exact quotes from chunks
 - [x] Multiple citations can support one statement
 - [x] Citations persist in database for audit
-- [ ] UI displays both citation text and score
+- [x] UI displays both citation text and score
 
 **Tasks:**
 1. ✓ Create citation module (services/api/modules/citations/)

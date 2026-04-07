@@ -121,6 +121,12 @@ export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
           setActiveCitationMessageId(assistantMessageId);
           setActiveCitationIndex(citations[0]?.citation_index ?? null);
         },
+        onAnswerDelta: ({ delta }) => {
+          updateAssistantMessage((current) => ({
+            ...current,
+            content: `${current.content}${delta}`,
+          }));
+        },
         onAnswer: ({ answer }) => {
           updateAssistantMessage((current) => ({
             ...current,

@@ -28,6 +28,10 @@ export interface ChatAnswerEvent {
   raw_answer: string;
 }
 
+export interface ChatAnswerDeltaEvent {
+  delta: string;
+}
+
 export interface ChatDoneEvent {
   status: string;
 }
@@ -44,6 +48,7 @@ interface StreamNotebookChatOptions {
   signal?: AbortSignal;
   onStatus?: (payload: ChatStatusEvent) => void;
   onCitations?: (payload: ChatCitationsEvent) => void;
+  onAnswerDelta?: (payload: ChatAnswerDeltaEvent) => void;
   onAnswer?: (payload: ChatAnswerEvent) => void;
   onDone?: (payload: ChatDoneEvent) => void;
 }
@@ -106,6 +111,7 @@ export async function streamNotebookChat({
   signal,
   onStatus,
   onCitations,
+  onAnswerDelta,
   onAnswer,
   onDone,
 }: StreamNotebookChatOptions): Promise<void> {
@@ -145,6 +151,9 @@ export async function streamNotebookChat({
         break;
       case "citations":
         onCitations?.(parsedEvent.data as ChatCitationsEvent);
+        break;
+      case "answer_delta":
+        onAnswerDelta?.(parsedEvent.data as ChatAnswerDeltaEvent);
         break;
       case "answer":
         onAnswer?.(parsedEvent.data as ChatAnswerEvent);

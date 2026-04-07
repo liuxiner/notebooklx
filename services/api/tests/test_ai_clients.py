@@ -51,8 +51,13 @@ class TestAIClientSettings:
 
         monkeypatch.delenv("ZAI_API_KEY", raising=False)
         monkeypatch.delenv("ZAI_API_BASE_URL", raising=False)
+        monkeypatch.delenv("ZAI_API_CHAT_MODEL_ID", raising=False)
         monkeypatch.delenv("ZAI_API_MODEL_ID", raising=False)
         monkeypatch.delenv("ZAI_API_EMBEDDING_MODEL_ID", raising=False)
+        monkeypatch.delenv("ZHIPUAI_API_KEY", raising=False)
+        monkeypatch.delenv("ZHIPUAI_API_BASE_URL", raising=False)
+        monkeypatch.delenv("ZHIPUAI_API_MODEL_ID", raising=False)
+        monkeypatch.delenv("ZHIPUAI_API_EMBEDDING_MODEL_ID", raising=False)
         monkeypatch.setenv("OPENAI_API_KEY", "compat-key")
         monkeypatch.setenv("OPENAI_BASE_URL", "https://compat.example/v1/")
         monkeypatch.setenv("OPENAI_MODEL", "compat-chat")
@@ -76,8 +81,13 @@ class TestAIClientSettings:
 
         monkeypatch.setenv("ZAI_API_KEY", "zai-key")
         monkeypatch.delenv("ZAI_API_BASE_URL", raising=False)
+        monkeypatch.delenv("ZAI_API_CHAT_MODEL_ID", raising=False)
         monkeypatch.delenv("ZAI_API_MODEL_ID", raising=False)
         monkeypatch.delenv("ZAI_API_EMBEDDING_MODEL_ID", raising=False)
+        monkeypatch.delenv("ZHIPUAI_API_KEY", raising=False)
+        monkeypatch.delenv("ZHIPUAI_API_BASE_URL", raising=False)
+        monkeypatch.delenv("ZHIPUAI_API_MODEL_ID", raising=False)
+        monkeypatch.delenv("ZHIPUAI_API_EMBEDDING_MODEL_ID", raising=False)
         monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
         monkeypatch.delenv("OPENAI_MODEL", raising=False)
         monkeypatch.delenv("OPENAI_EMBEDDING_MODEL", raising=False)
@@ -109,6 +119,7 @@ class TestOpenAICompatibleClientFactory:
         mock_openai.assert_called_once_with(
             api_key="test-key",
             base_url="https://bigmodel.example/v4/",
+            timeout=120.0,
         )
 
 
@@ -149,5 +160,41 @@ class TestBigModelChatProvider:
         mock_client.chat.completions.create.assert_called_once_with(
             model="glm-4",
             messages=[{"role": "user", "content": "hello"}],
+            temperature=0.3,
+        )
+
+    def test_chat_stream_provider_yields_incremental_text(self):
+        """Streaming chat should expose text deltas in order."""
+        from services.api.core.ai import BigModelChatProvider
+
+        def make_chunk(content):
+            delta = MagicMock()
+            delta.content = content
+            choice = MagicMock()
+            choice.delta = delta
+            chunk = MagicMock()
+            chunk.choices = [choice]
+            return chunk
+
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.return_value = [
+            make_chunk("Alpha "),
+            make_chunk("is supported."),
+        ]
+
+        with patch("services.api.core.ai.build_openai_compatible_client", return_value=mock_client):
+            provider = BigModelChatProvider(api_key="test-key", model="glm-4")
+            result = list(
+                provider.chat_stream(
+                    [{"role": "user", "content": "hello"}],
+                    temperature=0.3,
+                )
+            )
+
+        assert result == ["Alpha ", "is supported."]
+        mock_client.chat.completions.create.assert_called_once_with(
+            model="glm-4",
+            messages=[{"role": "user", "content": "hello"}],
+            stream=True,
             temperature=0.3,
         )

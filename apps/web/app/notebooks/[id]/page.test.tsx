@@ -57,10 +57,12 @@ describe("NotebookDetailPage", () => {
     (streamNotebookChat as jest.Mock).mockImplementation(
       async ({
         onStatus,
+        onAnswerDelta,
         onAnswer,
         onDone,
       }: {
         onStatus: (payload: { stage: string; message: string }) => void;
+        onAnswerDelta: (payload: { delta: string }) => void;
         onAnswer: (payload: { answer: string; raw_answer: string }) => void;
         onDone: (payload: { status: string }) => void;
       }) => {
@@ -68,9 +70,15 @@ describe("NotebookDetailPage", () => {
           stage: "retrieving",
           message: "Searching sources in notebook notebook-123",
         });
+        onStatus({
+          stage: "generating",
+          message: "Generating grounded answer",
+        });
+        onAnswerDelta({ delta: "Alpha launch" });
 
         await new Promise<void>((resolve) => {
           resolveStream = () => {
+            onAnswerDelta({ delta: " preparation is documented in the sources." });
             onAnswer({
               answer: "Alpha launch preparation is documented in the sources.",
               raw_answer: "Alpha launch preparation is documented in the sources.",
@@ -95,8 +103,9 @@ describe("NotebookDetailPage", () => {
     expect(
       screen.getByText("What do the sources say about Alpha?")
     ).toBeInTheDocument();
-    expect(screen.getByText(/Searching sources/)).toBeInTheDocument();
+    expect(screen.getByText("Generating grounded answer")).toBeInTheDocument();
     expect(screen.getByText("Generating answer")).toBeInTheDocument();
+    expect(screen.getByText("Alpha launch")).toBeInTheDocument();
 
     await act(async () => {
       resolveStream?.();
@@ -206,7 +215,7 @@ describe("NotebookDetailPage", () => {
 
     expect(screen.getAllByText("Alpha Guide")).toHaveLength(2);
     expect(screen.getAllByText("Beta Brief")).toHaveLength(1);
-    expect(screen.getByText("Alpha launch planning starts in Q2.")).toBeInTheDocument();
+    expect(screen.getAllByText("Alpha launch planning starts in Q2.")).toHaveLength(2);
     expect(screen.getAllByText("Page 12")).toHaveLength(2);
     expect(screen.getAllByText("Score 0.95")).toHaveLength(2);
     expect(
@@ -217,7 +226,7 @@ describe("NotebookDetailPage", () => {
       await user.click(secondMarker);
     });
 
-    expect(screen.getByText("Beta mitigates the logistics risk.")).toBeInTheDocument();
+    expect(screen.getAllByText("Beta mitigates the logistics risk.")).toHaveLength(2);
     expect(screen.getAllByText("Page 4")).toHaveLength(2);
     expect(screen.getAllByText("Score 0.82")).toHaveLength(2);
     expect(

@@ -102,6 +102,36 @@ def build_openai_compatible_client(settings: AIClientSettings):
     )
 
 
+def _extract_text_content(content: Any) -> str:
+    """Normalize OpenAI-compatible content payloads into plain text."""
+    if isinstance(content, str):
+        return content
+
+    if isinstance(content, list):
+        text_parts: list[str] = []
+        for part in content:
+            if isinstance(part, dict):
+                if part.get("type") == "text" and isinstance(part.get("text"), str):
+                    text_parts.append(part["text"])
+                continue
+
+            if getattr(part, "type", None) != "text":
+                continue
+
+            text = getattr(part, "text", None)
+            if isinstance(text, str):
+                text_parts.append(text)
+                continue
+
+            value = getattr(text, "value", None)
+            if isinstance(value, str):
+                text_parts.append(value)
+
+        return "".join(text_parts)
+
+    return ""
+
+
 class BigModelChatProvider:
     """Small chat wrapper around BigModel's OpenAI-compatible API."""
 
@@ -145,19 +175,9 @@ class BigModelChatProvider:
 
             message = response.choices[0].message
             content = getattr(message, "content", "")
-
-            if isinstance(content, str):
-                logger.debug(f"[CHAT] LLM returned {len(content)} characters")
-                return content
-
-            if isinstance(content, list):
-                text_parts = [
-                    part.text
-                    for part in content
-                    if getattr(part, "type", None) == "text" and getattr(part, "text", None)
-                ]
-                result = "".join(text_parts)
-                logger.debug(f"[CHAT] LLM returned {len(result)} characters (multipart content)")
+            result = _extract_text_content(content)
+            if result:
+                logger.debug(f"[CHAT] LLM returned {len(result)} characters")
                 return result
 
             logger.warning(f"[CHAT] LLM returned unexpected content type: {type(content)}")
@@ -166,3 +186,36 @@ class BigModelChatProvider:
             duration = time.monotonic() - start_time
             logger.error(f"[CHAT] LLM call failed after {duration:.2f}s: {e}")
             raise
+
+    def chat_stream(self, messages: list[dict[str, Any]], **kwargs: Any):
+        """Create a streaming chat completion and yield text deltas."""
+        start_time = time.monotonic()
+        logger.info(f"[CHAT] Starting streaming LLM call with {len(messages)} messages, model: {self._model}")
+
+        try:
+            stream = self._get_client().chat.completions.create(
+                model=self._model,
+                messages=messages,
+                stream=True,
+                **kwargs,
+            )
+
+            for chunk in stream:
+                choices = getattr(chunk, "choices", None) or []
+                if not choices:
+                    continue
+
+                delta = getattr(choices[0], "delta", None)
+                if delta is None:
+                    continue
+
+                text = _extract_text_content(getattr(delta, "content", None))
+                if text:
+                    yield text
+        except Exception as e:
+            duration = time.monotonic() - start_time
+            logger.error(f"[CHAT] Streaming LLM call failed after {duration:.2f}s: {e}")
+            raise
+        else:
+            duration = time.monotonic() - start_time
+            logger.info(f"[CHAT] Streaming LLM call completed in {duration:.2f}s")

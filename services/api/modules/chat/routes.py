@@ -146,12 +146,38 @@ async def stream_grounded_chat(
         )
 
         try:
-            response = await grounded_qa_service.answer_question(
+            preparation = await grounded_qa_service.prepare_answer(
                 payload.question,
                 str(notebook.id),
                 top_k=payload.top_k,
             )
+            raw_answer_parts: list[str] = []
+
+            if preparation.evidence:
+                yield _format_sse_event(
+                    "status",
+                    {
+                        "stage": "generating",
+                        "message": "Generating grounded answer",
+                    },
+                )
+
+                for delta in grounded_qa_service.stream_answer(preparation.messages):
+                    if not delta:
+                        continue
+
+                    raw_answer_parts.append(delta)
+                    yield _format_sse_event("answer_delta", {"delta": delta})
+
+            response = grounded_qa_service.finalize_answer(
+                "".join(raw_answer_parts),
+                preparation.evidence,
+                preparation.messages,
+            )
             _persist_chat_exchange(db, notebook.id, payload.question, response.answer)
+
+            if not preparation.evidence and response.answer:
+                yield _format_sse_event("answer_delta", {"delta": response.answer})
 
             yield _format_sse_event(
                 "citations",

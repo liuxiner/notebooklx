@@ -10,7 +10,7 @@ import re
 import time
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Protocol
+from typing import Any, Iterator, Protocol
 
 from services.api.modules.embeddings.providers import EmbeddingProvider
 from services.api.modules.retrieval.hybrid import HybridSearchResult
@@ -44,6 +44,13 @@ class ChatProviderProtocol(Protocol):
     def chat(self, messages: list[dict[str, Any]], **kwargs: Any) -> str:
         ...
 
+    def chat_stream(
+        self,
+        messages: list[dict[str, Any]],
+        **kwargs: Any,
+    ) -> Iterator[str]:
+        ...
+
 
 @dataclass(frozen=True)
 class EvidenceChunk:
@@ -68,6 +75,14 @@ class GroundedQAResponse:
     citation_indices: list[int] = field(default_factory=list)
     missing_citation_indices: list[int] = field(default_factory=list)
     raw_answer: str = ""
+    messages: list[dict[str, Any]] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class GroundedQAPreparation:
+    """Prepared evidence and prompt messages for a grounded answer."""
+
+    evidence: list[EvidenceChunk] = field(default_factory=list)
     messages: list[dict[str, Any]] = field(default_factory=list)
 
 
@@ -251,6 +266,50 @@ def parse_grounded_answer_output(
     )
 
 
+def finalize_grounded_answer(
+    *,
+    raw_answer: str,
+    evidence: list[EvidenceChunk],
+    messages: list[dict[str, Any]],
+) -> GroundedQAResponse:
+    """Build the final grounded answer payload from raw streamed or full text."""
+    stripped_raw_answer = raw_answer.strip()
+
+    if not evidence:
+        return GroundedQAResponse(
+            answer="I don't have enough information",
+            evidence=[],
+            citations=[],
+            citation_indices=[],
+            missing_citation_indices=[],
+            raw_answer=stripped_raw_answer,
+            messages=messages,
+        )
+
+    parsed = parse_grounded_answer_output(stripped_raw_answer, evidence)
+    answer = parsed.answer.strip()
+    if not answer:
+        return GroundedQAResponse(
+            answer="I don't have enough information",
+            evidence=evidence,
+            citations=[],
+            citation_indices=[],
+            missing_citation_indices=[],
+            raw_answer=parsed.raw_answer,
+            messages=messages,
+        )
+
+    return GroundedQAResponse(
+        answer=answer,
+        evidence=evidence,
+        citations=parsed.citations,
+        citation_indices=parsed.citation_indices,
+        missing_citation_indices=parsed.missing_citation_indices,
+        raw_answer=parsed.raw_answer,
+        messages=messages,
+    )
+
+
 class GroundedQAService:
     """Orchestrate retrieval, evidence packing, and grounded answer generation."""
 
@@ -264,25 +323,19 @@ class GroundedQAService:
         self.embedding_provider = embedding_provider
         self.chat_provider = chat_provider
 
-    async def answer_question(
+    async def prepare_answer(
         self,
         question: str,
         notebook_id: str,
         *,
         top_k: int = 5,
-    ) -> GroundedQAResponse:
-        """Retrieve evidence and generate a grounded answer."""
-        start_time = time.monotonic()
-
-        logger.info(f"[CHAT] Starting answer_question for question: '{question[:50]}...'")
-
-        # Step 1: Generate embedding
+    ) -> GroundedQAPreparation:
+        """Retrieve evidence and assemble prompt messages for a grounded answer."""
         embed_start = time.monotonic()
         query_embedding = self.embedding_provider.embed(question)
         embed_duration = time.monotonic() - embed_start
         logger.info(f"[CHAT] Embedding generation took {embed_duration:.2f}s")
 
-        # Step 2: Search for relevant chunks
         search_start = time.monotonic()
         retrieved = await self.retrieval_service.search(
             query=question,
@@ -294,50 +347,64 @@ class GroundedQAService:
         logger.info(f"[CHAT] Vector search took {search_duration:.2f}s, found {len(retrieved)} results")
 
         evidence = format_evidence_pack(retrieved)
-        if not evidence:
-            logger.warning(f"[CHAT] No evidence found for question: '{question[:50]}...'")
-            messages = build_grounded_messages(question, evidence)
-            return GroundedQAResponse(
-                answer="I don't have enough information",
-                evidence=[],
-                citations=[],
-                citation_indices=[],
-                missing_citation_indices=[],
-                raw_answer="",
-                messages=messages,
-            )
-
-        # Step 3: Generate answer with LLM
-        llm_start = time.monotonic()
         messages = build_grounded_messages(question, evidence)
-        logger.info(f"[CHAT] Calling LLM with {len(evidence)} evidence chunks")
-        raw_answer = self.chat_provider.chat(messages)
+        return GroundedQAPreparation(evidence=evidence, messages=messages)
+
+    def stream_answer(
+        self,
+        messages: list[dict[str, Any]],
+        **kwargs: Any,
+    ) -> Iterator[str]:
+        """Stream answer deltas from the chat provider."""
+        return self.chat_provider.chat_stream(messages, **kwargs)
+
+    def finalize_answer(
+        self,
+        raw_answer: str,
+        evidence: list[EvidenceChunk],
+        messages: list[dict[str, Any]],
+    ) -> GroundedQAResponse:
+        """Finalize a grounded answer after the raw model output is available."""
+        return finalize_grounded_answer(
+            raw_answer=raw_answer,
+            evidence=evidence,
+            messages=messages,
+        )
+
+    async def answer_question(
+        self,
+        question: str,
+        notebook_id: str,
+        *,
+        top_k: int = 5,
+    ) -> GroundedQAResponse:
+        """Retrieve evidence and generate a grounded answer."""
+        start_time = time.monotonic()
+
+        logger.info(f"[CHAT] Starting answer_question for question: '{question[:50]}...'")
+        prepared = await self.prepare_answer(
+            question,
+            notebook_id,
+            top_k=top_k,
+        )
+        if not prepared.evidence:
+            logger.warning(f"[CHAT] No evidence found for question: '{question[:50]}...'")
+            return self.finalize_answer("", prepared.evidence, prepared.messages)
+
+        llm_start = time.monotonic()
+        logger.info(f"[CHAT] Calling LLM with {len(prepared.evidence)} evidence chunks")
+        raw_answer = self.chat_provider.chat(prepared.messages)
         llm_duration = time.monotonic() - llm_start
         logger.info(f"[CHAT] LLM call took {llm_duration:.2f}s")
 
-        parsed = parse_grounded_answer_output(raw_answer, evidence)
-        answer = parsed.answer.strip()
-        if not answer:
+        response = self.finalize_answer(
+            raw_answer,
+            prepared.evidence,
+            prepared.messages,
+        )
+        if response.answer == "I don't have enough information":
             logger.warning(f"[CHAT] LLM returned empty answer for question: '{question[:50]}...'")
-            return GroundedQAResponse(
-                answer="I don't have enough information",
-                evidence=evidence,
-                citations=[],
-                citation_indices=[],
-                missing_citation_indices=[],
-                raw_answer=parsed.raw_answer,
-                messages=messages,
-            )
 
         total_duration = time.monotonic() - start_time
         logger.info(f"[CHAT] Total answer_question took {total_duration:.2f}s")
-
-        return GroundedQAResponse(
-            answer=answer,
-            evidence=evidence,
-            citations=parsed.citations,
-            citation_indices=parsed.citation_indices,
-            missing_citation_indices=parsed.missing_citation_indices,
-            raw_answer=parsed.raw_answer,
-            messages=messages,
-        )
+        return response

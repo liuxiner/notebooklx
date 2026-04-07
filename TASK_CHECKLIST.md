@@ -102,6 +102,8 @@ Quick reference checklist for tracking development progress. Check off items as 
 - ✓ Citation markers
 - ✓ Citation cards
 - ✓ SSE client
+- ✓ Real-time answer updates
+- ✓ Citation text + score visibility
 - ✓ Auto-scroll
 - ✓ Input component
 

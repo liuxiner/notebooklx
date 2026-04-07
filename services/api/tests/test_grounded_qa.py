@@ -12,6 +12,7 @@ from services.api.modules.chat.service import (
     DEFAULT_GROUNDED_SYSTEM_PROMPT,
     GroundedQAService,
     build_grounded_messages,
+    finalize_grounded_answer,
     format_evidence_pack,
     parse_grounded_answer_output,
 )
@@ -196,6 +197,39 @@ class TestStructuredAnswerParsing:
 
 
 class TestGroundedQAService:
+    def test_finalize_grounded_answer_uses_streamed_text_and_aligns_citations(self):
+        evidence = format_evidence_pack(
+            [
+                make_result(
+                    chunk_id="chunk-1",
+                    source_title="Alpha Guide",
+                    content="Alpha content",
+                    score=0.91,
+                    page=12,
+                    quote="Alpha quote",
+                ),
+                make_result(
+                    chunk_id="chunk-2",
+                    source_title="Beta Guide",
+                    content="Beta content",
+                    score=0.84,
+                    page=13,
+                    quote="Beta quote",
+                ),
+            ]
+        )
+        messages = build_grounded_messages("What is Alpha?", evidence)
+
+        response = finalize_grounded_answer(
+            raw_answer="Alpha is supported by [2] and [1].",
+            evidence=evidence,
+            messages=messages,
+        )
+
+        assert response.answer == "Alpha is supported by [2] and [1]."
+        assert [chunk.citation_index for chunk in response.citations] == [2, 1]
+        assert response.raw_answer == "Alpha is supported by [2] and [1]."
+
     @pytest.mark.asyncio
     async def test_answer_question_retrieves_evidence_and_calls_chat(self):
         retriever = AsyncMock()

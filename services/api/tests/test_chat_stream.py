@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 
 from services.api.modules.chat.service import (
     EvidenceChunk,
+    GroundedQAPreparation,
     GroundedQAResponse,
 )
 
@@ -47,24 +48,41 @@ class TestGroundedChatStream:
         class FakeGroundedQAService:
             def __init__(self) -> None:
                 self.calls: list[tuple[str, str, int]] = []
+                self.stream_calls: list[list[dict[str, str]]] = []
+                self.finalize_calls: list[str] = []
 
-            async def answer_question(
+            async def prepare_answer(
                 self,
                 question: str,
                 notebook_id: str,
                 *,
                 top_k: int = 5,
-            ) -> GroundedQAResponse:
+            ):
                 self.calls.append((question, notebook_id, top_k))
                 evidence = [_make_citation_chunk()]
+                return GroundedQAPreparation(
+                    evidence=evidence,
+                    messages=[
+                        {"role": "system", "content": "Use evidence only."},
+                        {"role": "user", "content": question},
+                    ],
+                )
+
+            def stream_answer(self, messages):
+                self.stream_calls.append(messages)
+                yield "Alpha "
+                yield "is supported."
+
+            def finalize_answer(self, raw_answer, evidence, messages) -> GroundedQAResponse:
+                self.finalize_calls.append(raw_answer)
                 return GroundedQAResponse(
-                    answer="Alpha is supported.",
+                    answer=raw_answer,
                     evidence=evidence,
                     citations=evidence,
                     citation_indices=[1],
                     missing_citation_indices=[],
-                    raw_answer='{"answer":"Alpha is supported.","citations":[1]}',
-                    messages=[],
+                    raw_answer=raw_answer,
+                    messages=messages,
                 )
 
         service = FakeGroundedQAService()
@@ -83,12 +101,16 @@ class TestGroundedChatStream:
             body = "".join(stream.iter_text())
 
         assert "event: status" in body
+        assert body.count("event: answer_delta") == 2
         assert "event: citations" in body
         assert "event: answer" in body
         assert "event: done" in body
         assert '"answer": "Alpha is supported."' in body
+        assert '"delta": "Alpha "' in body
+        assert '"delta": "is supported."' in body
         assert '"citation_indices": [1]' in body
         assert service.calls == [("What is Alpha?", notebook_id, 5)]
+        assert service.finalize_calls == ["Alpha is supported."]
 
     def test_stream_endpoint_persists_completed_chat_exchange(
         self,
@@ -108,22 +130,33 @@ class TestGroundedChatStream:
         notebook_id = notebook_response.json()["id"]
 
         class FakeGroundedQAService:
-            async def answer_question(
+            async def prepare_answer(
                 self,
                 question: str,
                 notebook_id: str,
                 *,
                 top_k: int = 5,
-            ) -> GroundedQAResponse:
+            ):
                 evidence = [_make_citation_chunk()]
+                return GroundedQAPreparation(
+                    evidence=evidence,
+                    messages=[{"role": "user", "content": question}],
+                )
+
+            def stream_answer(self, messages):
+                _ = messages
+                yield "Alpha "
+                yield "is supported."
+
+            def finalize_answer(self, raw_answer, evidence, messages) -> GroundedQAResponse:
                 return GroundedQAResponse(
-                    answer="Alpha is supported.",
+                    answer=raw_answer,
                     evidence=evidence,
                     citations=evidence,
                     citation_indices=[1],
                     missing_citation_indices=[],
-                    raw_answer='{"answer":"Alpha is supported.","citations":[1]}',
-                    messages=[],
+                    raw_answer=raw_answer,
+                    messages=messages,
                 )
 
         monkeypatch.setattr(
@@ -177,21 +210,31 @@ class TestGroundedChatStream:
         notebook_id = notebook_response.json()["id"]
 
         class FakeGroundedQAService:
-            async def answer_question(
+            async def prepare_answer(
                 self,
                 question: str,
                 notebook_id: str,
                 *,
                 top_k: int = 5,
-            ) -> GroundedQAResponse:
+            ):
+                return GroundedQAPreparation(
+                    evidence=[],
+                    messages=[{"role": "user", "content": question}],
+                )
+
+            def stream_answer(self, messages):
+                _ = messages
+                return iter(())
+
+            def finalize_answer(self, raw_answer, evidence, messages) -> GroundedQAResponse:
                 return GroundedQAResponse(
                     answer="I don't have enough information",
-                    evidence=[],
+                    evidence=evidence,
                     citations=[],
                     citation_indices=[],
                     missing_citation_indices=[],
-                    raw_answer="",
-                    messages=[],
+                    raw_answer=raw_answer,
+                    messages=messages,
                 )
 
         monkeypatch.setattr(
