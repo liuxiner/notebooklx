@@ -129,6 +129,72 @@ If user wants to compare with a previous test:
    • Consider optimizing prompt size or using faster model
 ```
 
+## Batch Evaluation Workflow
+
+### When to Use
+
+Use batch evaluation mode when:
+- User has completed `rag-batch-test` and has results JSON
+- Need to evaluate multiple test cases against expected chunks
+- Want aggregate metrics (Recall@K, MRR, Citation Accuracy)
+- Need table-based results with per-test breakdown
+
+### Batch Evaluation Steps
+
+**Step 1: Load Results**
+```
+请提供批量测试结果路径:
+例如: rag-test-results-dataset-20260404-103000.json
+```
+
+**Step 2: Load Dataset**
+```
+请提供原始测试数据集路径:
+例如: data/test_dataset.json
+```
+
+**Step 3: Run Evaluation**
+```python
+from scripts.evaluate_batch import evaluate_batch_results
+
+evaluation = evaluate_batch_results(
+    results_path="rag-test-results-*.json",
+    dataset_path="data/test_dataset.json"
+)
+```
+
+**Step 4: Generate Report**
+```python
+from scripts.generate_report import generate_report
+
+report = generate_report(
+    results_path="rag-test-results-*.json",
+    dataset_path="data/test_dataset.json",
+    output_path="rag-evaluation-report.md",
+    model_name="glm-4.7-flashx"
+)
+```
+
+**Step 5: Display Summary**
+Show aggregate metrics:
+- Total/Successful/Failed tests
+- Avg Recall@K, MRR, Citation Accuracy
+- Per-test results table
+- Category breakdown
+- Failed tests analysis
+- Recommendations
+
+### Batch Report Sections
+
+The generated report includes:
+
+1. **Summary**: Test counts and success rate
+2. **Aggregate Metrics**: With target comparisons
+3. **Per-Test Results**: Full table with all metrics
+4. **Category Breakdown**: Performance by question type
+5. **Failed Tests**: Error details for debugging
+6. **Recommendations**: Actionable suggestions based on metrics
+
 ## Resources
 
 ### scripts/find_reports.py
@@ -144,6 +210,56 @@ data = load_report_data('rag-debug-2026-04-01-glm-4.6.md')  # Load specific repo
 ```
 
 This script is used in Step 4 (Comparison Mode) to discover previous test sessions.
+
+### scripts/evaluate_batch.py
+
+Evaluate batch test results and calculate metrics.
+
+Usage:
+```python
+from scripts.evaluate_batch import evaluate_batch_results
+
+evaluation = evaluate_batch_results(
+    results_path="rag-test-results-*.json",
+    dataset_path="data/test_dataset.json"
+)
+
+# Access metrics
+metrics = evaluation["aggregate_metrics"]
+print(f"Recall@K: {metrics['avg_recall_at_k']:.3f}")
+print(f"MRR: {metrics['avg_mrr']:.3f}")
+```
+
+**Key functions:**
+- `calculate_recall_at_k()` - Compute recall metric
+- `calculate_mrr()` - Compute mean reciprocal rank
+- `calculate_citation_accuracy()` - Verify citation correctness
+- `evaluate_batch_results()` - Full evaluation pipeline
+- `generate_results_table()` - Markdown table output
+
+### scripts/generate_report.py
+
+Generate comprehensive markdown evaluation report.
+
+Usage:
+```python
+from scripts.generate_report import generate_report
+
+report = generate_report(
+    results_path="rag-test-results-*.json",
+    dataset_path="data/test_dataset.json",
+    output_path="rag-evaluation-report.md",
+    model_name="glm-4.7-flashx"
+)
+```
+
+**Features:**
+- Aggregate metrics with target comparisons
+- Per-test results table
+- Category-based breakdown
+- Failed tests analysis
+- Automated recommendations
+- Configurable output format
 
 ## User Interaction Guidelines
 

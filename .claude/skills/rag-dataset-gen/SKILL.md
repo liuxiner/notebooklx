@@ -151,7 +151,137 @@ Generate `test_dataset.json` with structure:
 }
 ```
 
+## API-Based Dataset Generation
+
+### When to Use
+
+Use the API-based workflow when you need to:
+- Auto-upload source files to the system
+- Trigger real ingestion pipeline
+- Get actual chunk IDs from database
+- Create test cases with real chunk mappings
+
+### API Workflow Steps
+
+**Step 1: Upload & Ingest Source**
+```python
+from scripts.upload_ingest import upload_and_ingest_source
+
+result = upload_and_ingest_source(
+    content="/path/to/document.pdf",  # or text content for text type
+    source_type="pdf",  # or "text"
+    notebook_id=None,  # creates new notebook if None
+    api_base_url="http://localhost:8000",
+    wait_for_completion=True,
+    timeout=120
+)
+# Returns: {source_id, notebook_id, status, job_id}
+```
+
+**Step 2: Wait for Ingestion**
+```python
+from scripts.upload_ingest import wait_for_ingestion
+
+status = wait_for_ingestion(
+    source_id=result["source_id"],
+    api_base_url="http://localhost:8000",
+    timeout=120
+)
+# Returns: {status, progress, error_message, ...}
+```
+
+**Step 3: Retrieve Chunks**
+```python
+from scripts.get_chunks import get_source_chunks, get_chunks_by_notebook
+
+# Get chunks for a specific source
+chunks = get_source_chunks(
+    source_id=result["source_id"],
+    db_url="postgresql://localhost/notebooklx"
+)
+
+# Or get all chunks for a notebook
+chunks = get_chunks_by_notebook(
+    notebook_id=result["notebook_id"],
+    db_url="postgresql://localhost/notebooklx"
+)
+# Returns: [{id, content, metadata, ...}, ...]
+```
+
+**Step 4: Generate Test Cases with Real Chunks**
+```python
+test_cases = []
+for question in questions:
+    # Find relevant chunks using semantic search
+    relevant = find_relevant_chunks(question, chunks, top_k=5)
+
+    test_cases.append({
+        "id": f"test-{len(test_cases)+1:03d}",
+        "question": question,
+        "notebook_id": result["notebook_id"],
+        "expected_chunks": [c["id"] for c in relevant],
+        "expected_keywords": extract_keywords(question, relevant),
+        "category": classify_question(question)
+    })
+```
+
+**Step 5: Save Dataset**
+```python
+dataset = {
+    "metadata": {...},
+    "test_cases": test_cases
+}
+
+with open("test_dataset.json", "w") as f:
+    json.dump(dataset, f, indent=2)
+```
+
+### Client Configuration
+
+```python
+from scripts.upload_ingest import UploadIngestClient
+
+client = UploadIngestClient(
+    api_base_url="http://localhost:8000",
+    user_id=uuid.uuid4()  # or use specific user ID
+)
+
+# Methods available:
+# - upload_pdf(file_path, notebook_id, title)
+# - upload_text(content, notebook_id, title)
+# - trigger_ingestion(source_id)
+# - get_ingestion_status(source_id)
+# - wait_for_ingestion(source_id, timeout, poll_interval)
+# - upload_and_ingest(...)  # Complete workflow
+# - create_notebook(name, description)
+```
+
 ## Resources
+
+### scripts/upload_ingest.py
+
+Handles source upload and ingestion via API.
+
+**Key functions:**
+- `upload_and_ingest_source()` - Complete upload + ingest workflow
+- `wait_for_ingestion()` - Poll status until completion
+- `UploadIngestClient` - Full-featured client class
+
+**Environment variables:**
+- `API_BASE_URL` - Default: http://localhost:8000
+- `USER_ID` - Optional user UUID
+
+### scripts/get_chunks.py
+
+Retrieves chunks from database.
+
+**Key functions:**
+- `get_source_chunks(source_id, db_url)` - Get chunks for a source
+- `get_chunks_by_notebook(notebook_id, db_url)` - Get all notebook chunks
+- `find_relevant_chunks(question, notebook_id, top_k)` - Vector search
+
+**Environment variables:**
+- `DATABASE_URL` - Default: postgresql://localhost/notebooklx
 
 ### scripts/generate_dataset.py
 
