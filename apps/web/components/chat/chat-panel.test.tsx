@@ -242,4 +242,103 @@ describe("ChatPanel", () => {
     expect((await screen.findAllByText("50.86s")).length).toBeGreaterThanOrEqual(1);
     expect(await screen.findByText("Provider returned a single final stream chunk.")).toBeInTheDocument();
   });
+
+  it("keeps rewritten-query transparency collapsed until the user expands it", async () => {
+    const user = userEvent.setup();
+
+    (streamNotebookChat as jest.Mock).mockImplementationOnce(
+      async ({ onStatus, onQueryRewrite, onAnswer, onDone }) => {
+        onStatus?.({
+          stage: "embedding_query",
+          message: "Embedding your question for notebook retrieval",
+        });
+        onQueryRewrite?.({
+          original_query: "What are the risks?",
+          standalone_query: "What are the NotebookLX project risks described in the documents?",
+          search_queries: ["NotebookLX project risks", "NotebookLX architecture risks"],
+          strategy: "keyword_enrichment",
+          used_llm: true,
+          rewritten: true,
+        });
+        onAnswer?.({
+          answer: "The documents highlight execution and architecture risks.",
+          raw_answer: "The documents highlight execution and architecture risks.",
+        });
+        onDone?.({ status: "complete" });
+      }
+    );
+
+    render(<ChatPanel notebookId="notebook-123" notebookName="Deep Research Notes" />);
+
+    await act(async () => {
+      await user.type(
+        screen.getByPlaceholderText("Ask a source-grounded question..."),
+        "What are the risks?"
+      );
+      await user.click(screen.getByRole("button", { name: "Send" }));
+    });
+
+    expect(await screen.findByText("Query rewrite")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Show rewrite details" })).toBeInTheDocument();
+    expect(screen.queryByText("Original query")).not.toBeInTheDocument();
+    expect(screen.queryByText("Retrieval searches")).not.toBeInTheDocument();
+
+    await act(async () => {
+      await user.click(screen.getByRole("button", { name: "Show rewrite details" }));
+    });
+
+    expect(screen.getByText("Original query")).toBeInTheDocument();
+    expect(screen.getAllByText("What are the risks?").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText("Standalone question")).toBeInTheDocument();
+    expect(
+      screen.getByText("What are the NotebookLX project risks described in the documents?")
+    ).toBeInTheDocument();
+    expect(screen.getByText("Retrieval searches")).toBeInTheDocument();
+    expect(screen.getByText("NotebookLX project risks")).toBeInTheDocument();
+    expect(screen.getByText("NotebookLX architecture risks")).toBeInTheDocument();
+    expect(screen.getByText("Rewrite strategy")).toBeInTheDocument();
+    expect(screen.getAllByText("Keyword enrichment").length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("hides rewritten-query transparency when the query did not change", async () => {
+    const user = userEvent.setup();
+
+    (streamNotebookChat as jest.Mock).mockImplementationOnce(
+      async ({ onStatus, onQueryRewrite, onAnswer, onDone }) => {
+        onStatus?.({
+          stage: "embedding_query",
+          message: "Embedding your question for notebook retrieval",
+        });
+        onQueryRewrite?.({
+          original_query: "Explain semantic chunking in NotebookLX",
+          standalone_query: "Explain semantic chunking in NotebookLX",
+          search_queries: ["Explain semantic chunking in NotebookLX"],
+          strategy: "no_rewrite",
+          used_llm: false,
+          rewritten: false,
+        });
+        onAnswer?.({
+          answer: "The sources describe semantic chunking as context-preserving splitting.",
+          raw_answer: "The sources describe semantic chunking as context-preserving splitting.",
+        });
+        onDone?.({ status: "complete" });
+      }
+    );
+
+    render(<ChatPanel notebookId="notebook-123" notebookName="Deep Research Notes" />);
+
+    await act(async () => {
+      await user.type(
+        screen.getByPlaceholderText("Ask a source-grounded question..."),
+        "Explain semantic chunking in NotebookLX"
+      );
+      await user.click(screen.getByRole("button", { name: "Send" }));
+    });
+
+    await screen.findByText(
+      "The sources describe semantic chunking as context-preserving splitting."
+    );
+    expect(screen.queryByText("Query rewrite")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Show rewrite details" })).not.toBeInTheDocument();
+  });
 });

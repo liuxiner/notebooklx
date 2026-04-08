@@ -144,6 +144,20 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
   );
   const [isDeletingSource, setIsDeletingSource] = useState(false);
   const [deleteErrorMessage, setDeleteErrorMessage] = useState<string | null>(null);
+  const sourceCounts = sources.reduce(
+    (counts, source) => {
+      counts.total += 1;
+      counts[getEffectiveStatus(source)] += 1;
+      return counts;
+    },
+    {
+      total: 0,
+      pending: 0,
+      processing: 0,
+      ready: 0,
+      failed: 0,
+    }
+  );
 
   function reconcileTrackedIngestions(nextSources: WorkspaceSource[]) {
     setTrackedIngestionIds((currentIds) =>
@@ -315,10 +329,13 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
 
   return (
     <div className="space-y-6">
-      <Card className="border-slate-200 bg-white/90 shadow-sm">
-        <CardHeader className="gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <Card className="overflow-hidden border-slate-200 bg-white/92 shadow-[0_18px_45px_rgba(15,23,42,0.06)]">
+        <CardHeader className="gap-5 border-b border-slate-200/80 bg-[linear-gradient(180deg,rgba(248,250,252,0.92),rgba(255,255,255,0.98))] sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <CardTitle className="text-xl">Notebook sources</CardTitle>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+              Sources first
+            </p>
+            <CardTitle className="mt-3 text-2xl">Notebook sources</CardTitle>
             <CardDescription className="mt-2 max-w-2xl text-sm leading-6">
               Track ingestion status for every source attached to this notebook.
             </CardDescription>
@@ -343,18 +360,36 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
             </Button>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-6 pt-6">
+          <div className="flex flex-wrap gap-2">
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-600">
+              {sourceCounts.total} total
+            </span>
+            <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-800">
+              {sourceCounts.processing} processing
+            </span>
+            <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-800">
+              {sourceCounts.ready} ready
+            </span>
+            <span className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-rose-800">
+              {sourceCounts.failed} failed
+            </span>
+          </div>
+
           {isLoading ? (
-            <div className="flex min-h-40 items-center justify-center rounded-2xl border border-dashed border-border bg-slate-50/70">
+            <div className="flex min-h-40 items-center justify-center rounded-[1.5rem] border border-dashed border-border bg-slate-50/70">
               <Spinner size="lg" />
             </div>
           ) : errorMessage ? (
-            <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">
+            <div className="rounded-[1.5rem] border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">
               {errorMessage}
             </div>
           ) : sources.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-border bg-slate-50/80 p-6">
-              <p className="text-base font-semibold text-slate-900">No sources yet</p>
+            <div className="rounded-[1.5rem] border border-dashed border-border bg-slate-50/80 p-6">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                Truth boundary
+              </p>
+              <p className="mt-3 text-base font-semibold text-slate-900">No sources yet</p>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
                 Add a PDF, pasted text, or URL to start grounding this notebook.
               </p>
@@ -370,14 +405,14 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
                 return (
                   <article
                     key={source.id}
-                    className="rounded-2xl border border-border bg-slate-50/80 p-4"
+                    className="rounded-[1.5rem] border border-slate-200 bg-slate-50/80 p-5 shadow-[0_1px_3px_rgba(15,23,42,0.04)]"
                   >
                     <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                       <div className="min-w-0">
-                        <h3 className="truncate text-base font-semibold text-slate-950">
+                        <h3 className="truncate text-lg font-semibold tracking-tight text-slate-950">
                           {source.title}
                         </h3>
-                        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.16em] text-slate-500">
+                        <div className="mt-3 flex flex-wrap items-center gap-2 font-mono text-[11px] uppercase tracking-[0.16em] text-slate-500">
                           <span>{sourceTypeLabels[source.source_type] ?? source.source_type}</span>
                           <span aria-hidden="true">•</span>
                           <span>{`Added ${formatDate(source.created_at)}`}</span>
@@ -393,7 +428,7 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
                           type="button"
                           variant="ghost"
                           size="sm"
-                          className="text-slate-600 hover:text-rose-700"
+                          className="text-slate-600 hover:bg-rose-50 hover:text-rose-700"
                           onClick={() => {
                             setDeleteErrorMessage(null);
                             setSourcePendingDelete(source);
@@ -406,11 +441,15 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
                     </div>
 
                     {progressMessage ? (
-                      <p className="mt-3 text-sm text-slate-700">{progressMessage}</p>
+                      <div className="mt-4 rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 text-sm text-slate-700">
+                        {progressMessage}
+                      </div>
                     ) : null}
 
                     {failureMessage ? (
-                      <p className="mt-3 text-sm text-rose-800">{failureMessage}</p>
+                      <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+                        {failureMessage}
+                      </div>
                     ) : null}
                   </article>
                 );
@@ -471,13 +510,16 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
       <div className="grid gap-4 xl:grid-cols-2">
         <Card className="border-slate-200 bg-white/90 shadow-sm">
           <CardHeader>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+              Reserved
+            </p>
             <CardTitle className="text-xl">Notebook summary</CardTitle>
             <CardDescription>
               Reserved for Feature 4.1 once summaries are generated from ready sources.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="rounded-2xl border border-dashed border-border bg-slate-50/80 p-4 text-sm text-muted-foreground">
+            <div className="rounded-[1.5rem] border border-dashed border-border bg-slate-50/80 p-4 text-sm text-muted-foreground">
               Summary generation has not been enabled for this notebook yet.
             </div>
           </CardContent>
@@ -485,13 +527,16 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
 
         <Card className="border-slate-200 bg-white/90 shadow-sm">
           <CardHeader>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+              Reserved
+            </p>
             <CardTitle className="text-xl">Generated assets</CardTitle>
             <CardDescription>
               Reserved for Phase 5 outputs such as briefings, FAQs, and study guides.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="rounded-2xl border border-dashed border-border bg-slate-50/80 p-4 text-sm text-muted-foreground">
+            <div className="rounded-[1.5rem] border border-dashed border-border bg-slate-50/80 p-4 text-sm text-muted-foreground">
               Derived content will appear here after asset generation ships.
             </div>
           </CardContent>

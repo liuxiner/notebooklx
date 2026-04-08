@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus } from "lucide-react";
+import { BookOpen, Plus } from "lucide-react";
 import { notebooksApi, type Notebook, ApiError } from "@/lib/api";
 import { useToast } from "@/lib/toast";
 import { Button } from "@/components/ui/button";
@@ -122,52 +122,85 @@ export default function NotebooksPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-8 max-w-7xl">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Notebooks</h1>
-            <p className="text-muted-foreground mt-1">
-              Organize your knowledge from multiple sources
-            </p>
+    <div className="min-h-screen">
+      <div className="mx-auto max-w-7xl px-4 py-8 lg:py-10">
+        <section className="overflow-hidden rounded-[2rem] border border-slate-200/90 bg-white/92 p-6 shadow-[0_18px_45px_rgba(15,23,42,0.06)] backdrop-blur-sm sm:p-8">
+          <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
+            <div className="max-w-3xl">
+              <div className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.2em] text-sky-800">
+                <BookOpen className="h-3.5 w-3.5" />
+                Source-grounded workspace
+              </div>
+              <h1 className="mt-4 text-4xl font-semibold tracking-tight text-slate-950 sm:text-5xl">
+                Notebooks
+              </h1>
+              <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600">
+                Organize your knowledge from multiple sources, keep your evidence
+                traceable, and move from source collection to grounded chat in one
+                calm workspace.
+              </p>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] lg:min-w-[360px]">
+              <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50/80 p-4 shadow-sm">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  Active notebooks
+                </p>
+                <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">
+                  {isLoading ? "..." : notebooks.length}
+                </p>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  Each notebook defines its own source boundary for grounded answers.
+                </p>
+              </div>
+
+              <Button
+                onClick={openCreateDialog}
+                disabled={isLoading}
+                className="h-auto min-h-[112px] flex-col items-start justify-end rounded-[1.5rem] px-5 py-5 text-left"
+              >
+                <Plus className="h-5 w-5" />
+                <span>{notebooks.length === 0 ? "Create your first notebook" : "New Notebook"}</span>
+              </Button>
+            </div>
           </div>
-          {!isLoading && notebooks.length > 0 && (
-            <Button onClick={openCreateDialog}>
-              <Plus className="mr-2 h-4 w-4" />
-              New Notebook
-            </Button>
-          )}
+        </section>
+
+        <div className="mt-8">
+          {isLoading ? (
+            <div className="flex min-h-[320px] items-center justify-center rounded-[2rem] border border-slate-200 bg-white/80">
+              <Spinner size="lg" />
+            </div>
+          ) : null}
+
+          {!isLoading && notebooks.length === 0 ? (
+            <EmptyState onCreateNotebook={openCreateDialog} />
+          ) : null}
+
+          {!isLoading && notebooks.length > 0 ? (
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {notebooks.map((notebook) => (
+                <NotebookCard
+                  key={notebook.id}
+                  notebook={notebook}
+                  onClick={() => handleNotebookClick(notebook.id)}
+                  onEdit={() => openEditDialog(notebook)}
+                  onDelete={() => openDeleteDialog(notebook)}
+                />
+              ))}
+            </div>
+          ) : null}
         </div>
 
-        {/* Loading state */}
-        {isLoading && (
-          <div className="flex items-center justify-center py-12">
-            <Spinner size="lg" />
+        {!isLoading && notebooks.length > 0 ? (
+          <div className="mt-6 flex justify-end">
+            <Button variant="outline" onClick={openCreateDialog}>
+              <Plus className="mr-2 h-4 w-4" />
+              Add another notebook
+            </Button>
           </div>
-        )}
+        ) : null}
 
-        {/* Empty state */}
-        {!isLoading && notebooks.length === 0 && (
-          <EmptyState onCreateNotebook={openCreateDialog} />
-        )}
-
-        {/* Notebooks grid */}
-        {!isLoading && notebooks.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {notebooks.map((notebook) => (
-              <NotebookCard
-                key={notebook.id}
-                notebook={notebook}
-                onClick={() => handleNotebookClick(notebook.id)}
-                onEdit={() => openEditDialog(notebook)}
-                onDelete={() => openDeleteDialog(notebook)}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* Create/Edit Dialog */}
         <NotebookFormDialog
           open={isFormOpen}
           onOpenChange={(open) => {
@@ -179,7 +212,6 @@ export default function NotebooksPage() {
           isSubmitting={isSubmitting}
         />
 
-        {/* Delete Dialog */}
         <DeleteDialog
           open={isDeleteOpen}
           onOpenChange={setIsDeleteOpen}

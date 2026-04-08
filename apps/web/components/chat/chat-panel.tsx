@@ -20,6 +20,7 @@ import {
   type ChatCitation,
   type ChatFailureState,
   type ChatMetricsEvent,
+  type ChatQueryRewriteEvent,
   type ChatRetrievalEvent,
   type ChatStatusEvent,
 } from "@/lib/chat-stream";
@@ -36,6 +37,12 @@ const STARTER_PROMPTS = [
   "Where do the sources disagree?",
   "What evidence supports the key claim?",
 ];
+const transparencySectionClasses =
+  "space-y-4 rounded-[1.75rem] border border-slate-200 bg-white/88 p-5 shadow-[0_1px_3px_rgba(15,23,42,0.05)]";
+const transparencyCardClasses =
+  "rounded-2xl border border-slate-200 bg-slate-50/70 p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)]";
+const transparencyLabelClasses =
+  "font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500";
 
 function createMessageId(prefix: "user" | "assistant") {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -106,6 +113,41 @@ function formatChatStatus(payload: ChatStatusEvent): string {
   }
 }
 
+function formatRewriteStrategy(strategy: string): string {
+  switch (strategy) {
+    case "reference_resolution":
+      return "Reference resolution";
+    case "standalone_expansion":
+      return "Standalone expansion";
+    case "keyword_enrichment":
+      return "Keyword enrichment";
+    case "no_rewrite":
+      return "No rewrite";
+    default:
+      return strategy.replaceAll("_", " ");
+  }
+}
+
+function describeRewrite(rewrite: ChatQueryRewriteEvent): string {
+  const searchCount = rewrite.search_queries.length;
+  const searchSummary = `${formatCount(
+    searchCount,
+    "retrieval search",
+    "retrieval searches"
+  )} prepared for notebook search.`;
+
+  switch (rewrite.strategy) {
+    case "reference_resolution":
+      return `We resolved context-dependent references before retrieval. ${searchSummary}`;
+    case "standalone_expansion":
+      return `We expanded this follow-up into a standalone retrieval question. ${searchSummary}`;
+    case "keyword_enrichment":
+      return `We enriched this question with search-friendly terms before retrieval. ${searchSummary}`;
+    default:
+      return searchSummary;
+  }
+}
+
 function getWorkflowCardClasses(tone: WorkflowTone): string {
   switch (tone) {
     case "active":
@@ -132,6 +174,7 @@ export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
   const [workflowStatus, setWorkflowStatus] = useState(
     "We search this notebook's sources, draft an answer from the evidence, and show citations you can inspect."
   );
+  const [isQueryRewriteExpanded, setIsQueryRewriteExpanded] = useState(false);
   const [lastSubmittedQuestion, setLastSubmittedQuestion] = useState<string | null>(null);
   const [activeCitationMessageId, setActiveCitationMessageId] = useState<string | null>(
     null
@@ -169,6 +212,12 @@ export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
   const latestAssistantMessageWithMetrics = [...messages]
     .reverse()
     .find((message) => message.role === "assistant" && Boolean(message.metrics));
+  const latestAssistantMessageWithQueryRewrite = [...messages]
+    .reverse()
+    .find(
+      (message) =>
+        message.role === "assistant" && Boolean(message.queryRewrite?.rewritten)
+    );
   const latestCompletedAssistantMessage = [...messages].reverse().find(
     (message) =>
       message.role === "assistant" &&
@@ -198,6 +247,13 @@ export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
         message.role === "assistant" &&
         Boolean(message.metrics)
     ) || latestAssistantMessageWithMetrics;
+  const queryRewritePanelMessage =
+    messages.find(
+      (message) =>
+        message.id === activeCitationMessageId &&
+        message.role === "assistant" &&
+        Boolean(message.queryRewrite?.rewritten)
+    ) || latestAssistantMessageWithQueryRewrite;
 
   const citationPanelCitations = citationPanelMessage
     ? [...citationPanelMessage.citations].sort(
@@ -207,6 +263,10 @@ export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
   const retrievalDiagnostics = retrievalPanelMessage?.retrieval ?? null;
   const retrievalGroups = groupRetrievalChunks(retrievalDiagnostics?.chunks ?? []);
   const chatMetrics = metricsPanelMessage?.metrics ?? null;
+  const queryRewrite =
+    queryRewritePanelMessage?.queryRewrite?.rewritten
+      ? queryRewritePanelMessage.queryRewrite
+      : null;
   const liveStageSeconds =
     workflowStageStartedAt !== null ? Math.max(0, (stageNow - workflowStageStartedAt) / 1000) : null;
 
@@ -333,6 +393,7 @@ export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
     setWorkflowStageStartedAt(Date.now());
     setStageNow(Date.now());
     setWorkflowStatus("Embedding your question for retrieval");
+    setIsQueryRewriteExpanded(false);
     setIsStreaming(true);
     setMessages((current) => [
       ...current,
@@ -349,6 +410,7 @@ export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
         citations: [],
         metrics: null,
         retrieval: null,
+        queryRewrite: null,
         statusMessage: "Embedding your question for retrieval",
         guardrail: null,
       },
@@ -381,6 +443,13 @@ export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
           updateAssistantMessage((current) => ({
             ...current,
             metrics: mergeMetrics(current.metrics, payload),
+          }));
+        },
+        onQueryRewrite: (payload: ChatQueryRewriteEvent) => {
+          setIsQueryRewriteExpanded(false);
+          updateAssistantMessage((current) => ({
+            ...current,
+            queryRewrite: payload,
           }));
         },
         onRetrieval: (payload: ChatRetrievalEvent) => {
@@ -461,19 +530,31 @@ export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
   }
 
   return (
-    <Card className="flex h-full min-h-[70vh] flex-col overflow-hidden border-slate-200 bg-card/95 shadow-lg">
-      <CardHeader className="border-b bg-slate-50/80">
-        <CardTitle className="text-xl">Grounded chat</CardTitle>
-        <CardDescription>
-          Ask questions against the sources in this notebook.
-        </CardDescription>
+    <Card className="flex h-full min-h-[70vh] flex-col overflow-hidden border-slate-200 bg-white/92 shadow-[0_18px_45px_rgba(15,23,42,0.08)]">
+      <CardHeader className="gap-4 border-b border-slate-200/80 bg-[linear-gradient(180deg,rgba(248,250,252,0.92),rgba(255,255,255,0.98))]">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <CardTitle className="text-2xl">Grounded chat</CardTitle>
+            <CardDescription>
+              Ask questions against the sources in this notebook.
+            </CardDescription>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3 shadow-sm sm:max-w-[220px]">
+            <p className={transparencyLabelClasses}>Notebook scope</p>
+            <p className="mt-2 text-sm font-semibold leading-6 text-slate-900">
+              Answers stay limited to sources added here.
+            </p>
+          </div>
+        </div>
       </CardHeader>
 
       <CardContent className="flex min-h-0 flex-1 flex-col p-0">
-        <div className="flex-1 space-y-4 overflow-y-auto px-4 py-5 sm:px-5">
+        <div className="flex-1 space-y-4 overflow-y-auto bg-white/50 px-4 py-5 sm:px-5">
           {messages.length === 0 ? (
-            <div className="rounded-3xl border border-dashed border-border bg-slate-50/70 p-5">
-              <p className="text-sm font-medium text-slate-900">
+            <div className="rounded-[1.75rem] border border-dashed border-slate-300 bg-slate-50/80 p-5">
+              <p className={transparencyLabelClasses}>Starter prompts</p>
+              <p className="mt-3 text-sm font-medium text-slate-900">
                 Start with a grounded question
               </p>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
@@ -486,7 +567,7 @@ export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
                   <button
                     key={prompt}
                     type="button"
-                    className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-100"
+                    className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-primary/30 hover:bg-slate-50"
                     onClick={() => setDraft(prompt)}
                   >
                     {prompt}
@@ -516,9 +597,90 @@ export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
           <div ref={bottomRef} />
         </div>
 
-        <div className="border-t bg-slate-50/80 px-4 py-4 sm:px-5">
+        <div className="border-t border-slate-200 bg-slate-50/80 px-4 py-4 sm:px-5">
           <div className="space-y-6">
-            <div className="space-y-4">
+            {queryRewrite ? (
+              <section className={transparencySectionClasses}>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-900">Query rewrite</h3>
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                      {describeRewrite(queryRewrite)}
+                    </p>
+                  </div>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    aria-expanded={isQueryRewriteExpanded}
+                    onClick={() => setIsQueryRewriteExpanded((current) => !current)}
+                  >
+                    {isQueryRewriteExpanded ? "Hide rewrite details" : "Show rewrite details"}
+                  </Button>
+                </div>
+
+                <div className={transparencyCardClasses}>
+                  <div className="flex flex-wrap gap-2">
+                    <span className="rounded-full border border-slate-200 bg-white px-3 py-1 font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-600">
+                      {formatRewriteStrategy(queryRewrite.strategy)}
+                    </span>
+                    <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-sky-700">
+                      {formatCount(queryRewrite.search_queries.length, "search", "searches")}
+                    </span>
+                  </div>
+
+                  {isQueryRewriteExpanded ? (
+                    <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <p className={transparencyLabelClasses}>
+                          Original query
+                        </p>
+                        <p className="text-sm leading-6 text-slate-900">
+                          {queryRewrite.original_query}
+                        </p>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <p className={transparencyLabelClasses}>
+                          Standalone question
+                        </p>
+                        <p className="text-sm leading-6 text-slate-900">
+                          {queryRewrite.standalone_query}
+                        </p>
+                      </div>
+
+                      <div className="space-y-1.5 sm:col-span-2">
+                        <p className={transparencyLabelClasses}>
+                          Retrieval searches
+                        </p>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {queryRewrite.search_queries.map((searchQuery) => (
+                            <span
+                              key={searchQuery}
+                              className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700"
+                            >
+                              {searchQuery}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5 sm:col-span-2">
+                        <p className={transparencyLabelClasses}>
+                          Rewrite strategy
+                        </p>
+                        <p className="text-sm leading-6 text-slate-900">
+                          {formatRewriteStrategy(queryRewrite.strategy)}
+                        </p>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              </section>
+            ) : null}
+
+            <section className={transparencySectionClasses}>
               <div>
                 <h3 className="text-sm font-semibold text-slate-900">Chat timing</h3>
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">
@@ -528,46 +690,36 @@ export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Model
-                  </p>
+                <div className={transparencyCardClasses}>
+                  <p className={transparencyLabelClasses}>Model</p>
                   <p className="mt-2 text-sm font-semibold text-slate-900">
                     {chatMetrics?.model || "Pending"}
                   </p>
                 </div>
 
-                <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Question Embedding
-                  </p>
+                <div className={transparencyCardClasses}>
+                  <p className={transparencyLabelClasses}>Question Embedding</p>
                   <p className="mt-2 text-sm font-semibold text-slate-900">
                     {queryEmbeddingDisplay}
                   </p>
                 </div>
 
-                <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Retrieval
-                  </p>
+                <div className={transparencyCardClasses}>
+                  <p className={transparencyLabelClasses}>Retrieval</p>
                   <p className="mt-2 text-sm font-semibold text-slate-900">
                     {retrievalDisplay}
                   </p>
                 </div>
 
-                <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    First Answer Chunk
-                  </p>
+                <div className={transparencyCardClasses}>
+                  <p className={transparencyLabelClasses}>First Answer Chunk</p>
                   <p className="mt-2 text-sm font-semibold text-slate-900">
                     {firstChunkDisplay}
                   </p>
                 </div>
 
-                <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Stream Duration
-                  </p>
+                <div className={transparencyCardClasses}>
+                  <p className={transparencyLabelClasses}>Stream Duration</p>
                   <p className="mt-2 text-sm font-semibold text-slate-900">
                     {typeof chatMetrics?.llm_stream_seconds === "number"
                       ? formatSeconds(chatMetrics.llm_stream_seconds)
@@ -577,10 +729,8 @@ export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
                   </p>
                 </div>
 
-                <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Stream Chunks
-                  </p>
+                <div className={transparencyCardClasses}>
+                  <p className={transparencyLabelClasses}>Stream Chunks</p>
                   <p className="mt-2 text-sm font-semibold text-slate-900">
                     {typeof chatMetrics?.delta_chunks_received === "number"
                       ? String(chatMetrics.delta_chunks_received)
@@ -590,13 +740,11 @@ export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
               </div>
 
               {streamDeliveryMessage ? (
-                <div className="rounded-2xl border border-slate-200 bg-white/90 p-4 text-sm text-slate-700 shadow-sm">
-                  {streamDeliveryMessage}
-                </div>
+                <div className={transparencyCardClasses}>{streamDeliveryMessage}</div>
               ) : null}
-            </div>
+            </section>
 
-            <div className="space-y-4">
+            <section className={transparencySectionClasses}>
               <div>
                 <h3 className="text-sm font-semibold text-slate-900">Retrieved evidence</h3>
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">
@@ -617,13 +765,11 @@ export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
                   {retrievalGroups.map((group) => (
                     <div
                       key={group.key}
-                      className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+                      className={transparencyCardClasses}
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                            Source
-                          </p>
+                          <p className={transparencyLabelClasses}>Source</p>
                           <p className="mt-1 text-sm font-semibold text-slate-900">
                             {group.sourceTitle}
                           </p>
@@ -637,10 +783,10 @@ export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
                         {group.chunks.map((chunk) => (
                           <div
                             key={`${chunk.chunk_id}-${chunk.citation_index}`}
-                            className="rounded-xl border border-slate-100 bg-slate-50/80 px-3 py-3"
+                            className="rounded-xl border border-slate-200 bg-white/80 px-3 py-3"
                           >
                             <div className="flex items-start justify-between gap-3">
-                              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                              <p className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
                                 Chunk{" "}
                                 {typeof chunk.chunk_index === "number"
                                   ? chunk.chunk_index + 1
@@ -651,7 +797,7 @@ export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
                                 <p>Score {chunk.score.toFixed(2)}</p>
                               </div>
                             </div>
-                            <p className="mt-2 text-sm leading-6 text-slate-700">
+                            <p className="mt-2 font-mono text-[13px] leading-6 text-slate-700">
                               {chunk.quote}
                             </p>
                           </div>
@@ -666,9 +812,9 @@ export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
                   completes.
                 </div>
               )}
-            </div>
+            </section>
 
-            <div className="space-y-4">
+            <section className={transparencySectionClasses}>
               <div>
                 <h3 className="text-sm font-semibold text-slate-900">
                   Sources used in this answer
@@ -681,10 +827,10 @@ export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
 
               {selectedCitation && citationPanelMessage ? (
                 <>
-                  <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <div className={transparencyCardClasses}>
                     <div className="flex items-start justify-between gap-4">
                       <div>
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                        <p className={transparencyLabelClasses}>
                           Citation [{selectedCitation.citation_index}]
                         </p>
                         <p className="mt-1 text-sm font-semibold text-slate-900">
@@ -697,7 +843,7 @@ export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
                       </div>
                     </div>
 
-                    <blockquote className="mt-4 border-l-2 border-slate-300 pl-4 text-sm leading-6 text-slate-700">
+                    <blockquote className="mt-4 border-l-2 border-amber-300 pl-4 font-mono text-[13px] leading-6 text-slate-700">
                       {selectedCitation.quote}
                     </blockquote>
 
@@ -727,13 +873,13 @@ export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
                   grounded references.
                 </div>
               )}
-            </div>
+            </section>
           </div>
         </div>
 
-        <div className="border-t bg-background/95 p-4 backdrop-blur sm:p-5">
+        <div className="border-t border-slate-200 bg-background/95 p-4 backdrop-blur sm:p-5">
           <div
-            className={`mb-4 rounded-3xl border px-4 py-4 ${getWorkflowCardClasses(
+            className={`mb-4 rounded-[1.75rem] border px-4 py-4 ${getWorkflowCardClasses(
               workflowCard.tone
             )}`}
           >
@@ -780,7 +926,7 @@ export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
             />
 
             <div className="flex items-center justify-between gap-3">
-              <p className="text-xs text-muted-foreground">
+              <p className="font-mono text-xs uppercase tracking-[0.12em] text-muted-foreground">
                 Enter sends. Shift+Enter inserts a new line.
               </p>
               <Button type="submit" disabled={!draft.trim() || isStreaming}>

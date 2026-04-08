@@ -6,6 +6,7 @@ import type {
   ChatCitation,
   ChatFailureState,
   ChatMetricsEvent,
+  ChatQueryRewriteEvent,
   ChatRetrievalEvent,
 } from "@/lib/chat-stream";
 import { cn } from "@/lib/utils";
@@ -19,6 +20,7 @@ export interface ChatMessage {
   guardrail?: ChatFailureState | null;
   retrieval?: ChatRetrievalEvent | null;
   metrics?: ChatMetricsEvent | null;
+  queryRewrite?: ChatQueryRewriteEvent | null;
 }
 
 interface MessageBubbleProps {
@@ -77,10 +79,10 @@ export function MessageBubble({
     <div className={cn("flex w-full", isUser ? "justify-end" : "justify-start")}>
       <div
         className={cn(
-          "max-w-[88%] rounded-3xl px-4 py-3 shadow-sm",
+          "max-w-[88%] rounded-[1.5rem] px-4 py-3.5 shadow-[0_1px_3px_rgba(15,23,42,0.06)]",
           isUser
             ? "rounded-br-md bg-primary text-primary-foreground"
-            : "rounded-bl-md border border-border bg-card"
+            : "rounded-bl-md border border-slate-200 bg-slate-50/95 text-slate-800"
         )}
       >
         <p
@@ -138,7 +140,7 @@ export function MessageBubble({
         ) : null}
 
         {!isUser && message.citations.length > 0 ? (
-          <p className="mt-3 text-xs text-muted-foreground">
+          <p className="mt-3 font-mono text-xs uppercase tracking-[0.12em] text-muted-foreground">
             Uses {message.citations.length} source
             {message.citations.length === 1 ? "" : "s"}.
           </p>

@@ -830,7 +830,9 @@ This document outlines the detailed development plan, acceptance criteria, and t
 - [x] Vague queries expanded with context
 - [x] Follow-up questions include chat history
 - [ ] Improved retrieval recall
-- [x] User can see rewritten query (optional transparency)
+- [x] Rewrite metadata exposed to the client before retrieval
+- [x] User can optionally view rewritten query details in the chat UI
+- [x] Transparency UI stays unobtrusive by default and only appears when the query was actually rewritten
 - [ ] Configurable rewriting strategies
 
 **Tasks:**
@@ -840,11 +842,18 @@ This document outlines the detailed development plan, acceptance criteria, and t
    - Include chat history context
    - Generate improved query
 3. [x] Integrate into chat flow (before retrieval)
-4. [x] Add transparency option (show rewritten query)
-5. [x] Test with various query types
-6. Measure impact on retrieval quality
-7. [x] Write unit tests
-8. Add configuration options
+4. [x] Add backend transparency payload for rewritten query metadata
+5. [x] Add rewritten-query transparency UI/UX in chat
+   - Show a compact affordance near retrieval diagnostics or answer metadata when `rewritten == true`
+   - Keep the panel collapsed by default so normal chat flow stays uncluttered
+   - Let users expand to inspect original query, standalone query, strategy, and retrieval `search_queries`
+   - Hide the panel entirely when no rewrite happened
+   - Keep the interaction keyboard accessible and usable on mobile layouts
+6. [x] Test with various query types
+7. Measure impact on retrieval quality
+8. [x] Write unit tests
+9. Add configuration options
+10. [x] Add frontend tests for rewritten-query transparency rendering
 
 ---
 

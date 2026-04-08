@@ -21,17 +21,17 @@ export function CitationCard({
       aria-pressed={isActive}
       onClick={() => onSelect?.(citation.citation_index)}
       className={cn(
-        "w-full rounded-2xl border px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+        "w-full rounded-2xl border px-4 py-3 text-left transition-colors shadow-sm focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/10 focus-visible:ring-offset-0",
         isActive
-          ? "border-slate-900 bg-slate-900 text-white"
-          : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
+          ? "border-amber-500 bg-amber-500 text-white"
+          : "border-amber-200 bg-amber-50/70 hover:border-amber-300 hover:bg-amber-100/70"
       )}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p
             className={cn(
-              "text-[11px] font-semibold uppercase tracking-[0.18em]",
+              "font-mono text-[11px] font-semibold uppercase tracking-[0.18em]",
               isActive ? "text-white/70" : "text-muted-foreground"
             )}
           >
@@ -40,8 +40,8 @@ export function CitationCard({
           <p className="mt-1 truncate text-sm font-semibold">{citation.source_title}</p>
           <p
             className={cn(
-              "mt-2 text-sm leading-5",
-              isActive ? "text-white/90" : "text-slate-600"
+              "mt-2 font-mono text-[13px] leading-6",
+              isActive ? "text-white/90" : "text-amber-950/90"
             )}
           >
             {citation.quote}
@@ -49,7 +49,7 @@ export function CitationCard({
         </div>
         <div
           className={cn(
-            "shrink-0 text-right text-xs",
+            "shrink-0 font-mono text-right text-xs",
             isActive ? "text-white/80" : "text-muted-foreground"
           )}
         >

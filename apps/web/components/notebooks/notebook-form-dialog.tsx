@@ -92,7 +92,7 @@ export function NotebookFormDialog({
               />
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="gap-2 border-t border-slate-200 pt-4">
             <Button
               type="button"
               variant="outline"

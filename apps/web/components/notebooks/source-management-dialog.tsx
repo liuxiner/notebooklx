@@ -27,7 +27,7 @@ interface SourceManagementDialogProps {
 }
 
 const modeButtonStyles =
-  "rounded-full px-3 py-1 text-sm font-medium transition-colors";
+  "rounded-full border px-3 py-1.5 text-sm font-medium transition-colors";
 
 function isSupportedUploadFile(file: File): boolean {
   const filename = file.name.toLowerCase();
@@ -182,8 +182,8 @@ export function SourceManagementDialog({
                 type="button"
                 className={`${modeButtonStyles} ${
                   mode === "upload"
-                    ? "bg-slate-900 text-white"
-                    : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                    ? "border-primary bg-primary text-white"
+                    : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
                 }`}
                 aria-pressed={mode === "upload"}
                 onClick={() => switchMode("upload")}
@@ -195,8 +195,8 @@ export function SourceManagementDialog({
                 type="button"
                 className={`${modeButtonStyles} ${
                   mode === "text"
-                    ? "bg-slate-900 text-white"
-                    : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                    ? "border-primary bg-primary text-white"
+                    : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
                 }`}
                 aria-pressed={mode === "text"}
                 onClick={() => switchMode("text")}
@@ -208,8 +208,8 @@ export function SourceManagementDialog({
                 type="button"
                 className={`${modeButtonStyles} ${
                   mode === "url"
-                    ? "bg-slate-900 text-white"
-                    : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                    ? "border-primary bg-primary text-white"
+                    : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
                 }`}
                 aria-pressed={mode === "url"}
                 onClick={() => switchMode("url")}
@@ -311,7 +311,7 @@ export function SourceManagementDialog({
             ) : null}
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="gap-2 border-t border-slate-200 pt-4">
             <Button
               type="button"
               variant="outline"
