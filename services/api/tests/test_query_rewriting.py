@@ -10,6 +10,7 @@ Acceptance Criteria:
 import logging
 from unittest.mock import MagicMock
 
+import pytest
 from sqlalchemy.orm import Session
 
 from services.api.modules.chat.models import Message, MessageRole
@@ -18,6 +19,47 @@ from services.api.modules.notebooks.models import Notebook, User
 
 class TestQueryRewriter:
     """Test query rewriting functionality."""
+
+    def test_query_rewriter_can_be_disabled(self):
+        """Configured disablement should bypass rewriting entirely."""
+        from services.api.modules.query.rewriter import QueryRewriter
+
+        mock_provider = MagicMock()
+        rewriter = QueryRewriter(chat_provider=mock_provider, enabled=False)
+
+        result = rewriter.rewrite_for_retrieval(
+            "What are the risks?",
+            chat_history=[{"role": "assistant", "content": "We were discussing NotebookLX risks."}],
+        )
+
+        assert result.strategy == "no_rewrite"
+        assert result.used_llm is False
+        assert result.rewritten is False
+        assert result.search_queries == ("What are the risks?",)
+        mock_provider.chat.assert_not_called()
+
+    def test_query_rewriter_respects_allowed_strategies(self):
+        """Disallowed strategies should skip rewriting instead of calling the LLM."""
+        from services.api.modules.query.rewriter import QueryRewriter
+
+        mock_provider = MagicMock()
+        rewriter = QueryRewriter(
+            chat_provider=mock_provider,
+            allowed_strategies=frozenset({"keyword_enrichment"}),
+        )
+
+        result = rewriter.rewrite_for_retrieval(
+            "What are its limitations?",
+            chat_history=[
+                {"role": "user", "content": "Tell me about the vector search feature"},
+                {"role": "assistant", "content": "It uses pgvector in PostgreSQL."},
+            ],
+        )
+
+        assert result.strategy == "no_rewrite"
+        assert result.used_llm is False
+        assert result.primary_query == "What are its limitations?"
+        mock_provider.chat.assert_not_called()
 
     def test_rewrite_vague_query_returns_search_friendly_output(self):
         """AC: Vague queries expanded with retrieval-friendly context."""
@@ -408,3 +450,39 @@ class TestQueryRewriterPrompt:
         prompt = build_rewrite_prompt(query, chat_history=chat_history)
 
         assert len(str(prompt)) < 10000
+
+
+class TestQueryRewriteSettings:
+    """Test environment-driven query rewrite settings."""
+
+    def test_settings_read_environment_configuration(self, monkeypatch):
+        """Rewrite settings should resolve from environment variables."""
+        from services.api.modules.query.rewriter import get_query_rewrite_settings
+
+        monkeypatch.setenv("NOTEBOOKLX_QUERY_REWRITE_ENABLED", "false")
+        monkeypatch.setenv(
+            "NOTEBOOKLX_QUERY_REWRITE_STRATEGIES",
+            "keyword_enrichment, reference_resolution",
+        )
+        monkeypatch.setenv("NOTEBOOKLX_QUERY_REWRITE_MAX_HISTORY_TURNS", "2")
+        monkeypatch.setenv("NOTEBOOKLX_QUERY_REWRITE_MAX_SEARCH_QUERIES", "2")
+        monkeypatch.setenv("NOTEBOOKLX_QUERY_REWRITE_SHORT_QUERY_TOKEN_THRESHOLD", "7")
+
+        settings = get_query_rewrite_settings()
+
+        assert settings.enabled is False
+        assert settings.allowed_strategies == frozenset(
+            {"keyword_enrichment", "reference_resolution"}
+        )
+        assert settings.max_history_turns == 2
+        assert settings.max_search_queries == 2
+        assert settings.short_query_token_threshold == 7
+
+    def test_settings_reject_unknown_strategies(self, monkeypatch):
+        """Invalid strategy names should fail fast."""
+        from services.api.modules.query.rewriter import get_query_rewrite_settings
+
+        monkeypatch.setenv("NOTEBOOKLX_QUERY_REWRITE_STRATEGIES", "keyword_enrichment,unknown")
+
+        with pytest.raises(ValueError, match="Unknown query rewrite strategies"):
+            get_query_rewrite_settings()

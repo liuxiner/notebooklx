@@ -26,6 +26,30 @@ DEFAULT_GROUNDED_SYSTEM_PROMPT = (
 )
 
 
+def _truncate_for_log(text: str, max_length: int = 200) -> str:
+    """Truncate text for logging, preserving structure."""
+    if len(text) <= max_length:
+        return text
+    return text[:max_length-3].rstrip() + "..."
+
+
+def _format_retrieval_debug(evidence: list[EvidenceChunk]) -> str:
+    """Format evidence chunks for debug logging."""
+    if not evidence:
+        return "No evidence retrieved"
+
+    parts = []
+    for chunk in evidence[:3]:  # Log first 3 chunks
+        title = chunk.source_title[:30]
+        quote = _truncate_for_log(chunk.quote, 80)
+        parts.append(f"[{chunk.citation_index}] {title}: \"{quote}\"")
+
+    if len(evidence) > 3:
+        parts.append(f"... and {len(evidence) - 3} more chunks")
+
+    return " | ".join(parts)
+
+
 class RetrievalServiceProtocol(Protocol):
     async def search(
         self,
@@ -442,7 +466,10 @@ class GroundedQAService:
         chat_history: list[dict[str, str]] | None = None,
     ) -> GroundedQAPreparation:
         """Retrieve evidence and assemble prompt messages for a grounded answer."""
+        logger.info(f"[CHAT] === Preparing answer for question: \"{_truncate_for_log(question, 100)}\" ===")
         chat_history = chat_history or []
+        logger.debug(f"[CHAT] Chat history has {len(chat_history)} turns")
+
         rewritten_query: QueryRewriteResult | None = None
         retrieval_queries = (question,)
         prompt_question = question
@@ -456,6 +483,30 @@ class GroundedQAService:
                 retrieval_queries = rewritten_query.search_queries
             if rewritten_query.standalone_query:
                 prompt_question = rewritten_query.standalone_query
+
+            # Log query rewrite details
+            if rewritten_query.rewritten:
+                logger.info(
+                    f"[CHAT] Query rewritten: strategy={rewritten_query.strategy}, "
+                    f"used_llm={rewritten_query.used_llm}"
+                )
+                logger.info(
+                    f"[CHAT] Original: \"{_truncate_for_log(rewritten_query.original_query, 80)}\""
+                )
+                logger.info(
+                    f"[CHAT] Standalone: \"{_truncate_for_log(rewritten_query.standalone_query, 80)}\""
+                )
+                logger.info(
+                    f"[CHAT] Search queries: [{', '.join(f'\"{_truncate_for_log(q, 50)}\"' for q in rewritten_query.search_queries)}]"
+                )
+            else:
+                logger.debug("[CHAT] Query not rewritten (no meaningful changes)")
+        else:
+            logger.debug("[CHAT] No query rewriter configured")
+
+        logger.info(f"[CHAT] Using {len(retrieval_queries)} retrieval query/ies")
+        for i, q in enumerate(retrieval_queries, 1):
+            logger.info(f"[CHAT]   Query {i}: \"{_truncate_for_log(q, 80)}\"")
 
         embed_start = time.monotonic()
         query_embeddings = [
@@ -481,7 +532,23 @@ class GroundedQAService:
         logger.info(f"[CHAT] Vector search took {search_duration:.2f}s, found {len(retrieved)} results")
 
         evidence = format_evidence_pack(retrieved)
+
+        # Log evidence chunks preview
+        logger.info(f"[CHAT] Formatted {len(evidence)} evidence chunks")
+        logger.debug(f"[CHAT] Evidence preview: {_format_retrieval_debug(evidence)}")
+
+        # Log top chunks with scores for quality inspection
+        for i, chunk in enumerate(evidence[:5], 1):
+            logger.info(
+                f"[CHAT] Chunk [{i}] score={chunk.score:.3f} "
+                f"source=\"{_truncate_for_log(chunk.source_title, 25)}\" "
+                f"page={chunk.page or 'N/A'} "
+                f"quote=\"{_truncate_for_log(chunk.quote, 60)}\""
+            )
+
         messages = build_grounded_messages(prompt_question, evidence)
+        logger.info(f"[CHAT] Built {len(messages)} messages for LLM (system + user)")
+
         prepare_duration = embed_duration + search_duration
         metrics = ChatTimingMetrics(
             model=getattr(self.chat_provider, "model", None),
@@ -528,7 +595,7 @@ class GroundedQAService:
         """Retrieve evidence and generate a grounded answer."""
         start_time = time.monotonic()
 
-        logger.info(f"[CHAT] Starting answer_question for question: '{question[:50]}...'")
+        logger.info(f"[CHAT] === Starting answer_question ===")
         prepared = await self.prepare_answer(
             question,
             notebook_id,
@@ -545,6 +612,9 @@ class GroundedQAService:
         llm_duration = time.monotonic() - llm_start
         logger.info(f"[CHAT] LLM call took {llm_duration:.2f}s")
 
+        # Log raw answer preview
+        logger.info(f"[CHAT] Raw LLM answer ({len(raw_answer)} chars): \"{_truncate_for_log(raw_answer, 200)}\"")
+
         response = self.finalize_answer(
             raw_answer,
             prepared.evidence,
@@ -552,7 +622,28 @@ class GroundedQAService:
         )
         if response.answer == "I don't have enough information":
             logger.warning(f"[CHAT] LLM returned empty answer for question: '{question[:50]}...'")
+        else:
+            logger.info(f"[CHAT] Final answer ({len(response.answer)} chars): \"{_truncate_for_log(response.answer, 200)}\"")
+
+        # Log citation details
+        logger.info(f"[CHAT] Citations: {len(response.citations)} chunks cited")
+        if response.citations:
+            for citation in response.citations[:5]:
+                logger.info(
+                    f"[CHAT]   [{citation.citation_index}] "
+                    f"score={citation.score:.3f} "
+                    f"source=\"{_truncate_for_log(citation.source_title, 25)}\" "
+                    f"page={citation.page or 'N/A'}"
+                )
+            if len(response.citations) > 5:
+                logger.info(f"[CHAT]   ... and {len(response.citations) - 5} more citations")
+
+        if response.missing_citation_indices:
+            logger.warning(
+                f"[CHAT] Missing citation indices: {response.missing_citation_indices} "
+                f"(citations referenced in answer but not found in evidence)"
+            )
 
         total_duration = time.monotonic() - start_time
-        logger.info(f"[CHAT] Total answer_question took {total_duration:.2f}s")
+        logger.info(f"[CHAT] === answer_question completed in {total_duration:.2f}s ===")
         return response

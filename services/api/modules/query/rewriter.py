@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 import uuid
 from collections import Counter
@@ -36,6 +37,7 @@ REWRITE_STRATEGIES = {
     "standalone_expansion",
     "keyword_enrichment",
 }
+DEFAULT_ALLOWED_REWRITE_STRATEGIES = frozenset(REWRITE_STRATEGIES - {"no_rewrite"})
 
 STOPWORDS = {
     "a",
@@ -181,6 +183,34 @@ Return JSON only in this schema:
 
 
 @dataclass(frozen=True)
+class QueryRewriteSettings:
+    """Resolved query rewrite settings for chat retrieval."""
+
+    enabled: bool = True
+    max_history_chars: int = MAX_HISTORY_CHARS
+    max_history_turns: int = DEFAULT_MAX_HISTORY_TURNS
+    short_query_token_threshold: int = DEFAULT_SHORT_QUERY_TOKEN_THRESHOLD
+    max_search_queries: int = DEFAULT_MAX_SEARCH_QUERIES
+    allowed_strategies: frozenset[str] = DEFAULT_ALLOWED_REWRITE_STRATEGIES
+
+    def __post_init__(self) -> None:
+        unknown_strategies = set(self.allowed_strategies) - DEFAULT_ALLOWED_REWRITE_STRATEGIES
+        if unknown_strategies:
+            raise ValueError(
+                "Unknown query rewrite strategies: "
+                + ", ".join(sorted(unknown_strategies))
+            )
+        if self.max_history_chars < 0:
+            raise ValueError("max_history_chars must be at least 0")
+        if self.max_history_turns < 0:
+            raise ValueError("max_history_turns must be at least 0")
+        if self.short_query_token_threshold < 0:
+            raise ValueError("short_query_token_threshold must be at least 0")
+        if self.max_search_queries < 1:
+            raise ValueError("max_search_queries must be at least 1")
+
+
+@dataclass(frozen=True)
 class QueryRewriteResult:
     """Structured retrieval-oriented rewrite result."""
 
@@ -200,6 +230,9 @@ class QueryRewriteResult:
     @property
     def rewritten(self) -> bool:
         """Whether the final rewrite differs from the original query."""
+        # If there's no meaningful rewrite content, consider it not rewritten
+        if not self.search_queries and not self.standalone_query:
+            return False
         normalized_original = _normalize_whitespace(self.original_query)
         return self.primary_query != normalized_original
 
@@ -210,6 +243,141 @@ class ChatProviderProtocol(Protocol):
     def chat(self, messages: list[dict[str, Any]], **kwargs: Any) -> str:
         """Generate a chat response."""
         ...
+
+
+def _env_value(*names: str) -> str | None:
+    for name in names:
+        value = os.getenv(name)
+        if value is None or value == "":
+            continue
+        return value
+    return None
+
+
+def _env_bool(*names: str, default: bool) -> bool:
+    value = _env_value(*names)
+    if value is None:
+        return default
+
+    normalized = value.strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    raise ValueError(f"Invalid boolean value for {'/'.join(names)}: {value}")
+
+
+def _env_int(*names: str, default: int) -> int:
+    value = _env_value(*names)
+    if value is None:
+        return default
+    return int(value)
+
+
+def _normalize_allowed_strategies(strategies: frozenset[str] | set[str] | list[str] | tuple[str, ...]) -> frozenset[str]:
+    normalized = frozenset(strategy.strip().lower() for strategy in strategies if strategy and strategy.strip())
+    unknown_strategies = normalized - DEFAULT_ALLOWED_REWRITE_STRATEGIES
+    if unknown_strategies:
+        raise ValueError(
+            "Unknown query rewrite strategies: "
+            + ", ".join(sorted(unknown_strategies))
+        )
+    return normalized
+
+
+def _env_strategies(*names: str, default: frozenset[str]) -> frozenset[str]:
+    value = _env_value(*names)
+    if value is None:
+        return default
+
+    normalized = value.strip().lower()
+    if normalized in {"all", "*"}:
+        return DEFAULT_ALLOWED_REWRITE_STRATEGIES
+
+    strategies = [item.strip() for item in value.split(",")]
+    return _normalize_allowed_strategies(strategies)
+
+
+def get_query_rewrite_settings(
+    *,
+    enabled: bool | None = None,
+    max_history_chars: int | None = None,
+    max_history_turns: int | None = None,
+    short_query_token_threshold: int | None = None,
+    max_search_queries: int | None = None,
+    allowed_strategies: frozenset[str] | set[str] | list[str] | tuple[str, ...] | None = None,
+) -> QueryRewriteSettings:
+    """Resolve query rewrite settings from explicit values or environment."""
+    resolved_enabled = (
+        enabled
+        if enabled is not None
+        else _env_bool(
+            "NOTEBOOKLX_QUERY_REWRITE_ENABLED",
+            "QUERY_REWRITE_ENABLED",
+            default=True,
+        )
+    )
+    resolved_max_history_chars = (
+        max_history_chars
+        if max_history_chars is not None
+        else _env_int(
+            "NOTEBOOKLX_QUERY_REWRITE_MAX_HISTORY_CHARS",
+            "QUERY_REWRITE_MAX_HISTORY_CHARS",
+            default=MAX_HISTORY_CHARS,
+        )
+    )
+    resolved_max_history_turns = (
+        max_history_turns
+        if max_history_turns is not None
+        else _env_int(
+            "NOTEBOOKLX_QUERY_REWRITE_MAX_HISTORY_TURNS",
+            "QUERY_REWRITE_MAX_HISTORY_TURNS",
+            default=DEFAULT_MAX_HISTORY_TURNS,
+        )
+    )
+    resolved_short_query_token_threshold = (
+        short_query_token_threshold
+        if short_query_token_threshold is not None
+        else _env_int(
+            "NOTEBOOKLX_QUERY_REWRITE_SHORT_QUERY_TOKEN_THRESHOLD",
+            "QUERY_REWRITE_SHORT_QUERY_TOKEN_THRESHOLD",
+            default=DEFAULT_SHORT_QUERY_TOKEN_THRESHOLD,
+        )
+    )
+    resolved_max_search_queries = (
+        max_search_queries
+        if max_search_queries is not None
+        else _env_int(
+            "NOTEBOOKLX_QUERY_REWRITE_MAX_SEARCH_QUERIES",
+            "QUERY_REWRITE_MAX_SEARCH_QUERIES",
+            default=DEFAULT_MAX_SEARCH_QUERIES,
+        )
+    )
+    resolved_allowed_strategies = (
+        _normalize_allowed_strategies(allowed_strategies)
+        if allowed_strategies is not None
+        else _env_strategies(
+            "NOTEBOOKLX_QUERY_REWRITE_STRATEGIES",
+            "QUERY_REWRITE_STRATEGIES",
+            default=DEFAULT_ALLOWED_REWRITE_STRATEGIES,
+        )
+    )
+
+    return QueryRewriteSettings(
+        enabled=resolved_enabled,
+        max_history_chars=resolved_max_history_chars,
+        max_history_turns=resolved_max_history_turns,
+        short_query_token_threshold=resolved_short_query_token_threshold,
+        max_search_queries=resolved_max_search_queries,
+        allowed_strategies=resolved_allowed_strategies,
+    )
+
+
+def _truncate_for_log(text: str, max_length: int = 200) -> str:
+    """Truncate text for logging, preserving structure."""
+    if len(text) <= max_length:
+        return text
+    return text[:max_length-3].rstrip() + "..."
 
 
 def _normalize_whitespace(value: str) -> str:
@@ -593,6 +761,37 @@ def _fallback_result(
     )
 
 
+def _extract_json_from_markdown(text: str) -> str | None:
+    """Extract JSON content from markdown code blocks.
+
+    Handles formats like:
+    ```json
+    {...}
+    ```
+    Or plain {...} strings.
+    """
+    text = text.strip()
+
+    # If it's already plain JSON, return as-is
+    if text.startswith("{") and text.endswith("}"):
+        return text
+
+    # Try to extract from markdown code blocks
+    # Pattern: ```json ... ``` or ``` ... ```
+    json_block_pattern = re.compile(
+        r'```(?:json)?\s*\n?(.*?)\n?```',
+        re.DOTALL | re.IGNORECASE
+    )
+
+    match = json_block_pattern.search(text)
+    if match:
+        extracted = match.group(1).strip()
+        if extracted.startswith("{") and extracted.endswith("}"):
+            return extracted
+
+    return None
+
+
 def _parse_llm_rewrite_result(
     raw_output: str,
     *,
@@ -603,7 +802,17 @@ def _parse_llm_rewrite_result(
     stripped_output = raw_output.strip()
     payload: dict[str, Any] | None = None
 
-    if stripped_output.startswith("{") and stripped_output.endswith("}"):
+    # Try to extract JSON from markdown code blocks first
+    json_content = _extract_json_from_markdown(stripped_output)
+
+    if json_content is not None:
+        try:
+            parsed = json.loads(json_content)
+        except json.JSONDecodeError:
+            parsed = None
+        if isinstance(parsed, dict):
+            payload = parsed
+    elif stripped_output.startswith("{") and stripped_output.endswith("}"):
         try:
             parsed = json.loads(stripped_output)
         except json.JSONDecodeError:
@@ -681,15 +890,23 @@ class QueryRewriter:
         chat_provider: ChatProviderProtocol,
         max_history_chars: int = MAX_HISTORY_CHARS,
         *,
+        enabled: bool = True,
         max_history_turns: int = DEFAULT_MAX_HISTORY_TURNS,
         short_query_token_threshold: int = DEFAULT_SHORT_QUERY_TOKEN_THRESHOLD,
         max_search_queries: int = DEFAULT_MAX_SEARCH_QUERIES,
+        allowed_strategies: frozenset[str] | set[str] | list[str] | tuple[str, ...] | None = None,
     ):
         self.chat_provider = chat_provider
+        self.enabled = enabled
         self.max_history_chars = max_history_chars
         self.max_history_turns = max_history_turns
         self.short_query_token_threshold = short_query_token_threshold
         self.max_search_queries = max_search_queries
+        self.allowed_strategies = (
+            DEFAULT_ALLOWED_REWRITE_STRATEGIES
+            if allowed_strategies is None
+            else _normalize_allowed_strategies(allowed_strategies)
+        )
 
     def rewrite_for_retrieval(
         self,
@@ -707,6 +924,8 @@ class QueryRewriter:
 
         if not normalized_query:
             return _fallback_result("", strategy="no_rewrite", used_llm=False)
+        if not self.enabled:
+            return _fallback_result(normalized_query, strategy="no_rewrite", used_llm=False)
 
         strategy = choose_rewrite_strategy(
             normalized_query,
@@ -715,6 +934,13 @@ class QueryRewriter:
         )
         if strategy == "no_rewrite":
             return _fallback_result(normalized_query, strategy=strategy, used_llm=False)
+        if strategy not in self.allowed_strategies:
+            logger.debug(
+                "Query rewrite strategy %s is disabled by configuration. "
+                "Falling back to original query.",
+                strategy,
+            )
+            return _fallback_result(normalized_query, strategy="no_rewrite", used_llm=False)
 
         messages = build_rewrite_prompt(
             normalized_query,
@@ -727,6 +953,8 @@ class QueryRewriter:
 
         try:
             raw_output = self.chat_provider.chat(messages)
+            # Log raw LLM output for debugging (truncated if too long)
+            logger.debug(f"[REWRITE] Raw LLM output: \"{_truncate_for_log(raw_output, 300)}\"")
         except Exception as exc:
             logger.error("Query rewriting failed: %s. Falling back to original query.", exc)
             return _fallback_result(normalized_query, strategy="no_rewrite", used_llm=True)
@@ -738,7 +966,22 @@ class QueryRewriter:
             max_search_queries=self.max_search_queries,
         )
         if parsed_result is None:
-            logger.warning("Query rewriter returned unparsable output. Falling back to original query.")
+            logger.warning(
+                "Query rewriter returned unparsable output. "
+                f"Raw output (first 200 chars): \"{raw_output[:200]}\". "
+                "Falling back to original query."
+            )
+            return _fallback_result(normalized_query, strategy="no_rewrite", used_llm=True)
+
+        # Detect suspicious parsed results (e.g., markdown delimiters)
+        # Only check for code block markers, not common words like "json"
+        if any(marker in parsed_result.standalone_query for marker in ["```", "~~~"]):
+            logger.warning(
+                f"Query rewriter returned suspicious result containing markdown code block markers. "
+                f"Standalone: \"{parsed_result.standalone_query}\", "
+                f"Search: {parsed_result.search_queries}. "
+                f"Falling back to original query."
+            )
             return _fallback_result(normalized_query, strategy="no_rewrite", used_llm=True)
 
         if not _preserves_protected_terms(

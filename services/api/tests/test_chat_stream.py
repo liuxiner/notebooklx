@@ -655,3 +655,67 @@ class TestGroundedChatStream:
             "error": "ai_not_configured",
             "message": "BigModel API key is required.",
         }
+
+
+class TestGroundedQAServiceBuilder:
+    def test_get_grounded_qa_service_disables_query_rewriter_when_configured(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from services.api.modules.chat import routes as chat_routes
+        from services.api.modules.query.rewriter import QueryRewriteSettings
+
+        fake_retrieval_service = object()
+        fake_embedding_provider = object()
+        fake_chat_provider = object()
+
+        monkeypatch.setattr(chat_routes, "HybridSearchService", lambda db: fake_retrieval_service)
+        monkeypatch.setattr(chat_routes, "BigModelEmbeddingProvider", lambda: fake_embedding_provider)
+        monkeypatch.setattr(chat_routes, "BigModelChatProvider", lambda: fake_chat_provider)
+        monkeypatch.setattr(
+            chat_routes,
+            "get_query_rewrite_settings",
+            lambda: QueryRewriteSettings(enabled=False),
+        )
+
+        service = chat_routes.get_grounded_qa_service(object())
+
+        assert service.retrieval_service is fake_retrieval_service
+        assert service.embedding_provider is fake_embedding_provider
+        assert service.chat_provider is fake_chat_provider
+        assert service.query_rewriter is None
+
+    def test_get_grounded_qa_service_applies_query_rewriter_settings(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from services.api.modules.chat import routes as chat_routes
+        from services.api.modules.query.rewriter import QueryRewriteSettings
+
+        fake_chat_provider = object()
+
+        monkeypatch.setattr(chat_routes, "HybridSearchService", lambda db: object())
+        monkeypatch.setattr(chat_routes, "BigModelEmbeddingProvider", lambda: object())
+        monkeypatch.setattr(chat_routes, "BigModelChatProvider", lambda: fake_chat_provider)
+        monkeypatch.setattr(
+            chat_routes,
+            "get_query_rewrite_settings",
+            lambda: QueryRewriteSettings(
+                enabled=True,
+                max_history_turns=2,
+                max_search_queries=2,
+                short_query_token_threshold=6,
+                allowed_strategies=frozenset({"keyword_enrichment", "reference_resolution"}),
+            ),
+        )
+
+        service = chat_routes.get_grounded_qa_service(object())
+
+        assert service.query_rewriter is not None
+        assert service.query_rewriter.chat_provider is fake_chat_provider
+        assert service.query_rewriter.max_history_turns == 2
+        assert service.query_rewriter.max_search_queries == 2
+        assert service.query_rewriter.short_query_token_threshold == 6
+        assert service.query_rewriter.allowed_strategies == frozenset(
+            {"keyword_enrichment", "reference_resolution"}
+        )

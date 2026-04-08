@@ -33,7 +33,11 @@ from services.api.modules.chat.service import build_retrieval_diagnostics
 from services.api.modules.embeddings.providers import BigModelEmbeddingProvider
 from services.api.modules.notebooks.models import Notebook
 from services.api.modules.notebooks.routes import get_current_user_id
-from services.api.modules.query import QueryRewriter, get_recent_chat_history
+from services.api.modules.query import (
+    QueryRewriter,
+    get_query_rewrite_settings,
+    get_recent_chat_history,
+)
 from services.api.modules.retrieval.hybrid import HybridSearchService
 
 
@@ -76,7 +80,17 @@ def get_grounded_qa_service(db: Session) -> GroundedQAService:
     retrieval_service = HybridSearchService(db)
     embedding_provider = BigModelEmbeddingProvider()
     chat_provider = BigModelChatProvider()
-    query_rewriter = QueryRewriter(chat_provider=chat_provider)
+    rewrite_settings = get_query_rewrite_settings()
+    query_rewriter = None
+    if rewrite_settings.enabled and rewrite_settings.allowed_strategies:
+        query_rewriter = QueryRewriter(
+            chat_provider=chat_provider,
+            max_history_chars=rewrite_settings.max_history_chars,
+            max_history_turns=rewrite_settings.max_history_turns,
+            short_query_token_threshold=rewrite_settings.short_query_token_threshold,
+            max_search_queries=rewrite_settings.max_search_queries,
+            allowed_strategies=rewrite_settings.allowed_strategies,
+        )
     return GroundedQAService(
         retrieval_service,
         embedding_provider,
@@ -271,6 +285,7 @@ async def stream_grounded_chat(
         ) from exc
 
     async def event_stream():
+        logger.info(f"[STREAM] Starting chat stream for notebook {notebook_id}, question: \"{payload.question[:80]}...\"")
         yield _format_sse_event(
             "status",
             {
@@ -282,6 +297,8 @@ async def stream_grounded_chat(
 
         try:
             chat_history = get_recent_chat_history(db, str(notebook.id))
+            logger.info(f"[STREAM] Retrieved {len(chat_history)} turns of chat history")
+
             preparation = await grounded_qa_service.prepare_answer(
                 payload.question,
                 str(notebook.id),
@@ -295,9 +312,14 @@ async def stream_grounded_chat(
                 )
                 await asyncio.sleep(0)
 
-            if preparation.query_rewrite is not None:
+            if preparation.query_rewrite is not None and preparation.query_rewrite.rewritten:
                 rewrite_payload = asdict(preparation.query_rewrite)
                 rewrite_payload["rewritten"] = preparation.query_rewrite.rewritten
+                logger.info(
+                    f"[STREAM] Sending query_rewrite event: "
+                    f"strategy={preparation.query_rewrite.strategy}, "
+                    f"search_queries={len(preparation.query_rewrite.search_queries)}"
+                )
                 yield _format_sse_event(
                     "query_rewrite",
                     rewrite_payload,
@@ -305,6 +327,10 @@ async def stream_grounded_chat(
                 await asyncio.sleep(0)
 
             retrieval = build_retrieval_diagnostics(preparation.evidence)
+            logger.info(
+                f"[STREAM] Sending retrieval event: "
+                f"{retrieval.chunk_count} chunks from {retrieval.source_count} sources"
+            )
             yield _format_sse_event(
                 "retrieval",
                 asdict(retrieval),
@@ -325,6 +351,7 @@ async def stream_grounded_chat(
                 first_delta_at: float | None = None
                 delta_chunks_received = 0
 
+                logger.info(f"[STREAM] Starting LLM stream with {len(preparation.evidence)} evidence chunks")
                 for delta in grounded_qa_service.stream_answer(preparation.messages):
                     if not delta:
                         continue
@@ -332,13 +359,12 @@ async def stream_grounded_chat(
                     delta_chunks_received += 1
                     if first_delta_at is None:
                         first_delta_at = time.monotonic()
+                        ttfb = round(first_delta_at - llm_stream_started_at, 2)
+                        logger.info(f"[STREAM] First delta received after {ttfb}s")
                         yield _format_sse_event(
                             "metrics",
                             {
-                                "time_to_first_delta_seconds": round(
-                                    first_delta_at - llm_stream_started_at,
-                                    2,
-                                ),
+                                "time_to_first_delta_seconds": ttfb,
                                 "delta_chunks_received": delta_chunks_received,
                                 "stream_delivery": "streaming",
                             },
@@ -354,10 +380,18 @@ async def stream_grounded_chat(
                         await asyncio.sleep(0)
 
                     raw_answer_parts.append(delta)
+                    # Log every 10th delta to track progress without overwhelming logs
+                    if delta_chunks_received % 10 == 0:
+                        logger.debug(f"[STREAM] Received delta chunk #{delta_chunks_received}")
                     yield _format_sse_event("answer_delta", {"delta": delta})
                     await asyncio.sleep(0)
 
                 llm_stream_seconds = round(time.monotonic() - llm_stream_started_at, 2)
+                total_chars = sum(len(p) for p in raw_answer_parts)
+                logger.info(
+                    f"[STREAM] LLM stream completed: {llm_stream_seconds}s, "
+                    f"{delta_chunks_received} chunks, {total_chars} chars"
+                )
                 stream_delivery = (
                     "single_chunk"
                     if delta_chunks_received == 1
@@ -388,6 +422,10 @@ async def stream_grounded_chat(
                 preparation.evidence,
                 preparation.messages,
             )
+            logger.info(
+                f"[STREAM] Finalized answer: {len(response.answer)} chars, "
+                f"{len(response.citations)} citations"
+            )
             _persist_chat_exchange(db, notebook.id, payload.question, response.answer)
 
             if not preparation.evidence and response.answer:
@@ -412,10 +450,11 @@ async def stream_grounded_chat(
             )
             await asyncio.sleep(0)
             yield _format_sse_event("done", {"status": "complete"})
+            logger.info(f"[STREAM] Chat stream completed successfully")
             await asyncio.sleep(0)
         except OPENAI_STREAM_ERROR_TYPES as exc:
             guardrail = _classify_chat_exception(exc)
-            logger.exception("AI API error during chat stream")
+            logger.exception("[STREAM] AI API error during chat stream")
             yield _format_sse_event(
                 "error",
                 asdict(guardrail),
@@ -424,7 +463,7 @@ async def stream_grounded_chat(
             return
         except Exception as exc:
             guardrail = _classify_chat_exception(exc)
-            logger.exception("Unexpected error during chat stream")
+            logger.exception("[STREAM] Unexpected error during chat stream")
             yield _format_sse_event(
                 "error",
                 asdict(guardrail),
