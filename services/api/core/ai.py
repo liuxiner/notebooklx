@@ -26,6 +26,31 @@ DEFAULT_BIGMODEL_CHAT_MODEL = "glm-4"
 DEFAULT_BIGMODEL_EMBEDDING_MODEL = "embedding-2"
 
 
+def _is_retryable_stream_error(exc: Exception) -> bool:
+    """Detect connection/setup failures that can fall back to non-streaming chat."""
+    type_name = type(exc).__name__.lower()
+    message = str(exc).strip().lower()
+    retryable_type_markers = (
+        "apiconnectionerror",
+        "apitimeouterror",
+        "connecterror",
+        "connectionerror",
+        "timeouterror",
+    )
+    retryable_message_markers = (
+        "connection error",
+        "timed out",
+        "timeout",
+        "ssl",
+        "unexpected eof",
+        "temporarily unavailable",
+        "eof occurred",
+    )
+    return any(marker in type_name for marker in retryable_type_markers) or any(
+        marker in message for marker in retryable_message_markers
+    )
+
+
 @dataclass(frozen=True)
 class AIClientSettings:
     """Resolved settings for an OpenAI-compatible backend."""
@@ -191,6 +216,7 @@ class BigModelChatProvider:
         """Create a streaming chat completion and yield text deltas."""
         start_time = time.monotonic()
         logger.info(f"[CHAT] Starting streaming LLM call with {len(messages)} messages, model: {self._model}")
+        yielded_text = False
 
         try:
             stream = self._get_client().chat.completions.create(
@@ -211,8 +237,22 @@ class BigModelChatProvider:
 
                 text = _extract_text_content(getattr(delta, "content", None))
                 if text:
+                    yielded_text = True
                     yield text
         except Exception as e:
+            if not yielded_text and _is_retryable_stream_error(e):
+                duration = time.monotonic() - start_time
+                logger.warning(
+                    "[CHAT] Streaming LLM call failed after %.2fs before first delta; "
+                    "falling back to non-streaming chat: %s",
+                    duration,
+                    e,
+                )
+                fallback_text = self.chat(messages, **kwargs)
+                if fallback_text:
+                    yield fallback_text
+                    return
+
             duration = time.monotonic() - start_time
             logger.error(f"[CHAT] Streaming LLM call failed after {duration:.2f}s: {e}")
             raise

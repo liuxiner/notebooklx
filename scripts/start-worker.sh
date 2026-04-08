@@ -47,4 +47,9 @@ echo "Starting Arq worker..."
 echo "Worker is listening for ingestion tasks on queue: $INGESTION_QUEUE_NAME"
 echo ""
 
+ARQ_BIN="$ROOT_DIR/venv/bin/arq"
+if [ -x "$ARQ_BIN" ]; then
+    exec "$ARQ_BIN" services.worker.main.WorkerSettings
+fi
+
 exec arq services.worker.main.WorkerSettings

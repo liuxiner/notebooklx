@@ -3,7 +3,7 @@ Tests for shared OpenAI-compatible AI client helpers.
 
 Slice: BigModel-backed client configuration for chat and embeddings
 """
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 import pytest
 
@@ -198,3 +198,49 @@ class TestBigModelChatProvider:
             stream=True,
             temperature=0.3,
         )
+
+    def test_chat_stream_provider_falls_back_to_non_streaming_on_connection_error(self):
+        """If streaming fails before the first delta, fall back to a normal chat call."""
+        from services.api.core.ai import BigModelChatProvider
+
+        class FakeAPIConnectionError(Exception):
+            pass
+
+        mock_message = MagicMock()
+        mock_message.content = "Recovered from non-streaming fallback."
+
+        mock_choice = MagicMock()
+        mock_choice.message = mock_message
+
+        mock_response = MagicMock()
+        mock_response.choices = [mock_choice]
+
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.side_effect = [
+            FakeAPIConnectionError("Connection error."),
+            mock_response,
+        ]
+
+        with patch("services.api.core.ai.build_openai_compatible_client", return_value=mock_client):
+            provider = BigModelChatProvider(api_key="test-key", model="glm-4")
+            result = list(
+                provider.chat_stream(
+                    [{"role": "user", "content": "hello"}],
+                    temperature=0.3,
+                )
+            )
+
+        assert result == ["Recovered from non-streaming fallback."]
+        assert mock_client.chat.completions.create.call_args_list == [
+            call(
+                model="glm-4",
+                messages=[{"role": "user", "content": "hello"}],
+                stream=True,
+                temperature=0.3,
+            ),
+            call(
+                model="glm-4",
+                messages=[{"role": "user", "content": "hello"}],
+                temperature=0.3,
+            ),
+        ]

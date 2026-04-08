@@ -61,3 +61,38 @@ def test_load_repository_env_overrides_stale_inherited_values(
     main.load_repository_env(env_path)
 
     assert os.environ["ZHIPUAI_API_KEY"] == "new-key"
+
+
+def test_load_env_script_strips_inline_comments_and_quotes(tmp_path: Path) -> None:
+    """The worker shell env loader should match python-dotenv parsing semantics."""
+
+    repo_root = Path(__file__).resolve().parents[3]
+    env_path = tmp_path / ".env"
+    env_path.write_text(
+        '\n'.join(
+            [
+                'ZHIPUAI_API_KEY="worker-secret" # local comment',
+                "ZHIPUAI_API_BASE_URL=https://open.bigmodel.cn/api/paas/v4/ # base comment",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    script = f"""
+source "{repo_root / 'scripts/load-env.sh'}"
+load_env_file "{env_path}"
+printf 'key=[%s]\\n' "$ZHIPUAI_API_KEY"
+printf 'base=[%s]\\n' "$ZHIPUAI_API_BASE_URL"
+"""
+    result = subprocess.run(
+        ["/bin/bash", "--noprofile", "--norc", "-lc", script],
+        capture_output=True,
+        text=True,
+        cwd=repo_root,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "key=[worker-secret]" in result.stdout
+    assert "base=[https://open.bigmodel.cn/api/paas/v4/]" in result.stdout
