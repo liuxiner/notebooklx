@@ -495,6 +495,85 @@ This document outlines the detailed development plan, acceptance criteria, and t
 
 ---
 
+### Feature 3.6A: Bulk Source Upload ✅
+
+**Acceptance Criteria:**
+- [x] Notebook source upload accepts multiple selected `pdf` and `txt` files in one submission flow
+- [x] Sources API creates one source record per uploaded file and returns the created sources in request order
+- [x] Bulk upload rejects unsupported file types while preserving the existing per-file size validation rules
+- [x] Bulk upload defaults each created source title to the corresponding filename when no custom title is supplied
+- [x] Successful bulk upload enqueues ingestion for every created source without requiring manual per-file follow-up
+- [x] Notebook workspace refreshes and tracks all newly uploaded sources until they resolve to `ready` or `failed`
+- [x] Bulk upload errors are surfaced in the UI without breaking the existing single-file, text, or URL flows
+
+**Tasks:**
+1. [x] Extend the sources API with a bulk file upload endpoint for repeated `files` form parts
+2. [x] Reuse the existing upload validation/storage rules for each uploaded file in the batch
+3. [x] Return a response payload that includes all created source records in the same order as the submitted files
+4. [x] Add backend tests for successful multi-file upload, mixed file validation failures, and persisted storage behavior
+5. [x] Extend the web API client with a bulk upload method for multiple selected files
+6. [x] Update the source-management dialog to allow selecting multiple `pdf`/`txt` files in upload mode
+7. [x] Show the selected files in the dialog so the user can confirm the batch before submission
+8. [x] Preserve the existing editable single-file title flow and fall back to filename-based titles for batch uploads
+9. [x] Fan out ingestion requests for every created source after a successful batch upload
+10. [x] Track all upload-started source IDs so workspace polling continues until each new source resolves
+11. [x] Add frontend tests for multi-file selection, bulk upload fan-out, and existing single-file regression coverage
+
+**Dependency Note:**
+- Builds directly on Feature 3.6 source management flows and the existing per-source ingestion endpoint
+- Does not require a new ingestion queue API if the frontend can fan out ingestion requests safely
+
+---
+
+### Feature 3.6B: Bulk Ingestion Enqueue ✅
+
+**Acceptance Criteria:**
+- [x] Ingestion API accepts multiple source IDs in one enqueue request
+- [x] Bulk ingestion response returns one job payload per source in request order
+- [x] Bulk ingestion validates that every requested source belongs to the current user before enqueuing
+- [x] Notebook workspace uses the bulk ingestion endpoint for multi-file uploads instead of per-source enqueue fan-out
+- [x] Existing single-source ingestion endpoint remains available for single-file uploads and non-batch flows
+
+**Tasks:**
+1. [x] Add bulk-ingestion request and response schemas in the ingestion module
+2. [x] Implement a bulk enqueue route that validates ownership, creates jobs, and enqueues one task per source
+3. [x] Add backend tests for successful bulk enqueue and invalid-source ownership/not-found handling
+4. [x] Extend the web API client with a bulk ingestion method
+5. [x] Update notebook workspace multi-file upload flow to call the bulk endpoint once after batch upload
+6. [x] Keep single-file upload flow on the existing single-source ingestion route
+7. [x] Add frontend regression coverage that asserts batch upload calls one bulk-ingestion request instead of per-source fan-out
+
+**Dependency Note:**
+- Builds on Feature 3.6A bulk upload and the existing ingestion queue implementation
+- Keeps the single-source ingestion route intact for non-batch callers
+
+---
+
+### Feature 3.6C: Bulk Ingestion Status Polling ✅
+
+**Acceptance Criteria:**
+- [x] Ingestion API accepts multiple source IDs in one status request
+- [x] Bulk status response returns the latest status payload per source in request order
+- [x] Bulk status response indicates whether any requested source is still unresolved
+- [x] Notebook workspace uses the bulk status API for source hydration and tracked ingestion polling instead of per-source status fan-out
+- [x] Existing single-source status endpoint remains available for callers that only need one source
+
+**Tasks:**
+1. [x] Add bulk-ingestion status request and response schemas in the ingestion module
+2. [x] Implement a bulk status route that validates source ownership and returns latest jobs in request order
+3. [x] Include an aggregate unresolved flag suitable for frontend polling decisions
+4. [x] Add backend tests for successful bulk status lookup and invalid-source ownership/not-found handling
+5. [x] Extend the web API client with a bulk status method
+6. [x] Update notebook workspace hydration to fetch statuses with one bulk request
+7. [x] Update tracked ingestion polling to call the bulk status API and stop polling once all tracked sources resolve
+8. [x] Add frontend regression coverage that asserts status hydration/polling uses the bulk endpoint instead of per-source `getStatus` calls
+
+**Dependency Note:**
+- Builds on Feature 3.6B bulk ingestion enqueue and the existing source list/workspace flows
+- Keeps the single-source status route intact for callers that do not need batching
+
+---
+
 ### Feature 3.7: Chat Guardrails & Workflow UX ✅
 
 **Acceptance Criteria:**
@@ -833,7 +912,7 @@ This document outlines the detailed development plan, acceptance criteria, and t
 - [x] Rewrite metadata exposed to the client before retrieval
 - [x] User can optionally view rewritten query details in the chat UI
 - [x] Transparency UI stays unobtrusive by default and only appears when the query was actually rewritten
-- [ ] Configurable rewriting strategies
+- [x] Configurable rewriting strategies
 
 **Tasks:**
 1. [x] Design query rewriting prompt
@@ -852,7 +931,7 @@ This document outlines the detailed development plan, acceptance criteria, and t
 6. [x] Test with various query types
 7. Measure impact on retrieval quality
 8. [x] Write unit tests
-9. Add configuration options
+9. [x] Add configuration options
 10. [x] Add frontend tests for rewritten-query transparency rendering
 
 ---

@@ -32,6 +32,25 @@ def created_source(client: TestClient, sample_notebook_data: dict) -> dict:
     return source_response.json()
 
 
+@pytest.fixture
+def created_sources(client: TestClient, sample_notebook_data: dict) -> list[dict]:
+    """Create multiple sources in one notebook for bulk-ingestion tests."""
+    notebook_response = client.post("/api/notebooks", json=sample_notebook_data)
+    assert notebook_response.status_code == 201
+    notebook_id = notebook_response.json()["id"]
+
+    created: list[dict] = []
+    for title in ("Queued Source A", "Queued Source B"):
+        source_response = client.post(
+            f"/api/notebooks/{notebook_id}/sources/url",
+            json={"url": f"https://example.com/{title.lower().replace(' ', '-')}", "title": title},
+        )
+        assert source_response.status_code == 201
+        created.append(source_response.json())
+
+    return created
+
+
 class TestEnqueueIngestionTask:
     """Tests for POST /api/sources/{source_id}/ingest."""
 
@@ -114,6 +133,95 @@ class TestEnqueueIngestionTask:
         assert job.status == IngestionJobStatus.FAILED
         assert job.error_message == "Redis unavailable"
 
+    def test_bulk_enqueue_ingestion_creates_queued_jobs_in_request_order(
+        self,
+        client: TestClient,
+        created_sources: list[dict],
+        db,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        """
+        AC: Ingestion API accepts multiple source IDs in one enqueue request.
+        AC: Bulk ingestion response returns one job payload per source in request order.
+        """
+        from services.api.modules.ingestion import routes as ingestion_routes
+        from services.api.modules.ingestion.models import IngestionJob, IngestionJobStatus
+
+        class RecordingQueue:
+            def __init__(self) -> None:
+                self.calls = []
+
+            def enqueue_ingestion(self, *, source_id: uuid.UUID, ingestion_job_id: uuid.UUID) -> str:
+                self.calls.append(
+                    {"source_id": source_id, "ingestion_job_id": ingestion_job_id}
+                )
+                return f"arq-job-{len(self.calls)}"
+
+        queue = RecordingQueue()
+        monkeypatch.setattr(ingestion_routes, "get_ingestion_queue", lambda: queue)
+
+        response = client.post(
+            "/api/sources/ingest/batch",
+            json={"source_ids": [source["id"] for source in created_sources]},
+        )
+
+        assert response.status_code == 202
+        data = response.json()
+        assert [job["source_id"] for job in data["jobs"]] == [
+            source["id"] for source in created_sources
+        ]
+        assert [job["task_id"] for job in data["jobs"]] == ["arq-job-1", "arq-job-2"]
+        assert all(job["job_status"] == "queued" for job in data["jobs"])
+        assert len(queue.calls) == 2
+        assert [str(call["source_id"]) for call in queue.calls] == [
+            source["id"] for source in created_sources
+        ]
+
+        jobs = (
+            db.query(IngestionJob)
+            .order_by(IngestionJob.created_at.asc(), IngestionJob.id.asc())
+            .all()
+        )
+        assert len(jobs) == 2
+        assert all(job.status == IngestionJobStatus.QUEUED for job in jobs)
+
+    def test_bulk_enqueue_validates_all_sources_before_enqueuing(
+        self,
+        client: TestClient,
+        created_sources: list[dict],
+        db,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        """
+        AC: Bulk ingestion validates every requested source belongs to the user
+        before enqueuing.
+        """
+        from services.api.modules.ingestion import routes as ingestion_routes
+        from services.api.modules.ingestion.models import IngestionJob
+
+        class RecordingQueue:
+            def __init__(self) -> None:
+                self.calls = []
+
+            def enqueue_ingestion(self, *, source_id: uuid.UUID, ingestion_job_id: uuid.UUID) -> str:
+                self.calls.append(
+                    {"source_id": source_id, "ingestion_job_id": ingestion_job_id}
+                )
+                return "unexpected-job"
+
+        queue = RecordingQueue()
+        monkeypatch.setattr(ingestion_routes, "get_ingestion_queue", lambda: queue)
+
+        response = client.post(
+            "/api/sources/ingest/batch",
+            json={"source_ids": [created_sources[0]["id"], str(uuid.uuid4())]},
+        )
+
+        assert response.status_code == 404
+        assert response.json()["detail"]["error"] == "not_found"
+        assert queue.calls == []
+        assert db.query(IngestionJob).count() == 0
+
 
 class TestGetSourceIngestionStatus:
     """Tests for GET /api/sources/{source_id}/status."""
@@ -159,6 +267,73 @@ class TestGetSourceIngestionStatus:
         response = client.get(f"/api/sources/{uuid.uuid4()}/status")
 
         assert response.status_code == 404
+
+    def test_bulk_status_returns_latest_jobs_in_request_order_and_pending_flag(
+        self, client: TestClient, created_sources: list[dict], db
+    ):
+        """
+        AC: Bulk status response returns latest payloads in request order.
+        AC: Bulk status indicates whether any requested source is unresolved.
+        """
+        from services.api.modules.ingestion.models import IngestionJob, IngestionJobStatus
+        from services.api.modules.sources.models import Source, SourceStatus
+
+        first_source_id = uuid.UUID(created_sources[0]["id"])
+        second_source_id = uuid.UUID(created_sources[1]["id"])
+
+        first_source = db.query(Source).filter(Source.id == first_source_id).one()
+        second_source = db.query(Source).filter(Source.id == second_source_id).one()
+        first_source.status = SourceStatus.PROCESSING
+        second_source.status = SourceStatus.READY
+
+        db.add_all(
+            [
+                IngestionJob(
+                    source_id=first_source.id,
+                    status=IngestionJobStatus.RUNNING,
+                    task_id="arq-running-1",
+                    progress={"step": "embedding", "percentage": 40},
+                ),
+                IngestionJob(
+                    source_id=second_source.id,
+                    status=IngestionJobStatus.COMPLETED,
+                    task_id="arq-complete-1",
+                    progress={"step": "completed", "percentage": 100},
+                ),
+            ]
+        )
+        db.commit()
+
+        response = client.post(
+            "/api/sources/status/batch",
+            json={"source_ids": [created_sources[0]["id"], created_sources[1]["id"]]},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["has_pending_sources"] is True
+        assert [status["source_id"] for status in data["statuses"]] == [
+            created_sources[0]["id"],
+            created_sources[1]["id"],
+        ]
+        assert data["statuses"][0]["job_status"] == "running"
+        assert data["statuses"][0]["task_id"] == "arq-running-1"
+        assert data["statuses"][1]["job_status"] == "completed"
+        assert data["statuses"][1]["task_id"] == "arq-complete-1"
+
+    def test_bulk_status_validates_all_sources_before_returning(
+        self, client: TestClient, created_sources: list[dict]
+    ):
+        """
+        AC: Bulk status validates source ownership/nonexistence for every id.
+        """
+        response = client.post(
+            "/api/sources/status/batch",
+            json={"source_ids": [created_sources[0]["id"], str(uuid.uuid4())]},
+        )
+
+        assert response.status_code == 404
+        assert response.json()["detail"]["error"] == "not_found"
 
 
 def _find_free_port() -> int:

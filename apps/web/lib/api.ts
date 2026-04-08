@@ -54,6 +54,11 @@ export interface SourceIngestionStatus {
   completed_at: string | null;
 }
 
+export interface BulkSourceIngestionStatusResponse {
+  statuses: SourceIngestionStatus[];
+  has_pending_sources: boolean;
+}
+
 export interface CreateTextSourceData {
   title?: string;
   content: string;
@@ -67,6 +72,10 @@ export interface CreateUrlSourceData {
 export interface UploadSourceData {
   title?: string;
   file: File;
+}
+
+export interface UploadManySourcesData {
+  files: File[];
 }
 
 class ApiError extends Error {
@@ -178,6 +187,39 @@ export const sourcesApi = {
   },
 
   /**
+   * Enqueue ingestion for multiple sources in one request.
+   */
+  async bulkIngest(sourceIds: string[]): Promise<SourceIngestionStatus[]> {
+    const response = await fetch(`${API_URL}/api/sources/ingest/batch`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        source_ids: sourceIds,
+      }),
+    });
+    const data = await handleResponse<{ jobs: SourceIngestionStatus[] }>(response);
+    return data.jobs;
+  },
+
+  /**
+   * Get ingestion status for multiple sources in one request.
+   */
+  async bulkStatus(sourceIds: string[]): Promise<BulkSourceIngestionStatusResponse> {
+    const response = await fetch(`${API_URL}/api/sources/status/batch`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        source_ids: sourceIds,
+      }),
+    });
+    return handleResponse<BulkSourceIngestionStatusResponse>(response);
+  },
+
+  /**
    * Create a pasted text source for a notebook.
    */
   async createText(
@@ -230,6 +272,25 @@ export const sourcesApi = {
       body: formData,
     });
     return handleResponse<NotebookSource>(response);
+  },
+
+  /**
+   * Upload multiple file-backed sources for a notebook.
+   */
+  async uploadMany(
+    notebookId: string,
+    data: UploadManySourcesData
+  ): Promise<NotebookSource[]> {
+    const formData = new FormData();
+    data.files.forEach((file) => {
+      formData.append("files", file);
+    });
+
+    const response = await fetch(`${API_URL}/api/notebooks/${notebookId}/sources/upload/batch`, {
+      method: "POST",
+      body: formData,
+    });
+    return handleResponse<NotebookSource[]>(response);
   },
 
   /**

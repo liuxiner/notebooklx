@@ -21,6 +21,7 @@ interface SourceManagementDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onUpload: (payload: { file: File; title: string }) => Promise<void>;
+  onUploadMany: (payload: { files: File[] }) => Promise<void>;
   onCreateText: (payload: { title: string; content: string }) => Promise<void>;
   onCreateUrl: (payload: { title: string; url: string }) => Promise<void>;
   isSubmitting: boolean;
@@ -52,13 +53,14 @@ export function SourceManagementDialog({
   open,
   onOpenChange,
   onUpload,
+  onUploadMany,
   onCreateText,
   onCreateUrl,
   isSubmitting,
 }: SourceManagementDialogProps) {
   const [mode, setMode] = useState<SourceMode>("upload");
   const [title, setTitle] = useState("");
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [lastAutoFilledUploadTitle, setLastAutoFilledUploadTitle] = useState("");
   const [content, setContent] = useState("");
   const [url, setUrl] = useState("");
@@ -68,7 +70,7 @@ export function SourceManagementDialog({
     if (!open) {
       setMode("upload");
       setTitle("");
-      setFile(null);
+      setFiles([]);
       setLastAutoFilledUploadTitle("");
       setContent("");
       setUrl("");
@@ -81,11 +83,11 @@ export function SourceManagementDialog({
     setErrorMessage(null);
   }
 
-  function handleUploadFileChange(nextFile: File | null) {
-    setFile(nextFile);
+  function handleUploadFileChange(nextFiles: File[]) {
+    setFiles(nextFiles);
     setErrorMessage(null);
 
-    if (!nextFile) {
+    if (nextFiles.length === 0) {
       if (title === lastAutoFilledUploadTitle) {
         setTitle("");
       }
@@ -93,7 +95,15 @@ export function SourceManagementDialog({
       return;
     }
 
-    const nextAutoTitle = nextFile.name;
+    if (nextFiles.length > 1) {
+      if (!title.trim() || title === lastAutoFilledUploadTitle) {
+        setTitle("");
+      }
+      setLastAutoFilledUploadTitle("");
+      return;
+    }
+
+    const nextAutoTitle = nextFiles[0].name;
     if (!title.trim() || title === lastAutoFilledUploadTitle) {
       setTitle(nextAutoTitle);
     }
@@ -106,18 +116,25 @@ export function SourceManagementDialog({
 
     try {
       if (mode === "upload") {
-        if (!file) {
+        if (files.length === 0) {
           setErrorMessage("Choose a PDF or TXT file to upload.");
           return;
         }
 
-        if (!isSupportedUploadFile(file)) {
+        if (files.some((file) => !isSupportedUploadFile(file))) {
           setErrorMessage("Only PDF and TXT files are supported.");
           return;
         }
 
+        if (files.length > 1) {
+          await onUploadMany({
+            files,
+          });
+          return;
+        }
+
         await onUpload({
-          file,
+          file: files[0],
           title: title.trim(),
         });
         return;
@@ -154,9 +171,13 @@ export function SourceManagementDialog({
 
   const submitLabel =
     mode === "upload"
-      ? isSubmitting
-        ? "Uploading source..."
-        : "Upload source"
+      ? files.length > 1
+        ? isSubmitting
+          ? `Uploading ${files.length} sources...`
+          : `Upload ${files.length} sources`
+        : isSubmitting
+          ? "Uploading source..."
+          : "Upload source"
       : mode === "text"
         ? isSubmitting
           ? "Adding text..."
@@ -227,8 +248,9 @@ export function SourceManagementDialog({
                     id="source-file"
                     type="file"
                     accept=".pdf,.txt,application/pdf,text/plain"
+                    multiple
                     onChange={(event) =>
-                      handleUploadFileChange(event.target.files?.[0] ?? null)
+                      handleUploadFileChange(Array.from(event.target.files ?? []))
                     }
                     disabled={isSubmitting}
                   />
@@ -237,16 +259,34 @@ export function SourceManagementDialog({
                   </p>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="source-title-upload">Title</Label>
-                  <Input
-                    id="source-title-upload"
-                    placeholder="Quarterly Brief"
-                    value={title}
-                    onChange={(event) => setTitle(event.target.value)}
-                    disabled={isSubmitting}
-                  />
-                </div>
+                {files.length > 1 ? (
+                  <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+                    <p className="text-sm font-semibold text-slate-900">
+                      {files.length} files selected
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Batch uploads use each filename as the source title.
+                    </p>
+                    <ul className="space-y-2 text-sm text-slate-700">
+                      {files.map((file) => (
+                        <li key={`${file.name}-${file.size}`} className="truncate">
+                          {file.name}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Label htmlFor="source-title-upload">Title</Label>
+                    <Input
+                      id="source-title-upload"
+                      placeholder="Quarterly Brief"
+                      value={title}
+                      onChange={(event) => setTitle(event.target.value)}
+                      disabled={isSubmitting}
+                    />
+                  </div>
+                )}
               </>
             ) : null}
 

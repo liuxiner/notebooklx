@@ -112,18 +112,12 @@ async function buildWorkspaceSources(
 ): Promise<WorkspaceSource[]> {
   const sources = await sourcesApi.list(notebookId);
 
-  const statuses = await Promise.all(
-    sources.map(async (source) => {
-      try {
-        const status = await sourcesApi.getStatus(source.id);
-        return [source.id, status] as const;
-      } catch {
-        return [source.id, null] as const;
-      }
-    })
-  );
+  if (sources.length === 0) {
+    return [];
+  }
 
-  const statusMap = new Map(statuses);
+  const { statuses } = await sourcesApi.bulkStatus(sources.map((source) => source.id));
+  const statusMap = new Map(statuses.map((status) => [status.source_id, status] as const));
 
   return sources.map((source) => ({
     ...source,
@@ -262,28 +256,46 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
       return;
     }
 
-    const hasPendingTrackedIngestions = trackedIngestionIds.some((sourceId) => {
-      const source = sources.find((candidate) => candidate.id === sourceId);
-      return !source || !isResolvedStatus(getEffectiveStatus(source));
-    });
-
-    if (!hasPendingTrackedIngestions) {
-      return;
-    }
-
     const timeoutId = window.setTimeout(() => {
-      void loadSources({ initial: false, silent: true }).catch(() => undefined);
+      void refreshTrackedIngestionStatuses().catch(() => undefined);
     }, INGESTION_POLL_INTERVAL_MS);
 
     return () => {
       window.clearTimeout(timeoutId);
     };
-  }, [isLoading, isRefreshing, notebookId, sources, trackedIngestionIds]);
+  }, [isLoading, isRefreshing, trackedIngestionIds]);
 
   async function refreshSources() {
     try {
       await loadSources({ initial: false });
     } catch {}
+  }
+
+  async function refreshTrackedIngestionStatuses() {
+    if (trackedIngestionIds.length === 0) {
+      return;
+    }
+
+    const { statuses, has_pending_sources } = await sourcesApi.bulkStatus(trackedIngestionIds);
+    const statusMap = new Map(statuses.map((status) => [status.source_id, status] as const));
+
+    setSources((currentSources) =>
+      currentSources.map((source) =>
+        statusMap.has(source.id)
+          ? {
+              ...source,
+              ingestion: statusMap.get(source.id) ?? source.ingestion,
+            }
+          : source
+      )
+    );
+    setTrackedIngestionIds(
+      has_pending_sources
+        ? statuses
+            .filter((status) => !isResolvedStatus(status.status))
+            .map((status) => status.source_id)
+        : []
+    );
   }
 
   async function handleSourceMutation(action: () => Promise<unknown>) {
@@ -294,6 +306,35 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
       setIsSourceDialogOpen(false);
     } finally {
       setIsSubmittingSource(false);
+    }
+  }
+
+  async function enqueueIngestionForSources(nextSources: NotebookSource[]) {
+    if (nextSources.length === 0) {
+      return;
+    }
+
+    const statuses =
+      nextSources.length === 1
+        ? [await sourcesApi.ingest(nextSources[0].id)]
+        : await sourcesApi.bulkIngest(nextSources.map((source) => source.id));
+
+    const trackedIds = statuses
+      .filter((status) => status.job_status !== "failed")
+      .map((status) => status.source_id);
+
+    if (trackedIds.length > 0) {
+      setTrackedIngestionIds((currentIds) => [
+        ...currentIds,
+        ...trackedIds.filter((sourceId) => !currentIds.includes(sourceId)),
+      ]);
+    }
+
+    const failedStatus = statuses.find((status) => status.job_status === "failed");
+
+    if (failedStatus) {
+      await loadSources({ initial: false }).catch(() => undefined);
+      throw new Error(failedStatus.error_message ?? "Failed to enqueue ingestion task.");
     }
   }
 
@@ -468,18 +509,13 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
         onUpload={({ file, title }) =>
           handleSourceMutation(async () => {
             const source = await sourcesApi.upload(notebookId, { file, title });
-
-            try {
-              await sourcesApi.ingest(source.id);
-              setTrackedIngestionIds((currentIds) =>
-                currentIds.includes(source.id)
-                  ? currentIds
-                  : [...currentIds, source.id]
-              );
-            } catch (error) {
-              await loadSources({ initial: false }).catch(() => undefined);
-              throw error;
-            }
+            await enqueueIngestionForSources([source]);
+          })
+        }
+        onUploadMany={({ files }) =>
+          handleSourceMutation(async () => {
+            const createdSources = await sourcesApi.uploadMany(notebookId, { files });
+            await enqueueIngestionForSources(createdSources);
           })
         }
         onCreateText={({ title, content }) =>

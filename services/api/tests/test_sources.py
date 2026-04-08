@@ -393,6 +393,113 @@ class TestUploadSourceFile:
         assert source.error_message == "MinIO unavailable"
 
 
+class TestBulkUploadSourceFiles:
+    """Tests for POST /api/notebooks/{notebook_id}/sources/upload/batch endpoint."""
+
+    def test_upload_multiple_files_returns_created_sources_in_order(
+        self, client: TestClient, created_notebook: dict, monkeypatch: pytest.MonkeyPatch
+    ):
+        """
+        AC: Sources API creates one source record per uploaded file and returns
+        created sources in request order.
+        AC: Bulk upload defaults each created source title to the filename.
+        """
+        from services.api.modules.sources import routes as source_routes
+
+        class RecordingStorage:
+            def __init__(self) -> None:
+                self.calls = []
+
+            def store_bytes(self, content: bytes, object_path: str, content_type: str) -> str:
+                self.calls.append(
+                    {
+                        "content": content,
+                        "object_path": object_path,
+                        "content_type": content_type,
+                    }
+                )
+                return object_path
+
+        storage = RecordingStorage()
+        monkeypatch.setattr(source_routes, "get_object_storage", lambda: storage)
+
+        notebook_id = created_notebook["id"]
+        pdf_bytes = b"%PDF batch one"
+        txt_bytes = b"batch notes"
+
+        response = client.post(
+            f"/api/notebooks/{notebook_id}/sources/upload/batch",
+            files=[
+                ("files", ("brief.pdf", io.BytesIO(pdf_bytes), "application/pdf")),
+                ("files", ("notes.txt", io.BytesIO(txt_bytes), "text/plain")),
+            ],
+        )
+
+        assert response.status_code == 201
+        data = response.json()
+
+        assert [item["title"] for item in data] == ["brief.pdf", "notes.txt"]
+        assert [item["source_type"] for item in data] == ["pdf", "text"]
+        assert [item["status"] for item in data] == ["pending", "pending"]
+        assert data[0]["file_path"].endswith("/brief.pdf")
+        assert data[1]["file_path"].endswith("/notes.txt")
+        assert len(storage.calls) == 2
+        assert storage.calls[0]["content"] == pdf_bytes
+        assert storage.calls[1]["content"] == txt_bytes
+
+    def test_bulk_upload_rejects_mixed_unsupported_files_without_persisting_sources(
+        self,
+        client: TestClient,
+        created_notebook: dict,
+        db,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        """
+        AC: Bulk upload rejects unsupported file types while preserving
+        per-file validation rules.
+        """
+        from services.api.modules.sources import routes as source_routes
+        from services.api.modules.sources.models import Source
+
+        class RecordingStorage:
+            def __init__(self) -> None:
+                self.calls = []
+
+            def store_bytes(self, content: bytes, object_path: str, content_type: str) -> str:
+                self.calls.append(
+                    {
+                        "content": content,
+                        "object_path": object_path,
+                        "content_type": content_type,
+                    }
+                )
+                return object_path
+
+        storage = RecordingStorage()
+        monkeypatch.setattr(source_routes, "get_object_storage", lambda: storage)
+
+        notebook_id = created_notebook["id"]
+
+        response = client.post(
+            f"/api/notebooks/{notebook_id}/sources/upload/batch",
+            files=[
+                ("files", ("brief.pdf", io.BytesIO(b"%PDF"), "application/pdf")),
+                ("files", ("diagram.png", io.BytesIO(b"png"), "image/png")),
+            ],
+        )
+
+        assert response.status_code == 400
+        detail = response.json()["detail"]
+        assert detail["error"] == "validation_error"
+        assert storage.calls == []
+        assert (
+            db.query(Source)
+            .filter(Source.notebook_id == uuid.UUID(notebook_id))
+            .count()
+            == 0
+        )
+
+
 class TestDeleteSource:
     """Tests for DELETE /api/notebooks/{notebook_id}/sources/{source_id} endpoint."""
 

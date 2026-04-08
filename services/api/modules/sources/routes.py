@@ -3,7 +3,7 @@ API routes for Source operations.
 """
 from pathlib import Path
 import re
-from typing import List
+from typing import List, TypedDict, cast
 import uuid
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
@@ -44,6 +44,24 @@ UPLOAD_RULES = {
     },
 }
 FILENAME_SANITIZE_PATTERN = re.compile(r"[^A-Za-z0-9._-]+")
+
+
+class UploadRule(TypedDict):
+    """Validation and storage rules for a supported upload content type."""
+
+    source_type: SourceType
+    max_size: int
+    default_filename: str
+
+
+class ValidatedUpload(TypedDict):
+    """Validated upload data ready to be persisted as a source."""
+
+    source_type: SourceType
+    content: bytes
+    content_type: str
+    filename: str
+    title: str
 
 
 def get_notebook_or_404(
@@ -121,6 +139,62 @@ def build_object_path(
 ) -> str:
     """Build the logical storage key for an uploaded source."""
     return f"{notebook_id}/{source_id}/{filename}"
+
+
+def validate_upload_file(file: UploadFile) -> ValidatedUpload:
+    """Read and validate one uploaded file against the supported rules."""
+    content_type = (file.content_type or "").strip().lower()
+    rule = cast(UploadRule | None, UPLOAD_RULES.get(content_type))
+
+    if rule is None:
+        raise build_error(
+            status.HTTP_400_BAD_REQUEST,
+            "validation_error",
+            f"Unsupported content type: {file.content_type or 'unknown'}",
+        )
+
+    file_bytes = file.file.read()
+    if len(file_bytes) > rule["max_size"]:
+        max_mb = rule["max_size"] // (1024 * 1024)
+        raise build_error(
+            status.HTTP_400_BAD_REQUEST,
+            "validation_error",
+            f"Uploaded file exceeds the {max_mb}MB limit for {content_type}",
+        )
+
+    filename = sanitize_filename(file.filename, rule["default_filename"])
+    return {
+        "source_type": rule["source_type"],
+        "content": file_bytes,
+        "content_type": content_type,
+        "filename": filename,
+        "title": filename,
+    }
+
+
+def create_uploaded_source(
+    notebook_id: uuid.UUID,
+    upload: ValidatedUpload,
+    db: Session,
+    title: str | None = None,
+) -> Source:
+    """Create and persist a file-backed source from validated upload data."""
+    source = Source(
+        notebook_id=notebook_id,
+        source_type=upload["source_type"],
+        title=title.strip() if title and title.strip() else upload["title"],
+        status=SourceStatus.PENDING,
+    )
+    db.add(source)
+    db.flush()
+
+    return persist_source_bytes(
+        source=source,
+        content=upload["content"],
+        content_type=upload["content_type"],
+        filename=upload["filename"],
+        db=db,
+    )
 
 
 def persist_source_bytes(
@@ -279,41 +353,41 @@ def upload_source_file(
     AC: Error handling for failed uploads
     """
     notebook = get_notebook_or_404(notebook_id, user_id, db)
-    content_type = (file.content_type or "").strip().lower()
-    rule = UPLOAD_RULES.get(content_type)
+    upload = validate_upload_file(file)
 
-    if rule is None:
-        raise build_error(
-            status.HTTP_400_BAD_REQUEST,
-            "validation_error",
-            f"Unsupported content type: {file.content_type or 'unknown'}",
-        )
-
-    file_bytes = file.file.read()
-    if len(file_bytes) > rule["max_size"]:
-        max_mb = rule["max_size"] // (1024 * 1024)
-        raise build_error(
-            status.HTTP_400_BAD_REQUEST,
-            "validation_error",
-            f"Uploaded file exceeds the {max_mb}MB limit for {content_type}",
-        )
-
-    source = Source(
+    return create_uploaded_source(
         notebook_id=notebook.id,
-        source_type=rule["source_type"],
-        title=title.strip() if title and title.strip() else sanitize_filename(file.filename, rule["default_filename"]),
-        status=SourceStatus.PENDING,
-    )
-    db.add(source)
-    db.flush()
-
-    return persist_source_bytes(
-        source=source,
-        content=file_bytes,
-        content_type=content_type,
-        filename=sanitize_filename(file.filename, rule["default_filename"]),
+        upload=upload,
         db=db,
+        title=title,
     )
+
+
+@router.post(
+    "/{notebook_id}/sources/upload/batch",
+    response_model=List[SourceResponse],
+    status_code=status.HTTP_201_CREATED,
+)
+def upload_source_files_batch(
+    notebook_id: uuid.UUID,
+    files: List[UploadFile] = File(...),
+    db: Session = Depends(get_db),
+    user_id: uuid.UUID = Depends(get_current_user_id),
+):
+    """
+    Upload multiple file-backed sources for a notebook in one request.
+
+    AC: Notebook source upload accepts multiple selected PDF and TXT files
+    AC: Sources API creates one source record per uploaded file
+    AC: Bulk upload rejects unsupported file types
+    """
+    notebook = get_notebook_or_404(notebook_id, user_id, db)
+    validated_uploads = [validate_upload_file(file) for file in files]
+
+    return [
+        create_uploaded_source(notebook_id=notebook.id, upload=upload, db=db)
+        for upload in validated_uploads
+    ]
 
 
 @router.delete(

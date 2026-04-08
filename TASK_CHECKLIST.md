@@ -135,6 +135,27 @@ Quick reference checklist for tracking development progress. Check off items as 
 - ✓ Refresh source list after create/delete
 - ✓ Frontend tests
 
+**Source Management UI - Bulk Upload** ✓
+- ✓ Bulk PDF/TXT upload endpoint
+- ✓ Multi-file upload selection in web UI
+- ✓ Per-file validation for mixed upload batches
+- ✓ Fan-out ingestion calls for created sources
+- ✓ Multi-source polling in workspace
+- ✓ Backend and frontend tests
+
+**Bulk Ingestion Enqueue** ✓
+- ✓ Bulk ingestion API route
+- ✓ Batch upload uses one bulk-ingestion request
+- ✓ Single-source ingestion regression coverage
+- ✓ Backend and frontend tests
+
+**Bulk Ingestion Status Polling** ✓
+- ✓ Bulk status API route
+- ✓ Workspace status hydration uses bulk status
+- ✓ Tracked polling stops when all ingestions resolve
+- ✓ Single-source status regression coverage
+- ✓ Backend and frontend tests
+
 **Chat Guardrails & Workflow UX** ✓
 - ✓ Structured chat error categories
 - ✓ Friendly quota / balance handling
@@ -235,6 +256,7 @@ Quick reference checklist for tracking development progress. Check off items as 
 - ✓ Backend transparency payload
 - ✓ Rewritten query UI/UX
 - ✓ Frontend transparency tests
+- ✓ Rewriter configuration options
 - ⬜ Quality testing
 
 **Evaluation**

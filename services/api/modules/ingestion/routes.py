@@ -12,6 +12,10 @@ from services.api.core.database import get_db
 from services.api.modules.ingestion.models import IngestionJob, IngestionJobStatus
 from services.api.modules.ingestion.queue import IngestionQueueError, get_ingestion_queue
 from services.api.modules.ingestion.schemas import (
+    BulkIngestionRequest,
+    BulkIngestionResponse,
+    BulkIngestionStatusRequest,
+    BulkIngestionStatusResponse,
     IngestionHealthResponse,
     IngestionJobResponse,
     IngestionQueueStatusResponse,
@@ -65,6 +69,38 @@ def get_source_for_user(
     return source
 
 
+def get_sources_for_user(
+    source_ids: list[uuid.UUID],
+    user_id: uuid.UUID,
+    db: Session,
+) -> list[Source]:
+    """Load multiple sources that all belong to the current user's live notebooks."""
+    sources = (
+        db.query(Source)
+        .join(Notebook, Notebook.id == Source.notebook_id)
+        .filter(
+            Source.id.in_(source_ids),
+            Notebook.user_id == user_id,
+            Notebook.deleted_at.is_(None),
+        )
+        .all()
+    )
+    source_lookup = {source.id: source for source in sources}
+    missing_source_id = next(
+        (source_id for source_id in source_ids if source_id not in source_lookup),
+        None,
+    )
+
+    if missing_source_id is not None:
+        raise build_error(
+            status.HTTP_404_NOT_FOUND,
+            "not_found",
+            f"Source {missing_source_id} not found",
+        )
+
+    return [source_lookup[source_id] for source_id in source_ids]
+
+
 def build_status_response(source: Source, job: IngestionJob | None) -> IngestionJobResponse:
     """Create the API response shape for source/job status queries."""
     return IngestionJobResponse(
@@ -78,6 +114,60 @@ def build_status_response(source: Source, job: IngestionJob | None) -> Ingestion
         started_at=job.started_at if job else None,
         completed_at=job.completed_at if job else None,
     )
+
+
+def get_latest_jobs_for_sources(
+    source_ids: list[uuid.UUID],
+    db: Session,
+) -> dict[uuid.UUID, IngestionJob]:
+    """Return the latest ingestion job per source for the provided ids."""
+    jobs = (
+        db.query(IngestionJob)
+        .filter(IngestionJob.source_id.in_(source_ids))
+        .order_by(IngestionJob.created_at.desc(), IngestionJob.id.desc())
+        .all()
+    )
+    latest_jobs: dict[uuid.UUID, IngestionJob] = {}
+
+    for job in jobs:
+        latest_jobs.setdefault(job.source_id, job)
+
+    return latest_jobs
+
+
+def is_resolved_source_status(status: SourceStatus) -> bool:
+    """Return whether a source has reached a terminal ingestion state."""
+    return status in {SourceStatus.READY, SourceStatus.FAILED}
+
+
+def enqueue_ingestion_job_for_source(
+    source: Source,
+    db: Session,
+    queue=None,
+) -> tuple[IngestionJob, str | None]:
+    """Create and enqueue one ingestion job, returning any enqueue error string."""
+    queue_client = queue or get_ingestion_queue()
+    source.status = SourceStatus.PENDING
+    source.error_message = None
+
+    job = IngestionJob(source_id=source.id, status=IngestionJobStatus.QUEUED)
+    db.add(job)
+    db.flush()
+
+    try:
+        job.task_id = queue_client.enqueue_ingestion(
+            source_id=source.id,
+            ingestion_job_id=job.id,
+        )
+    except IngestionQueueError as exc:
+        source.status = SourceStatus.FAILED
+        source.error_message = str(exc)
+        job.status = IngestionJobStatus.FAILED
+        job.error_message = str(exc)
+        job.completed_at = utcnow()
+        return job, str(exc)
+
+    return job, None
 
 
 @router.post(
@@ -97,35 +187,52 @@ def enqueue_source_ingestion(
     AC: Failed tasks are logged with error details
     """
     source = get_source_for_user(source_id, user_id, db)
-    source.status = SourceStatus.PENDING
-    source.error_message = None
+    job, error_message = enqueue_ingestion_job_for_source(
+        source,
+        db,
+        queue=get_ingestion_queue(),
+    )
 
-    job = IngestionJob(source_id=source.id, status=IngestionJobStatus.QUEUED)
-    db.add(job)
-    db.flush()
-
-    try:
-        job.task_id = get_ingestion_queue().enqueue_ingestion(
-            source_id=source.id,
-            ingestion_job_id=job.id,
-        )
-    except IngestionQueueError as exc:
-        source.status = SourceStatus.FAILED
-        source.error_message = str(exc)
-        job.status = IngestionJobStatus.FAILED
-        job.error_message = str(exc)
-        job.completed_at = utcnow()
+    if error_message is not None:
         db.commit()
         raise build_error(
             status.HTTP_503_SERVICE_UNAVAILABLE,
             "ingestion_enqueue_failed",
             "Failed to enqueue ingestion task",
-        ) from exc
+        )
 
     db.commit()
     db.refresh(source)
     db.refresh(job)
     return build_status_response(source, job)
+
+
+@router.post(
+    "/sources/ingest/batch",
+    response_model=BulkIngestionResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def enqueue_sources_ingestion_batch(
+    payload: BulkIngestionRequest,
+    db: Session = Depends(get_db),
+    user_id: uuid.UUID = Depends(get_current_user_id),
+):
+    """
+    Enqueue multiple sources for background ingestion in one request.
+
+    AC: Ingestion API accepts multiple source IDs in one enqueue request
+    AC: Bulk ingestion validates ownership/not-found before enqueuing
+    """
+    sources = get_sources_for_user(payload.source_ids, user_id, db)
+    jobs: list[IngestionJobResponse] = []
+    queue = get_ingestion_queue()
+
+    for source in sources:
+        job, _ = enqueue_ingestion_job_for_source(source, db, queue=queue)
+        jobs.append(build_status_response(source, job))
+
+    db.commit()
+    return BulkIngestionResponse(jobs=jobs)
 
 
 @router.get("/sources/{source_id}/status", response_model=IngestionJobResponse)
@@ -147,6 +254,33 @@ def get_source_ingestion_status(
         .first()
     )
     return build_status_response(source, job)
+
+
+@router.post("/sources/status/batch", response_model=BulkIngestionStatusResponse)
+def get_sources_ingestion_status_batch(
+    payload: BulkIngestionStatusRequest,
+    db: Session = Depends(get_db),
+    user_id: uuid.UUID = Depends(get_current_user_id),
+):
+    """
+    Get the latest ingestion status for multiple sources in one request.
+
+    AC: Bulk status returns latest payloads in request order
+    AC: Bulk status indicates whether any requested source is unresolved
+    """
+    sources = get_sources_for_user(payload.source_ids, user_id, db)
+    latest_jobs = get_latest_jobs_for_sources(payload.source_ids, db)
+    statuses = [
+      build_status_response(source, latest_jobs.get(source.id))
+      for source in sources
+    ]
+
+    return BulkIngestionStatusResponse(
+        statuses=statuses,
+        has_pending_sources=any(
+            not is_resolved_source_status(status.status) for status in statuses
+        ),
+    )
 
 
 @router.delete(

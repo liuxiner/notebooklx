@@ -20,6 +20,7 @@ jest.mock("@/lib/api", () => ({
   sourcesApi: {
     list: jest.fn(),
     getStatus: jest.fn(),
+    bulkStatus: jest.fn(),
   },
 }));
 
@@ -75,14 +76,11 @@ const mockSources = [
   },
 ];
 
-describe("NotebookDetailPage", () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-    (notebooksApi.get as jest.Mock).mockResolvedValue(mockNotebook);
-    (sourcesApi.list as jest.Mock).mockResolvedValue(mockSources);
-    (sourcesApi.getStatus as jest.Mock).mockImplementation((sourceId: string) => {
+function mockBulkStatuses() {
+  (sourcesApi.bulkStatus as jest.Mock).mockImplementation((sourceIds: string[]) => {
+    const statuses = sourceIds.map((sourceId) => {
       if (sourceId === "source-1") {
-        return Promise.resolve({
+        return {
           source_id: sourceId,
           status: "processing",
           progress: {
@@ -92,36 +90,72 @@ describe("NotebookDetailPage", () => {
             total_chunks: 10,
           },
           error_message: null,
-        });
+          job_id: "job-source-1",
+          job_status: "running",
+          task_id: "task-source-1",
+          started_at: null,
+          completed_at: null,
+        };
       }
 
       if (sourceId === "source-2") {
-        return Promise.resolve({
+        return {
           source_id: sourceId,
           status: "failed",
           progress: null,
           error_message: "Could not parse the source content.",
-        });
+          job_id: "job-source-2",
+          job_status: "failed",
+          task_id: "task-source-2",
+          started_at: null,
+          completed_at: "2026-04-08T12:00:00Z",
+        };
       }
 
       if (sourceId === "source-3") {
-        return Promise.resolve({
+        return {
           source_id: sourceId,
           status: "pending",
           progress: {
             message: "Queued for ingestion",
           },
           error_message: null,
-        });
+          job_id: "job-source-3",
+          job_status: "queued",
+          task_id: "task-source-3",
+          started_at: null,
+          completed_at: null,
+        };
       }
 
-      return Promise.resolve({
+      return {
         source_id: sourceId,
         status: "ready",
         progress: null,
         error_message: null,
-      });
+        job_id: `job-${sourceId}`,
+        job_status: "completed",
+        task_id: `task-${sourceId}`,
+        started_at: null,
+        completed_at: "2026-04-08T12:00:00Z",
+      };
     });
+
+    return Promise.resolve({
+      statuses,
+      has_pending_sources: statuses.some(
+        (status) => status.status === "pending" || status.status === "processing"
+      ),
+    });
+  });
+}
+
+describe("NotebookDetailPage", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (notebooksApi.get as jest.Mock).mockResolvedValue(mockNotebook);
+    (sourcesApi.list as jest.Mock).mockResolvedValue(mockSources);
+    mockBulkStatuses();
   });
 
   it("renders the notebook workspace with a dedicated chat panel", async () => {
@@ -176,7 +210,7 @@ describe("NotebookDetailPage", () => {
     expect(
       screen.getByText("Add a PDF, pasted text, or URL to start grounding this notebook.")
     ).toBeInTheDocument();
-    expect(sourcesApi.getStatus).not.toHaveBeenCalled();
+    expect(sourcesApi.bulkStatus).not.toHaveBeenCalled();
   });
 
   it("refreshes the notebook source list without leaving the page", async () => {

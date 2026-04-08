@@ -8,8 +8,11 @@ jest.mock("@/lib/api", () => ({
   sourcesApi: {
     list: jest.fn(),
     getStatus: jest.fn(),
+    bulkStatus: jest.fn(),
     ingest: jest.fn(),
+    bulkIngest: jest.fn(),
     upload: jest.fn(),
+    uploadMany: jest.fn(),
     createText: jest.fn(),
     createUrl: jest.fn(),
     delete: jest.fn(),
@@ -67,6 +70,27 @@ const urlSource = {
   updated_at: "2026-04-08T12:20:00Z",
 };
 
+const batchUploadSources = [
+  {
+    id: "source-6",
+    source_type: "pdf",
+    title: "brief.pdf",
+    status: "pending",
+    file_size: 2048,
+    created_at: "2026-04-08T12:40:00Z",
+    updated_at: "2026-04-08T12:40:00Z",
+  },
+  {
+    id: "source-7",
+    source_type: "text",
+    title: "notes.txt",
+    status: "pending",
+    file_size: 256,
+    created_at: "2026-04-08T12:41:00Z",
+    updated_at: "2026-04-08T12:41:00Z",
+  },
+];
+
 function deferredPromise<T>() {
   let resolve: (value: T | PromiseLike<T>) => void = () => undefined;
   let reject: (reason?: unknown) => void = () => undefined;
@@ -85,26 +109,59 @@ function createFileList(files: File[]) {
   });
 }
 
-function mockStatuses() {
-  (sourcesApi.getStatus as jest.Mock).mockImplementation((sourceId: string) => {
-    if (sourceId === "source-1") {
-      return Promise.resolve({
+function mockBulkStatuses() {
+  (sourcesApi.bulkStatus as jest.Mock).mockImplementation((sourceIds: string[]) => {
+    const statuses = sourceIds.map((sourceId) => {
+      if (sourceId === "source-1") {
+        return {
+          source_id: sourceId,
+          status: "processing",
+          progress: {
+            current_step: "embedding",
+            embedded_chunks: 7,
+            total_chunks: 10,
+          },
+          error_message: null,
+          job_id: "job-source-1",
+          job_status: "running",
+          task_id: "task-source-1",
+          started_at: null,
+          completed_at: null,
+        };
+      }
+
+      if (sourceId === "source-2") {
+        return {
+          source_id: sourceId,
+          status: "ready",
+          progress: null,
+          error_message: null,
+          job_id: "job-source-2",
+          job_status: "completed",
+          task_id: "task-source-2",
+          started_at: null,
+          completed_at: "2026-04-08T12:00:00Z",
+        };
+      }
+
+      return {
         source_id: sourceId,
-        status: "processing",
-        progress: {
-          current_step: "embedding",
-          embedded_chunks: 7,
-          total_chunks: 10,
-        },
+        status: "pending",
+        progress: null,
         error_message: null,
-      });
-    }
+        job_id: `job-${sourceId}`,
+        job_status: "queued",
+        task_id: `task-${sourceId}`,
+        started_at: null,
+        completed_at: null,
+      };
+    });
 
     return Promise.resolve({
-      source_id: sourceId,
-      status: "pending",
-      progress: null,
-      error_message: null,
+      statuses,
+      has_pending_sources: statuses.some(
+        (status) => status.status === "pending" || status.status === "processing"
+      ),
     });
   });
 }
@@ -115,9 +172,21 @@ describe("NotebookWorkspace", () => {
   });
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    jest.resetAllMocks();
     (sourcesApi.list as jest.Mock).mockResolvedValue(existingSources);
-    mockStatuses();
+    (sourcesApi.ingest as jest.Mock).mockResolvedValue({
+      source_id: "source-default",
+      status: "pending",
+      job_id: "job-default",
+      job_status: "queued",
+      task_id: "task-default",
+      progress: null,
+      error_message: null,
+      started_at: null,
+      completed_at: null,
+    });
+    (sourcesApi.bulkIngest as jest.Mock).mockResolvedValue([]);
+    mockBulkStatuses();
   });
 
   it("renders an add-source entry point and opens the source dialog", async () => {
@@ -138,6 +207,8 @@ describe("NotebookWorkspace", () => {
     expect(within(dialog).getByRole("button", { name: "Upload" })).toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: "Text" })).toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: "URL" })).toBeInTheDocument();
+    expect(sourcesApi.bulkStatus).toHaveBeenCalledWith(["source-1", "source-2"]);
+    expect(sourcesApi.getStatus).not.toHaveBeenCalled();
   });
 
   it("creates a URL source and refreshes the source list in place", async () => {
@@ -272,16 +343,9 @@ describe("NotebookWorkspace", () => {
       title: "brief.pdf",
     };
 
-    const readyUploadSource = {
-      ...pendingUploadSource,
-      status: "ready",
-    };
-
     (sourcesApi.list as jest.Mock)
       .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([pendingUploadSource])
-      .mockResolvedValueOnce([pendingUploadSource])
-      .mockResolvedValueOnce([readyUploadSource]);
+      .mockResolvedValueOnce([pendingUploadSource]);
     (sourcesApi.upload as jest.Mock).mockResolvedValue(pendingUploadSource);
     (sourcesApi.ingest as jest.Mock).mockResolvedValue({
       source_id: pendingUploadSource.id,
@@ -298,67 +362,76 @@ describe("NotebookWorkspace", () => {
     });
 
     let uploadStatusCallCount = 0;
-    (sourcesApi.getStatus as jest.Mock).mockImplementation((sourceId: string) => {
-      if (sourceId !== pendingUploadSource.id) {
-        return Promise.resolve({
+    (sourcesApi.bulkStatus as jest.Mock).mockImplementation((sourceIds: string[]) => {
+      const statuses = sourceIds.map((sourceId) => {
+        if (sourceId !== pendingUploadSource.id) {
+          return {
+            source_id: sourceId,
+            status: "ready",
+            job_id: null,
+            job_status: null,
+            task_id: null,
+            progress: null,
+            error_message: null,
+            started_at: null,
+            completed_at: null,
+          };
+        }
+
+        uploadStatusCallCount += 1;
+
+        if (uploadStatusCallCount === 1) {
+          return {
+            source_id: sourceId,
+            status: "pending",
+            job_id: "job-123",
+            job_status: "queued",
+            task_id: "task-123",
+            progress: {
+              message: "Queued for ingestion",
+            },
+            error_message: null,
+            started_at: null,
+            completed_at: null,
+          };
+        }
+
+        if (uploadStatusCallCount === 2) {
+          return {
+            source_id: sourceId,
+            status: "processing",
+            job_id: "job-123",
+            job_status: "running",
+            task_id: "task-123",
+            progress: {
+              current_step: "embedding",
+              embedded_chunks: 1,
+              total_chunks: 2,
+            },
+            error_message: null,
+            started_at: null,
+            completed_at: null,
+          };
+        }
+
+        return {
           source_id: sourceId,
           status: "ready",
-          job_id: null,
-          job_status: null,
-          task_id: null,
+          job_id: "job-123",
+          job_status: "completed",
+          task_id: "task-123",
           progress: null,
           error_message: null,
           started_at: null,
-          completed_at: null,
-        });
-      }
-
-      uploadStatusCallCount += 1;
-
-      if (uploadStatusCallCount === 1) {
-        return Promise.resolve({
-          source_id: sourceId,
-          status: "pending",
-          job_id: "job-123",
-          job_status: "queued",
-          task_id: "task-123",
-          progress: {
-            message: "Queued for ingestion",
-          },
-          error_message: null,
-          started_at: null,
-          completed_at: null,
-        });
-      }
-
-      if (uploadStatusCallCount === 2) {
-        return Promise.resolve({
-          source_id: sourceId,
-          status: "processing",
-          job_id: "job-123",
-          job_status: "running",
-          task_id: "task-123",
-          progress: {
-            current_step: "embedding",
-            embedded_chunks: 1,
-            total_chunks: 2,
-          },
-          error_message: null,
-          started_at: null,
-          completed_at: null,
-        });
-      }
+          completed_at: "2026-04-08T12:30:00Z",
+        };
+      });
 
       return Promise.resolve({
-        source_id: sourceId,
-        status: "ready",
-        job_id: "job-123",
-        job_status: "completed",
-        task_id: "task-123",
-        progress: null,
-        error_message: null,
-        started_at: null,
-        completed_at: "2026-04-08T12:30:00Z",
+        statuses,
+        has_pending_sources: statuses.some(
+          (status) => status.status === "pending" || status.status === "processing"
+        ),
       });
     });
 
@@ -393,6 +466,7 @@ describe("NotebookWorkspace", () => {
       });
     });
     expect(sourcesApi.ingest).toHaveBeenCalledWith("source-3");
+    expect(sourcesApi.bulkIngest).not.toHaveBeenCalled();
     expect(await screen.findByText("Queued for ingestion")).toBeInTheDocument();
 
     await act(async () => {
@@ -408,8 +482,133 @@ describe("NotebookWorkspace", () => {
     await waitFor(() => {
       expect(screen.getByText("Ready")).toBeInTheDocument();
     });
-    expect(sourcesApi.list).toHaveBeenCalledTimes(4);
-    expect(sourcesApi.getStatus).toHaveBeenCalledWith("source-3");
+    const resolvedBulkStatusCallCount = (sourcesApi.bulkStatus as jest.Mock).mock.calls.length;
+
+    await act(async () => {
+      jest.advanceTimersByTime(1500);
+    });
+
+    expect((sourcesApi.bulkStatus as jest.Mock).mock.calls).toHaveLength(
+      resolvedBulkStatusCallCount
+    );
+    expect(sourcesApi.list).toHaveBeenCalledTimes(2);
+    expect(sourcesApi.bulkStatus).toHaveBeenLastCalledWith(["source-3"]);
+    expect(sourcesApi.getStatus).not.toHaveBeenCalled();
+  });
+
+  it("uploads multiple files, enqueues ingestion for each source, and tracks the batch", async () => {
+    jest.useFakeTimers();
+    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+
+    (sourcesApi.list as jest.Mock)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce(batchUploadSources);
+    (sourcesApi.uploadMany as jest.Mock).mockResolvedValue(batchUploadSources);
+    (sourcesApi.bulkIngest as jest.Mock).mockResolvedValue([
+      {
+        source_id: "source-6",
+        status: "pending",
+        job_id: "job-source-6",
+        job_status: "queued",
+        task_id: "task-source-6",
+        progress: {
+          message: "Queued for ingestion",
+        },
+        error_message: null,
+        started_at: null,
+        completed_at: null,
+      },
+      {
+        source_id: "source-7",
+        status: "pending",
+        job_id: "job-source-7",
+        job_status: "queued",
+        task_id: "task-source-7",
+        progress: {
+          message: "Queued for ingestion",
+        },
+        error_message: null,
+        started_at: null,
+        completed_at: null,
+      },
+    ]);
+
+    const statusCalls = new Map<string, number>();
+    (sourcesApi.bulkStatus as jest.Mock).mockImplementation((sourceIds: string[]) => {
+      const statuses = sourceIds.map((sourceId) => {
+        const nextCount = (statusCalls.get(sourceId) ?? 0) + 1;
+        statusCalls.set(sourceId, nextCount);
+
+        return {
+          source_id: sourceId,
+          status: nextCount === 1 ? "pending" : "ready",
+          job_id: `job-${sourceId}`,
+          job_status: nextCount === 1 ? "queued" : "completed",
+          task_id: `task-${sourceId}`,
+          progress:
+            nextCount === 1
+              ? {
+                  message: "Queued for ingestion",
+                }
+              : null,
+          error_message: null,
+          started_at: null,
+          completed_at: nextCount === 1 ? null : "2026-04-08T12:45:00Z",
+        };
+      });
+
+      return Promise.resolve({
+        statuses,
+        has_pending_sources: statuses.some((status) => status.status === "pending"),
+      });
+    });
+
+    render(<NotebookWorkspace notebookId="notebook-123" />);
+
+    expect(await screen.findByText("No sources yet")).toBeInTheDocument();
+
+    await act(async () => {
+      await user.click(screen.getByRole("button", { name: "Add source" }));
+    });
+
+    const dialog = await screen.findByRole("dialog");
+    const fileInput = within(dialog).getByLabelText("Choose file") as HTMLInputElement;
+    const pdfFile = new File(["%PDF"], "brief.pdf", { type: "application/pdf" });
+    const txtFile = new File(["notes"], "notes.txt", { type: "text/plain" });
+
+    await act(async () => {
+      fireEvent.change(fileInput, {
+        target: { files: createFileList([pdfFile, txtFile]) },
+      });
+    });
+
+    expect(within(dialog).getByText("2 files selected")).toBeInTheDocument();
+    expect(within(dialog).getByText("brief.pdf")).toBeInTheDocument();
+    expect(within(dialog).getByText("notes.txt")).toBeInTheDocument();
+
+    await act(async () => {
+      await user.click(within(dialog).getByRole("button", { name: "Upload 2 sources" }));
+    });
+
+    await waitFor(() => {
+      expect(sourcesApi.uploadMany).toHaveBeenCalledWith("notebook-123", {
+        files: [pdfFile, txtFile],
+      });
+    });
+    expect(sourcesApi.bulkIngest).toHaveBeenCalledWith(["source-6", "source-7"]);
+    expect(sourcesApi.ingest).not.toHaveBeenCalled();
+    expect(await screen.findByText("brief.pdf")).toBeInTheDocument();
+    expect(await screen.findByText("notes.txt")).toBeInTheDocument();
+
+    await act(async () => {
+      jest.advanceTimersByTime(1500);
+    });
+
+    await waitFor(() => {
+      expect(statusCalls.get("source-6")).toBeGreaterThanOrEqual(2);
+      expect(statusCalls.get("source-7")).toBeGreaterThanOrEqual(2);
+    });
+    expect(sourcesApi.getStatus).not.toHaveBeenCalled();
   });
 
   it("validates URL input and surfaces loading and API errors", async () => {
