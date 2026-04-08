@@ -27,11 +27,11 @@ export function NotebookCard({ notebook, onClick, onEdit, onDelete }: NotebookCa
 
   return (
     <Card
-      className="group cursor-pointer overflow-hidden border-slate-200 bg-white/95 transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-[0_12px_24px_rgba(15,23,42,0.08)]"
+      className="group cursor-pointer overflow-hidden border-slate-200 bg-white/95 transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-[0_12px_24px_rgba(15,23,42,0.08)] active:scale-[0.995]"
       onClick={onClick}
     >
       <CardHeader className="gap-4 border-b border-slate-200/80 bg-[linear-gradient(180deg,rgba(248,250,252,0.92),rgba(255,255,255,0.98))]">
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-col gap-3 xs:flex-row xs:items-start xs:justify-between xs:gap-4">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-600">
@@ -41,9 +41,9 @@ export function NotebookCard({ notebook, onClick, onEdit, onDelete }: NotebookCa
                 {createdDate}
               </CardDescription>
             </div>
-            <CardTitle className="mt-4 truncate text-2xl">{notebook.name}</CardTitle>
+            <CardTitle className="mt-4 truncate text-xl xs:text-2xl">{notebook.name}</CardTitle>
           </div>
-          <div className="flex gap-1 rounded-full bg-white/90 p-1 opacity-0 shadow-sm transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+          <div className="flex gap-1 self-start rounded-full bg-white/90 p-1 opacity-100 shadow-sm transition-opacity tablet:opacity-0 tablet:group-hover:opacity-100 tablet:group-focus-within:opacity-100">
             <Button
               variant="ghost"
               size="icon"
@@ -73,7 +73,7 @@ export function NotebookCard({ notebook, onClick, onEdit, onDelete }: NotebookCa
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="line-clamp-3 text-sm leading-6 text-muted-foreground">{description}</p>
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-col items-start gap-3 xs:flex-row xs:items-center xs:justify-between">
           <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
             Source-grounded workspace
           </span>

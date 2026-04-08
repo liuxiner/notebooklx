@@ -128,14 +128,17 @@ describe("NotebookDetailPage", () => {
     render(<NotebookDetailPage />);
 
     expect(await screen.findByText("Deep Research Notes")).toBeInTheDocument();
-    expect(await screen.findByText("Notebook sources")).toBeInTheDocument();
-    expect(screen.getByText("Grounded chat")).toBeInTheDocument();
+    const sourcesHeading = await screen.findByText("Notebook sources");
+    const chatHeading = screen.getByText("Grounded chat");
+    expect(chatHeading).toBeInTheDocument();
     expect(
       screen.getByText("Ask questions against the sources in this notebook.")
     ).toBeInTheDocument();
     expect(
       screen.getByPlaceholderText("Ask a source-grounded question...")
     ).toBeInTheDocument();
+    expect(chatHeading.compareDocumentPosition(sourcesHeading) & Node.DOCUMENT_POSITION_FOLLOWING)
+      .toBeTruthy();
   });
 
   it("renders notebook sources with status badges, progress details, and reserved sections", async () => {
@@ -149,7 +152,11 @@ describe("NotebookDetailPage", () => {
     expect(screen.getByText("URL")).toBeInTheDocument();
     expect(screen.getByText("TEXT")).toBeInTheDocument();
     expect(screen.getByText("Ready")).toBeInTheDocument();
-    expect(screen.getAllByText("Pending")[0]).toHaveClass("bg-slate-100");
+    expect(
+      screen
+        .getAllByText("Pending")
+        .some((element) => element.className.includes("bg-slate-100"))
+    ).toBe(true);
     expect(screen.getByText("Processing")).toBeInTheDocument();
     expect(screen.getByText("Failed")).toBeInTheDocument();
     expect(screen.getByText("Embedding 7 of 10 chunks")).toBeInTheDocument();

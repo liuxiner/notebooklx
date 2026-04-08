@@ -34,11 +34,13 @@
 
   html {
     @apply scroll-smooth;
+    -webkit-text-size-adjust: 100%;
   }
 
   body {
     @apply bg-background font-sans text-foreground antialiased;
     min-height: 100vh;
+    overflow-x: hidden;
     background-image:
       radial-gradient(circle at top left, rgba(219, 234, 254, 0.75), transparent 30%),
       radial-gradient(circle at top right, rgba(226, 232, 240, 0.7), transparent 28%),
@@ -59,5 +61,13 @@
   ::selection {
     background: hsl(var(--primary) / 0.16);
     color: hsl(var(--foreground));
+  }
+}
+
+@media (max-width: 767px) {
+  body {
+    background-image:
+      radial-gradient(circle at top center, rgba(219, 234, 254, 0.8), transparent 34%),
+      linear-gradient(180deg, rgba(248, 250, 252, 0.98), rgba(255, 255, 255, 1));
   }
 }

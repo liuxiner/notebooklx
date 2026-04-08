@@ -328,9 +328,9 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 tablet:space-y-6">
       <Card className="overflow-hidden border-slate-200 bg-white/92 shadow-[0_18px_45px_rgba(15,23,42,0.06)]">
-        <CardHeader className="gap-5 border-b border-slate-200/80 bg-[linear-gradient(180deg,rgba(248,250,252,0.92),rgba(255,255,255,0.98))] sm:flex-row sm:items-start sm:justify-between">
+        <CardHeader className="gap-4 border-b border-slate-200/80 bg-[linear-gradient(180deg,rgba(248,250,252,0.92),rgba(255,255,255,0.98))] tablet:flex-row tablet:items-start tablet:justify-between tablet:gap-5">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
               Sources first
@@ -344,6 +344,7 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
             <Button
               onClick={() => setIsSourceDialogOpen(true)}
               disabled={isLoading || isRefreshing || isSubmittingSource}
+              className="w-full xs:w-auto"
             >
               <Plus className="mr-2 h-4 w-4" />
               Add source
@@ -352,6 +353,7 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
               variant="outline"
               onClick={() => void refreshSources()}
               disabled={isLoading || isRefreshing || isSubmittingSource}
+              className="w-full xs:w-auto"
             >
               <RefreshCw
                 className={`mr-2 h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`}
@@ -361,7 +363,7 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
           </div>
         </CardHeader>
         <CardContent className="space-y-6 pt-6">
-          <div className="flex flex-wrap gap-2">
+          <div className="grid grid-cols-2 gap-2 xs:flex xs:flex-wrap">
             <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-600">
               {sourceCounts.total} total
             </span>
@@ -405,11 +407,11 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
                 return (
                   <article
                     key={source.id}
-                    className="rounded-[1.5rem] border border-slate-200 bg-slate-50/80 p-5 shadow-[0_1px_3px_rgba(15,23,42,0.04)]"
+                    className="rounded-[1.5rem] border border-slate-200 bg-slate-50/80 p-4 shadow-[0_1px_3px_rgba(15,23,42,0.04)] tablet:p-5"
                   >
-                    <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                    <div className="flex flex-col gap-4 tablet:flex-row tablet:items-start tablet:justify-between">
                       <div className="min-w-0">
-                        <h3 className="truncate text-lg font-semibold tracking-tight text-slate-950">
+                        <h3 className="truncate text-base font-semibold tracking-tight text-slate-950 xs:text-lg">
                           {source.title}
                         </h3>
                         <div className="mt-3 flex flex-wrap items-center gap-2 font-mono text-[11px] uppercase tracking-[0.16em] text-slate-500">
@@ -418,7 +420,7 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
                           <span>{`Added ${formatDate(source.created_at)}`}</span>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2 self-start">
+                      <div className="flex w-full flex-wrap items-center gap-2 self-start tablet:w-auto tablet:justify-end">
                         <span
                           className={`inline-flex w-fit rounded-full border px-3 py-1 text-xs font-semibold ${statusStyles[status]}`}
                         >
@@ -507,7 +509,7 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
         errorMessage={deleteErrorMessage}
       />
 
-      <div className="grid gap-4 xl:grid-cols-2">
+      <div className="grid gap-4 tablet:grid-cols-2">
         <Card className="border-slate-200 bg-white/90 shadow-sm">
           <CardHeader>
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">

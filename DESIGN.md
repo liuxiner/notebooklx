@@ -1,164 +1,243 @@
 # NotebookLX Design System
 
-**Version:** 1.0
-**Last Updated:** 2025-04-08
+**Version:** 1.1
+**Last Updated:** April 8, 2026
 **Status:** Living Document
 
 ---
 
-# Catalog
-  - Design principles (truth over flair, transparency builds trust)
-  - Color system (neutral grays, semantic colors, accent blue)
-  - Typography (Inter, JetBrains Mono for code)
-  - Spacing system (Tailwind-based)
-  - Component patterns (buttons, inputs, message bubbles, citations)
-  - Interaction patterns (streaming states, status indicators, empty/error states)
-  - Accessibility standards (WCAG 2.1 AA)
-  - Motion & animation (150-300ms easing)
-  - Specific features (query rewriting transparency UX, retrieval transparency)
-  - Layout patterns (3-panel notebook detail, chat panel)
-  - Voice & tone guidelines
-  - Iconography (Lucide React)
+## Catalog
+
+- Design principles
+- Responsive foundation and breakpoint map
+- Color system
+- Typography
+- Spacing, radius, and elevation
+- Component patterns
+- Layout patterns
+- Interaction and transparency patterns
+- Accessibility standards
+- Motion and animation
+- Voice and tone
+- Iconography
+- Version history and review process
+
+---
 
 ## Design Principles
 
-NotebookLX is a source-grounded notebook knowledge workspace. Every design decision reflects these core values:
+NotebookLX is a source-grounded notebook knowledge workspace. Every surface should reinforce the same product truths:
 
-1. **Truth over flair** — Citations and source grounding are primary. Visual polish supports credibility, never distracts from it.
+1. **Truth over flair**  
+   Citations and source boundaries are the product. Visual polish should support trust, not compete with it.
 
-2. **Respect for attention** — Users are here to learn from their sources. Efficient information hierarchy and clear interaction states honor their time.
+2. **Respect for attention**  
+   Layout, spacing, and copy should help users move quickly from source review to grounded answers.
 
-3. **Transparency builds trust** — Show what the system is doing (retrieval, rewriting, processing). Invisible magic erodes trust; visible mechanics build it.
+3. **Transparency builds trust**  
+   Retrieval, query rewriting, streaming, and processing states should be visible in plain language.
 
-4. **Calm workspace, alive when it matters** — Default surfaces are minimal and focused. Activity indicators, streaming, and real-time updates provide aliveness without clutter.
+4. **Calm by default, active when necessary**  
+   Most surfaces should feel quiet and neutral. Motion and color only become prominent when the system is working or the user needs to act.
 
-5. **Sources first, always** — The notebook's sources are the truth boundary. Design reinforces that answers come from explicitly added content.
+5. **Responsive reading is a product requirement**  
+   Mobile and iPad layouts are not reduced desktop versions. Reading, scanning citations, and sending questions must stay comfortable at every width.
+
+---
+
+## Responsive Foundation
+
+### Breakpoint Map
+
+NotebookLX should use these layout ranges:
+
+| Range | Width | Intent |
+| --- | --- | --- |
+| Mobile compact | `0px-479px` | Single-column reading, stacked actions, no cramped sidebars |
+| Mobile large | `480px-767px` | Single-column layout with small multi-column utilities where safe |
+| Tablet / iPad | `768px-1199px` | Stacked major panels, wider cards, two-up support blocks |
+| Desktop | `1200px+` | Persistent two-column workspace with chat sidebar |
+
+### Tailwind Breakpoint Aliases
+
+Use these aliases in `apps/web`:
+
+```ts
+xs: "480px"
+tablet: "768px"
+desktop: "1200px"
+```
+
+### Responsive Rules
+
+1. **Do not force desktop sidebars below `1200px`.**  
+   On mobile and tablet, the notebook detail page should read top-to-bottom:
+   - notebook header
+   - chat
+   - source workspace
+
+2. **Prefer stacked action groups on narrow screens.**  
+   Primary and secondary actions should become full width before they become too small to tap.
+
+3. **Only introduce multi-column cards when the content still reads cleanly.**  
+   Timing tiles, metadata blocks, and summary cards can move to 2 columns at `xs` or `tablet`, but source rows and evidence quotes should stay readable first.
+
+4. **Avoid horizontal scrolling in product UI.**  
+   Wrap metadata chips, stack action rows, and allow long identifiers to break.
+
+5. **Keep chat input near the user’s current reading position.**  
+   On mobile and tablet, the composer should appear before long transparency diagnostics.
+
+6. **No bottom navigation for the current app shell.**  
+   The earlier desktop-only draft suggested a mobile bottom nav. The current product should instead use a stacked document flow.
+
+### Page-Level Behavior
+
+#### Notebook List
+
+- Mobile and tablet: hero, stats, CTA, then notebook cards in 1-2 columns
+- Desktop: hero content and CTA cluster can sit side by side
+
+#### Notebook Detail
+
+- Mobile and tablet: header card, chat panel, source workspace
+- Desktop: left content column plus right sticky chat panel
+
+#### Dialogs
+
+- Mobile: nearly full-width centered sheet
+- Tablet and desktop: standard modal width with generous padding
 
 ---
 
 ## Color System
 
-### Primary Palette (Neutral Grays)
+### Primary Palette
 
-Based on Tailwind's gray scale. Cool-toned (slate/gray) for professional workspace feel.
+NotebookLX uses cool neutral grays with blue reserved for primary actions and links.
 
 ```css
---gray-50:  #f8fafc   /* Page background */
---gray-100: #f1f5f9   /* Card background */
---gray-200: #e2e8f0   /* Borders, dividers */
---gray-300: #cbd5e1   /* Disabled states */
---gray-400: #94a3b8   /* Placeholder text */
---gray-500: #64748b   /* Secondary text */
---gray-600: #475569   /* Primary text */
---gray-700: #334155   /* Emphasized text */
---gray-800: #1e293b   /* Headings */
---gray-900: #0f172a   /* Deep backgrounds */
+--gray-50:  #f8fafc
+--gray-100: #f1f5f9
+--gray-200: #e2e8f0
+--gray-300: #cbd5e1
+--gray-400: #94a3b8
+--gray-500: #64748b
+--gray-600: #475569
+--gray-700: #334155
+--gray-800: #1e293b
+--gray-900: #0f172a
 ```
 
 ### Semantic Colors
 
 ```css
-/* Success */
 --success-bg: #dcfce7
 --success-text: #166534
 --success-border: #86efac
 
-/* Warning / Processing */
 --warning-bg: #fef9c3
 --warning-text: #854d0e
 --warning-border: #fde047
 
-/* Error / Failure */
 --error-bg: #fee2e2
 --error-text: #991b1b
 --error-border: #fca5a5
 
-/* Info / Retrieval */
 --info-bg: #dbeafe
 --info-text: #075985
 --info-border: #7dd3fc
 
-/* Citations */
 --citation-bg: #fef3c7
 --citation-text: #92400e
 --citation-border: #fcd34d
 ```
 
-### Accent Color (CTA, Links)
+### Accent Color
 
 ```css
---accent: #2563eb       /* Blue-600 */
---accent-hover: #1d4ed8 /* Blue-700 */
---accent-light: #3b82f6 /* Blue-500 */
+--accent: #2563eb
+--accent-hover: #1d4ed8
+--accent-light: #3b82f6
 ```
 
-**Usage:** Reserve for primary actions (Send message, Add source). Avoid overuse — neutral grays should dominate.
+**Usage:** Accent blue is for the main CTA, focused links, and key active states. The workspace should still look primarily neutral.
 
 ---
 
 ## Typography
 
-### Font Family
+### Font Families
 
-- **Primary:** Inter (system font stack fallback)
-- **Monospace:** JetBrains Mono (for code, citations)
+- **Primary:** Inter, then system sans fallback
+- **Monospace:** JetBrains Mono, then system mono fallback
 
-```css
-font-family: 'Inter', system-ui, -apple-system, sans-serif;
-font-family-mono: 'JetBrains Mono', 'SF Mono', Monaco, monospace;
-```
+### Core Type Scale
 
-### Type Scale
+| Token | Size | Usage |
+| --- | --- | --- |
+| `text-xs` | `12px` | Labels, metadata, chips |
+| `text-sm` | `14px` | Secondary body text, helper copy |
+| `text-base` | `16px` | Primary body text |
+| `text-lg` | `18px` | Emphasized body |
+| `text-xl` | `20px` | Subheadings |
+| `text-2xl` | `24px` | Section titles |
+| `text-3xl` | `30px` | Mobile page headings |
+| `text-4xl` | `36px` | Large tablet headings |
+| `text-5xl` | `48px` | Desktop page headings |
 
-```css
---text-xs:   0.75rem    /* 12px - Labels, metadata */
---text-sm:   0.875rem   /* 14px - Body secondary, captions */
---text-base: 1rem       /* 16px - Body primary */
---text-lg:   1.125rem   /* 18px - Emphasized body */
---text-xl:   1.25rem    /* 20px - Subheadings */
---text-2xl:  1.5rem     /* 24px - Section headings */
---text-3xl:  1.875rem   /* 30px - Page headings */
-```
+### Responsive Type Guidance
 
-### Font Weights
+- Mobile page title: `text-3xl`
+- Large mobile / tablet page title: `text-4xl`
+- Desktop page title: `text-5xl` when the surface has enough room
+- Dense diagnostic surfaces should stay at `text-sm`
+- Quotes and citations can use `13px` mono text for scanability
+
+### Weights and Leading
 
 ```css
 --font-normal: 400
 --font-medium: 500
 --font-semibold: 600
 --font-bold: 700
-```
 
-### Line Heights
-
-```css
---leading-tight: 1.25    /* Headings */
---leading-normal: 1.5    /* Body text */
---leading-relaxed: 1.625 /* Comfortable reading */
+--leading-tight: 1.25
+--leading-normal: 1.5
+--leading-relaxed: 1.625
 ```
 
 ---
 
-## Spacing System
+## Spacing, Radius, and Elevation
 
-Based on Tailwind's 4px base unit scale.
+### Spacing
+
+Use Tailwind’s 4px base scale.
 
 ```css
---space-1:  0.25rem   /* 4px */
---space-2:  0.5rem    /* 8px */
---space-3:  0.75rem   /* 12px */
---space-4:  1rem      /* 16px */
---space-5:  1.25rem   /* 20px */
---space-6:  1.5rem    /* 24px */
---space-8:  2rem      /* 32px */
---space-10: 2.5rem    /* 40px */
---space-12: 3rem      /* 48px */
+--space-1:  0.25rem
+--space-2:  0.5rem
+--space-3:  0.75rem
+--space-4:  1rem
+--space-5:  1.25rem
+--space-6:  1.5rem
+--space-8:  2rem
+--space-10: 2.5rem
+--space-12: 3rem
 ```
 
-**Usage defaults:**
-- Component padding: `--space-3` to `--space-4`
-- Section spacing: `--space-8` to `--space-12`
-- Gap between related elements: `--space-2`
+### Radius
+
+- Standard input/button radius: `rounded-xl`
+- Primary cards: `rounded-3xl`
+- Dense subcards and diagnostics: `rounded-2xl`
+
+### Elevation
+
+- Base cards: soft border + minimal shadow
+- Hero cards and major workspace shells: deeper but still diffused shadow
+- Avoid heavy shadow stacks on mobile
 
 ---
 
@@ -166,503 +245,336 @@ Based on Tailwind's 4px base unit scale.
 
 ### Buttons
 
-#### Primary Button
+#### Primary
 
-```css
-background: var(--accent);
-color: white;
-padding: var(--space-2) var(--space-4);
-border-radius: 6px;
-font-weight: var(--font-medium);
-transition: background 150ms ease;
-```
+- Blue background
+- White text
+- Medium weight
+- Minimum 44px touch target
 
-States: Hover (`--accent-hover`), Active (slightly darker), Disabled (`--gray-300`)
+#### Secondary / Outline
 
-#### Secondary Button
+- Neutral background or border
+- Slate text
+- Used for refresh, toggles, and supporting actions
 
-```css
-background: var(--gray-100);
-color: var(--gray-700);
-border: 1px solid var(--gray-200);
-padding: var(--space-2) var(--space-4);
-border-radius: 6px;
-font-weight: var(--font-medium);
-```
+#### Responsive Rules
 
-#### Ghost Button (for tertiary actions)
+- On narrow screens, action groups should stack to full width before becoming cramped
+- On card surfaces, do not hide the only access to important actions behind hover-only states on touch devices
 
-```css
-background: transparent;
-color: var(--gray-600);
-padding: var(--space-2) var(--space-3);
-border-radius: 6px;
-```
+### Inputs and Textareas
 
-Hover state: `background: var(--gray-100)`
-
-### Inputs
-
-#### Text Input / Textarea
-
-```css
-background: white;
-border: 1px solid var(--gray-200);
-border-radius: 6px;
-padding: var(--space-3);
-font-size: var(--text-base);
-color: var(--gray-700);
-```
-
-Focus state: `border-color: var(--accent); outline: 2px solid rgba(37, 99, 235, 0.1)`
-
-Error state: `border-color: var(--error-border)`
+- White fill
+- Soft neutral border
+- Blue focus ring
+- Rounded corners
+- Textareas should remain large enough to type comfortably on mobile
 
 ### Cards
 
-```css
-background: white;
-border: 1px solid var(--gray-200);
-border-radius: 8px;
-padding: var(--space-4);
-box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-```
+- White or nearly-white background
+- Neutral border
+- Rounded large corners
+- Slight blur and shadow for workspace shells
 
-Elevated cards (modals, popovers): `box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1)`
+### Notebook Cards
 
-### Message Bubbles (Chat)
+- Show notebook name, creation date, description, and “open workspace” affordance
+- Edit/delete actions should be visible on mobile and tablet touch surfaces
+- Footer metadata wraps instead of squeezing
 
-#### User Message
+### Source Rows
 
-```css
-background: var(--accent);
-color: white;
-border-radius: 12px 12px 0 12px;
-padding: var(--space-3) var(--space-4);
-align-self: flex-end;
-max-width: 80%;
-```
+- Title
+- Source type and date metadata
+- Status badge
+- Delete action
+- Progress or error block
 
-#### Assistant Message
+Responsive rules:
 
-```css
-background: var(--gray-100);
-color: var(--gray-800);
-border-radius: 12px 12px 12px 0;
-padding: var(--space-3) var(--space-4);
-align-self: flex-start;
-max-width: 85%;
-```
+- Mobile: stack source info and actions vertically
+- Tablet and desktop: allow split header row
+- Never truncate away the only actionable status information
+
+### Chat Bubbles
+
+#### User
+
+- Blue surface
+- Right aligned
+- Short label and readable line height
+- Slightly wider max width on phones than on desktop
+
+#### Assistant
+
+- Neutral surface
+- Left aligned
+- Citation markers inline with answer text
 
 ### Citation Markers
 
-Inline citation badges within assistant messages:
+- Inline amber badge
+- Mono numerals
+- Clearly focusable and clickable
 
-```css
-background: var(--citation-bg);
-color: var(--citation-text);
-border-radius: 4px;
-padding: 2px 6px;
-font-size: var(--text-xs);
-font-weight: var(--font-medium);
-font-family-mono: var(--font-mono);
-cursor: pointer;
-transition: background 150ms ease;
-```
+### Transparency Panels
 
-Hover state: `background: var(--citation-border)`
+These include:
 
----
+- query rewrite
+- chat timing
+- retrieved evidence
+- citation detail
 
-## Interaction Patterns
+Responsive rules:
 
-### Streaming States
-
-When content streams in (SSE), show incremental updates with:
-
-1. **Skeleton pulse** for initial loading state
-2. **Typing indicator** (3 animated dots) before first token
-3. **Incremental rendering** — append tokens as they arrive
-4. **Fade-in animation** for completed content blocks
-
-```css
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.6; }
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-```
-
-### Status Indicators
-
-#### Source Status Badges
-
-- **Pending:** Gray badge, clock icon
-- **Processing:** Blue badge, spinner animation
-- **Ready:** Green badge, checkmark icon
-- **Failed:** Red badge, error icon + error message
-
-#### Chat Workflow States
-
-Inline status below chat input:
-
-- "Searching your sources..." (neutral)
-- "Optimizing your question..." (during query rewrite)
-- "Retrieved 12 chunks from 3 sources" (transparency)
-
-### Empty States
-
-Every empty state includes:
-
-1. **Warm heading** — friendly, not technical
-2. **Context** — why is this empty?
-3. **Primary action** — what should the user do next?
-4. **Supporting visual** — simple illustration or icon
-
-Example (chat with no sources):
-```
-┌─────────────────────────────────────────┐
-│   No sources yet                        │
-│                                         │
-│   Add sources to this notebook to      │
-│   start asking questions.               │
-│                                         │
-│   [Add Source]                          │
-└─────────────────────────────────────────┘
-```
-
-### Error States
-
-All errors include:
-
-1. **User-friendly message** — what went wrong (in plain language)
-2. **Context** — why did this happen?
-3. **Recovery action** — what can the user do now?
-4. **Secondary option** — retry, skip, contact support
-
-#### Error Card Format
-
-```
-┌─────────────────────────────────────────┐
-│  ⚠️  Couldn't process your source       │
-│                                         │
-│  The PDF file may be corrupted or      │
-│  password-protected.                    │
-│                                         │
-│  [Try Again]  [Upload Different File]   │
-└─────────────────────────────────────────┘
-```
-
----
-
-## Accessibility Standards
-
-### WCAG 2.1 AA Compliance (Minimum)
-
-- **Color contrast:** 4.5:1 for normal text, 3:1 for large text (18px+)
-- **Touch targets:** Minimum 44×44px for interactive elements
-- **Keyboard navigation:** All functionality accessible via Tab, Enter, Escape
-- **Focus indicators:** Visible 2px outline on all focusable elements
-- **Screen readers:** Proper ARIA labels, roles, and live regions
-
-### Focus Management
-
-```css
-:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-  border-radius: 4px;
-}
-```
-
-### ARIA Live Regions
-
-For streaming content and status updates:
-
-```html
-<div role="status" aria-live="polite" aria-atomic="true">
-  Searching for: 'machine learning algorithms...'
-</div>
-```
-
-- **`polite`** for status updates (searching, processing)
-- **`assertive`** only for errors and critical alerts
-- **`atomic="true"`** when entire content replaces (not appends)
-
----
-
-## Motion & Animation
-
-### Principles
-
-1. **Purposeful motion** — Every animation serves a function (guides attention, confirms action, indicates state)
-2. **Subtle over showy** — Prefer 150-300ms easing functions
-3. **Respect prefers-reduced-motion** — Disable all motion when user prefers static
-
-### Duration Scale
-
-```css
---duration-fast:   150ms   /* Hover states, toggles */
---duration-base:   300ms   /* Modal open/close */
---duration-slow:   500ms   /* Page transitions */
-```
-
-### Easing Functions
-
-```css
---ease-out: cubic-bezier(0, 0, 0.2, 1)     /* Most common */
---ease-in-out: cubic-bezier(0.4, 0, 0.2, 1) /* Modal transitions */
-```
-
-### Animation Examples
-
-#### Fade In (Content appearing)
-
-```css
-.fade-in {
-  animation: fadeIn var(--duration-base) var(--ease-out);
-}
-```
-
-#### Slide Up (Modals, sheets)
-
-```css
-.slide-up {
-  animation: slideUp var(--duration-base) var(--ease-out);
-}
-
-@keyframes slideUp {
-  from { transform: translateY(100%); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
-}
-```
-
-#### Pulse (Processing indicators)
-
-```css
-.pulse {
-  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
-}
-```
-
----
-
-## Specific Features
-
-### Query Rewriting Transparency
-
-**Decision:** Variant C — Full Transparency with Toggle
-
-#### Behavior
-
-1. **When user sends a message:**
-   - Show inline status below input: "📝 Rewriting: [original] → [rewritten]"
-   - Include info icon with tooltip: "Improved for better source matching"
-   - Auto-collapse after 3 seconds to: "Searching for: '[rewritten]'"
-
-2. **Settings toggle:**
-   - Location: Settings panel (notebook-level or account-level)
-   - Label: "Always show rewritten queries"
-   - Default: Off (auto-collapse behavior)
-
-3. **Error handling:**
-   - If rewrite fails: Silently fall back to original query
-   - Show: "Searching for: '[original query]'"
-   - No error message to user (graceful degradation)
-
-#### UI Specification
-
-```typescript
-// Rewritten query display (inline status)
-<div className="flex items-center gap-2 text-sm text-gray-600">
-  <span className="text-gray-500">📝 Rewrote:</span>
-  <span className="line-through opacity-60">"{original}"</span>
-  <span>→</span>
-  <span className="italic">"{rewritten}"</span>
-  <InfoIcon tooltip="Improved for better source matching" />
-</div>
-
-// Collapsed state (after 3s)
-<div className="text-sm text-gray-500 italic">
-  Searching for: '{rewritten}'
-</div>
-
-// Settings toggle
-<Switch
-  label="Always show rewritten queries"
-  description="See how questions are optimized for your sources"
-  defaultChecked={false}
-/>
-```
-
-#### Accessibility
-
-- Screen reader announcement: `"Rewrote your question. Searching for: {rewritten}"`
-- Keyboard: Tab to expand/collapse, Enter to toggle
-- Auto-collapse respects `prefers-reduced-motion`
-
-### Retrieval Transparency
-
-#### Chunk Count Display
-
-When retrieval completes, show:
-
-```
-Retrieved 12 chunks from 3 sources
-```
-
-- **Chunk count:** Number of chunks used for generation
-- **Source count:** Number of unique sources referenced
-- **Placement:** Below input, replaces search status when retrieval completes
-
-#### Chunk-to-Source Panel
-
-Expandable panel showing which chunks came from which sources:
-
-```
-┌─────────────────────────────────────────┐
-│  Sources used (12 chunks)              │
-│                                         │
-│  📄 Research Paper.pdf (8 chunks)      │
-│     • Page 3: "Methodology section..." │
-│     • Page 7: "Algorithm comparison..." │
-│                                         │
-│  📄 Notes.txt (4 chunks)                │
-│     • "Key findings from experiment..." │
-└─────────────────────────────────────────┘
-```
+- Mobile: single column, stacked cards, comfortable vertical spacing
+- Large mobile: simple 2-up tile grids only for short metrics
+- Tablet and desktop: 2-up metric tiles are acceptable
 
 ---
 
 ## Layout Patterns
 
-### Notebook Detail Page (3-Panel Layout)
+### Notebook List Page
 
-```
-┌────────────────┬───────────────────┬─────────────────┐
-│                │                    │                 │
-│  Source List   │  Notebook Summary  │   Chat Panel    │
-│                │                    │                 │
-│  - Sources     │  - Overview        │   - Messages    │
-│  - Status      │  - Key Topics       │   - Citations   │
-│  - Actions     │  - Generated Assets │   - Input       │
-│                │                    │                 │
-└────────────────┴───────────────────┴─────────────────┘
-```
+Structure:
 
-**Responsive behavior:**
-- Desktop (>1024px): 3 panels visible
-- Tablet (768-1024px): Sources collapsible, chat always visible
-- Mobile (<768px): Single panel with bottom navigation
+1. hero card
+2. notebook count / CTA cluster
+3. notebook grid or empty state
 
-### Chat Panel (Always Visible)
+Responsive behavior:
 
-- **Fixed position** on desktop (right side)
-- **Full height** minus header
-- **Input always visible** at bottom (sticky)
-- **Messages scroll** above input
-- **Auto-scroll** to latest message when user sends
+- Mobile: single column
+- Tablet: notebook cards can move to 2 columns
+- Desktop: notebook cards can move to 3 columns
+
+### Notebook Detail Page
+
+The current product layout is:
+
+#### Mobile and Tablet
+
+1. back navigation
+2. notebook header card
+3. chat panel
+4. source workspace
+
+#### Desktop
+
+1. back navigation
+2. left content column:
+   - notebook header card
+   - source workspace
+3. right column:
+   - sticky chat panel
+
+### Chat Panel
+
+Core rules:
+
+- header remains visible and compact
+- messages scroll independently
+- input stays easy to reach
+- diagnostics remain available without blocking the conversation flow
+
+Responsive behavior:
+
+- Mobile and tablet: composer appears before long diagnostics
+- Desktop: diagnostics can sit above the composer inside the persistent panel
+- Keep the panel tall enough to feel like a workspace, not a short widget
+
+### Reserved Content Cards
+
+Summary and generated-assets placeholders should stack on mobile and go 2-up on tablet and desktop.
 
 ---
 
-## Voice & Tone
+## Interaction and Transparency Patterns
 
-### Copy Guidelines
+### Streaming States
 
-1. **Source-oriented language:** "Your sources show..." rather than "I found..."
-2. **Confidence calibration:** "Based on your sources..." for answers, "I don't have enough information" for gaps
-3. **Action-oriented CTAs:** "Add source" not "Manage sources"
-4. **Process transparency:** "Searching your sources..." "Retrieving relevant chunks..." "Reading your PDF..."
+When content streams:
 
-### Error Messages
+1. show an initial working state
+2. expose notebook-grounded status copy
+3. render deltas incrementally
+4. preserve the answer in a single assistant bubble
 
-**Avoid technical jargon.** Replace with user-friendly alternatives:
+### Chat Workflow States
 
-- ❌ "SSE connection timeout" → ✅ "Connection interrupted. Please check your internet."
-- ❌ "Embedding generation failed" → ✅ "Couldn't process this source. Try uploading again."
-- ❌ "Retrieval returned zero chunks" → ✅ "No relevant information found in your sources. Try rephrasing your question."
+Use notebook-grounded language:
+
+- “Working through notebook sources”
+- “Searching this notebook’s sources”
+- “Waiting for the first answer chunk from the model”
+- “Grounded answer ready”
+
+### Query Rewriting Transparency
+
+Behavior:
+
+- Default to collapsed details
+- Explain what changed in plain language
+- Expose original query, standalone question, retrieval searches, and strategy
+
+### Retrieval Transparency
+
+Always support:
+
+- chunk count
+- source count
+- per-source grouping
+- quote inspection
+- score or page metadata when available
+
+### Empty States
+
+Every empty state should include:
+
+1. a friendly heading
+2. context about why the area is empty
+3. the next action
+4. a lightweight supporting visual or icon
+
+### Error States
+
+Every error should include:
+
+1. what went wrong
+2. plain-language context
+3. recovery guidance
+4. a retry path when retry is safe
+
+---
+
+## Accessibility Standards
+
+NotebookLX targets **WCAG 2.1 AA** at minimum.
+
+### Requirements
+
+- Color contrast: `4.5:1` for standard text
+- Touch targets: minimum `44x44px`
+- Visible focus states on all interactive elements
+- Keyboard access for dialogs, toggles, citations, and chat controls
+- ARIA live regions for streaming or status updates
+
+### Focus Treatment
+
+```css
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+```
+
+### Mobile Accessibility Notes
+
+- Do not rely on hover-only disclosure for critical actions
+- Avoid tiny close buttons or icon-only actions without labels
+- Let long notebook IDs and URLs wrap instead of overflow
+
+---
+
+## Motion and Animation
+
+### Principles
+
+1. purposeful
+2. subtle
+3. disabled or reduced when the user prefers less motion
+
+### Duration Scale
+
+```css
+--duration-fast: 150ms
+--duration-base: 300ms
+--duration-slow: 500ms
+```
+
+### Motion Guidance
+
+- Hover and tap feedback: fast
+- Modal entry and exit: base
+- Streaming indicators: restrained pulse only
+- Avoid theatrical transitions on workspace screens
+
+---
+
+## Voice and Tone
+
+### Copy Rules
+
+1. Say “your sources” or “this notebook” instead of implying general web knowledge.
+2. Be specific about what the system is doing.
+3. Prefer calm, plain language over clever phrasing.
+4. Keep CTAs action-oriented: “Add source”, “Refresh”, “Try again”.
+
+### Error Copy
+
+- Avoid provider or infrastructure jargon when the user does not need it.
+- State whether notebook data is safe.
+- Tell the user what to do next.
 
 ---
 
 ## Iconography
 
-### Icon Library
+Use **Lucide React**.
 
-Use **Lucide React** (already included with shadcn/ui)
+Recommended mappings:
 
-### Common Icons
+- Citation: `Quote`, `FileText`
+- Source type: `File`, `Globe`, `FileText`
+- Ready: `CheckCircle`
+- Pending: `Clock`
+- Processing: `Loader`
+- Failed: `XCircle`, `AlertTriangle`
+- Add: `Plus`
+- Delete: `Trash`
+- Refresh: `RefreshCw`
+- Help or context: `Info`, `HelpCircle`
 
-- **Citation:** `Quote` or `FileText`
-- **Source types:** `File` (PDF), `Globe` (URL), `FileText` (plain text)
-- **Status:** `CheckCircle` (ready), `Clock` (pending), `Loader` (processing), `XCircle` (failed)
-- **Actions:** `Plus` (add), `Trash` (delete), `Refresh` (retry), `Settings` (config)
-- **Info:** `Info` (tooltip help), `AlertTriangle` (warning), `HelpCircle` (guidance)
-
-### Icon Sizing
+### Sizing
 
 ```css
---icon-xs:   14px   /* Inline with text-xs */
---icon-sm:   16px   /* Default, inline with body text */
---icon-base: 20px   /* Section headings */
---icon-lg:   24px   /* Feature emphasis */
+--icon-xs: 14px
+--icon-sm: 16px
+--icon-base: 20px
+--icon-lg: 24px
 ```
 
 ---
 
-## Breaking Changes & Versioning
+## Version History
 
-This DESIGN.md is versioned. When making breaking changes:
+### Version 1.1 — April 8, 2026
 
-1. Increment version number (1.0 → 1.1 → 2.0)
-2. Document what changed and why
-3. Update migration notes for existing code
+- Refactored the document structure
+- Replaced desktop-only layout guidance with explicit mobile, tablet, and desktop behavior
+- Standardized responsive breakpoint aliases for `apps/web`
+- Updated notebook detail guidance to match the current stacked mobile/tablet flow and desktop sticky chat layout
 
-**Version 1.0 — 2025-04-08**
-- Initial design system
-- Established from existing chat UI patterns
-- Query rewriting transparency UX defined
-- Accessibility baseline: WCAG 2.1 AA
+### Version 1.0 — April 8, 2025
 
----
-
-## Future Considerations
-
-### Planned Additions (Phase 4+)
-
-- **Notebook summary UI** (Feature 4.1)
-- **Key topics as tags/chips** (Feature 4.2)
-- **Generated assets viewer** (FAQ, study guides, timelines)
-- **Source overlap visualization** (Venn diagram, network graph)
-
-### Deferred
-
-- **Dark mode** — Evaluate demand before implementing
-- **Custom themes** — Low priority, neutral grays work for most use cases
-- **Advanced animations** — Keep motion subtle; avoid over-engineering
+- Initial design system draft
+- Established neutral-gray workspace, transparency UX, and accessibility baseline
 
 ---
 
 ## Design Review Process
 
-Before implementing new UI:
+Before shipping new UI:
 
-1. **Check DESIGN.md first** — Does this fit existing patterns?
-2. **Reuse components** — shadcn/ui has most building blocks
-3. **Sketch states** — Empty, loading, error, success — not just happy path
-4. **Test accessibility** — Keyboard nav, screen reader, contrast
-5. **Get review** — Run `/plan-design-review` before implementing
+1. Check `DESIGN.md` first.
+2. Reuse existing shared primitives where possible.
+3. Review empty, loading, success, and error states.
+4. Verify mobile, tablet, and desktop behavior explicitly.
+5. Check keyboard access, focus states, and contrast.
 
----
-
-**Ownership:** This design system is maintained by the NotebookLX team. Proposed changes should be reviewed via `/plan-design-review` before implementation.
-
-**Questions?** Refer to CLAUDE.md for project context, or run `/design-consultation` to establish new patterns.
+**Ownership:** NotebookLX team  
+**Related docs:** `CLAUDE.md`, `AGENTS.md`, `DEVELOPMENT_PLAN.md`

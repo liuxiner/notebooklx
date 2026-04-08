@@ -38,7 +38,7 @@ const STARTER_PROMPTS = [
   "What evidence supports the key claim?",
 ];
 const transparencySectionClasses =
-  "space-y-4 rounded-[1.75rem] border border-slate-200 bg-white/88 p-5 shadow-[0_1px_3px_rgba(15,23,42,0.05)]";
+  "space-y-4 rounded-[1.5rem] border border-slate-200 bg-white/88 p-4 shadow-[0_1px_3px_rgba(15,23,42,0.05)] tablet:rounded-[1.75rem] tablet:p-5";
 const transparencyCardClasses =
   "rounded-2xl border border-slate-200 bg-slate-50/70 p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)]";
 const transparencyLabelClasses =
@@ -530,9 +530,9 @@ export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
   }
 
   return (
-    <Card className="flex h-full min-h-[70vh] flex-col overflow-hidden border-slate-200 bg-white/92 shadow-[0_18px_45px_rgba(15,23,42,0.08)]">
+    <Card className="flex h-full min-h-[68svh] flex-col overflow-hidden border-slate-200 bg-white/92 shadow-[0_18px_45px_rgba(15,23,42,0.08)] desktop:min-h-[72vh]">
       <CardHeader className="gap-4 border-b border-slate-200/80 bg-[linear-gradient(180deg,rgba(248,250,252,0.92),rgba(255,255,255,0.98))]">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex flex-col gap-4 tablet:flex-row tablet:items-start tablet:justify-between">
           <div>
             <CardTitle className="text-2xl">Grounded chat</CardTitle>
             <CardDescription>
@@ -540,7 +540,7 @@ export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
             </CardDescription>
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3 shadow-sm sm:max-w-[220px]">
+          <div className="w-full rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3 shadow-sm tablet:max-w-[220px]">
             <p className={transparencyLabelClasses}>Notebook scope</p>
             <p className="mt-2 text-sm font-semibold leading-6 text-slate-900">
               Answers stay limited to sources added here.
@@ -550,9 +550,9 @@ export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
       </CardHeader>
 
       <CardContent className="flex min-h-0 flex-1 flex-col p-0">
-        <div className="flex-1 space-y-4 overflow-y-auto bg-white/50 px-4 py-5 sm:px-5">
+        <div className="flex-1 space-y-4 overflow-y-auto bg-white/50 px-3 py-4 xs:px-4 tablet:px-5 tablet:py-5">
           {messages.length === 0 ? (
-            <div className="rounded-[1.75rem] border border-dashed border-slate-300 bg-slate-50/80 p-5">
+            <div className="rounded-[1.5rem] border border-dashed border-slate-300 bg-slate-50/80 p-4 tablet:rounded-[1.75rem] tablet:p-5">
               <p className={transparencyLabelClasses}>Starter prompts</p>
               <p className="mt-3 text-sm font-medium text-slate-900">
                 Start with a grounded question
@@ -597,7 +597,7 @@ export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
           <div ref={bottomRef} />
         </div>
 
-        <div className="border-t border-slate-200 bg-slate-50/80 px-4 py-4 sm:px-5">
+        <div className="order-3 border-t border-slate-200 bg-slate-50/80 px-3 py-4 xs:px-4 tablet:px-5 desktop:order-2">
           <div className="space-y-6">
             {queryRewrite ? (
               <section className={transparencySectionClasses}>
@@ -631,7 +631,7 @@ export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
                   </div>
 
                   {isQueryRewriteExpanded ? (
-                    <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                    <div className="mt-4 grid gap-4 tablet:grid-cols-2">
                       <div className="space-y-1.5">
                         <p className={transparencyLabelClasses}>
                           Original query
@@ -650,7 +650,7 @@ export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
                         </p>
                       </div>
 
-                      <div className="space-y-1.5 sm:col-span-2">
+                      <div className="space-y-1.5 tablet:col-span-2">
                         <p className={transparencyLabelClasses}>
                           Retrieval searches
                         </p>
@@ -666,7 +666,7 @@ export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
                         </div>
                       </div>
 
-                      <div className="space-y-1.5 sm:col-span-2">
+                      <div className="space-y-1.5 tablet:col-span-2">
                         <p className={transparencyLabelClasses}>
                           Rewrite strategy
                         </p>
@@ -689,7 +689,7 @@ export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
                 </p>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-3 xs:grid-cols-2">
                 <div className={transparencyCardClasses}>
                   <p className={transparencyLabelClasses}>Model</p>
                   <p className="mt-2 text-sm font-semibold text-slate-900">
@@ -785,7 +785,7 @@ export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
                             key={`${chunk.chunk_id}-${chunk.citation_index}`}
                             className="rounded-xl border border-slate-200 bg-white/80 px-3 py-3"
                           >
-                            <div className="flex items-start justify-between gap-3">
+                            <div className="flex flex-col gap-2 xs:flex-row xs:items-start xs:justify-between xs:gap-3">
                               <p className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
                                 Chunk{" "}
                                 {typeof chunk.chunk_index === "number"
@@ -828,7 +828,7 @@ export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
               {selectedCitation && citationPanelMessage ? (
                 <>
                   <div className={transparencyCardClasses}>
-                    <div className="flex items-start justify-between gap-4">
+                    <div className="flex flex-col gap-3 xs:flex-row xs:items-start xs:justify-between xs:gap-4">
                       <div>
                         <p className={transparencyLabelClasses}>
                           Citation [{selectedCitation.citation_index}]
@@ -877,7 +877,7 @@ export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
           </div>
         </div>
 
-        <div className="border-t border-slate-200 bg-background/95 p-4 backdrop-blur sm:p-5">
+        <div className="order-2 border-t border-slate-200 bg-background/95 p-4 backdrop-blur tablet:p-5 desktop:order-3">
           <div
             className={`mb-4 rounded-[1.75rem] border px-4 py-4 ${getWorkflowCardClasses(
               workflowCard.tone
@@ -922,14 +922,14 @@ export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
               onChange={(event) => setDraft(event.target.value)}
               onKeyDown={handleTextareaKeyDown}
               disabled={isStreaming}
-              className="min-h-[110px] resize-none"
+              className="min-h-[104px] resize-none tablet:min-h-[110px]"
             />
 
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-col gap-3 xs:flex-row xs:items-center xs:justify-between">
               <p className="font-mono text-xs uppercase tracking-[0.12em] text-muted-foreground">
                 Enter sends. Shift+Enter inserts a new line.
               </p>
-              <Button type="submit" disabled={!draft.trim() || isStreaming}>
+              <Button type="submit" disabled={!draft.trim() || isStreaming} className="w-full xs:w-auto">
                 Send
               </Button>
             </div>

@@ -8,6 +8,11 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      screens: {
+        xs: "480px",
+        tablet: "768px",
+        desktop: "1200px",
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
