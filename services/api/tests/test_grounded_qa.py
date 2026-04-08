@@ -3,7 +3,7 @@ Tests for grounded Q&A evidence packing and prompt assembly.
 
 Feature 3.2: Grounded Q&A with Citations
 """
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, call
 from uuid import uuid4
 
 import pytest
@@ -229,6 +229,92 @@ class TestGroundedQAService:
         assert response.answer == "Alpha is supported by [2] and [1]."
         assert [chunk.citation_index for chunk in response.citations] == [2, 1]
         assert response.raw_answer == "Alpha is supported by [2] and [1]."
+
+    @pytest.mark.asyncio
+    async def test_prepare_answer_uses_search_queries_for_retrieval_and_standalone_query_for_prompt(self):
+        from services.api.modules.query.rewriter import QueryRewriteResult
+
+        retriever = AsyncMock()
+        retriever.search.side_effect = [
+            [
+                make_result(
+                    chunk_id="chunk-1",
+                    source_title="Alpha Guide",
+                    content="Alpha documents list the primary project risks.",
+                    score=0.93,
+                    page=4,
+                ),
+                make_result(
+                    chunk_id="chunk-2",
+                    source_title="Beta Guide",
+                    content="Architecture risks include missing retries.",
+                    score=0.61,
+                    page=5,
+                ),
+            ],
+            [
+                make_result(
+                    chunk_id="chunk-2",
+                    source_title="Beta Guide",
+                    content="Architecture risks include missing retries.",
+                    score=0.97,
+                    page=5,
+                ),
+                make_result(
+                    chunk_id="chunk-3",
+                    source_title="Gamma Guide",
+                    content="Operational risks include slow ingestion recovery.",
+                    score=0.74,
+                    page=6,
+                ),
+            ],
+        ]
+        embedding_provider = MagicMock()
+        embedding_provider.embed.side_effect = [[0.1, 0.2], [0.3, 0.4]]
+        chat_provider = MagicMock()
+        query_rewriter = MagicMock()
+        query_rewriter.rewrite_for_retrieval.return_value = QueryRewriteResult(
+            original_query="What are the risks?",
+            standalone_query="What are the main NotebookLX project risks described in the documents?",
+            search_queries=("NotebookLX project risks", "NotebookLX architecture risks"),
+            strategy="keyword_enrichment",
+            used_llm=True,
+        )
+
+        service = GroundedQAService(
+            retriever,
+            embedding_provider,
+            chat_provider,
+            query_rewriter=query_rewriter,
+        )
+        preparation = await service.prepare_answer(
+            "What are the risks?",
+            str(uuid4()),
+            top_k=2,
+            chat_history=[
+                {"role": "assistant", "content": "We discussed ingestion retries and architecture issues."},
+            ],
+        )
+
+        query_rewriter.rewrite_for_retrieval.assert_called_once_with(
+            "What are the risks?",
+            chat_history=[
+                {"role": "assistant", "content": "We discussed ingestion retries and architecture issues."},
+            ],
+        )
+        assert embedding_provider.embed.call_args_list == [
+            call("NotebookLX project risks"),
+            call("NotebookLX architecture risks"),
+        ]
+        assert retriever.search.await_args_list[0].kwargs["query"] == "NotebookLX project risks"
+        assert retriever.search.await_args_list[1].kwargs["query"] == "NotebookLX architecture risks"
+        assert [chunk.chunk_id for chunk in preparation.evidence] == ["chunk-2", "chunk-1"]
+        assert "Question: What are the main NotebookLX project risks described in the documents?" in preparation.messages[1]["content"]
+        assert preparation.query_rewrite is not None
+        assert preparation.query_rewrite.search_queries == (
+            "NotebookLX project risks",
+            "NotebookLX architecture risks",
+        )
 
     @pytest.mark.asyncio
     async def test_answer_question_retrieves_evidence_and_calls_chat(self):

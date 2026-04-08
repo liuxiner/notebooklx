@@ -42,6 +42,15 @@ export interface ChatMetricsEvent {
   stream_delivery?: string | null;
 }
 
+export interface ChatQueryRewriteEvent {
+  original_query: string;
+  standalone_query: string;
+  search_queries: string[];
+  strategy: string;
+  used_llm: boolean;
+  rewritten: boolean;
+}
+
 export interface ChatAnswerEvent {
   answer: string;
   raw_answer: string;
@@ -78,6 +87,7 @@ interface StreamNotebookChatOptions {
   signal?: AbortSignal;
   onStatus?: (payload: ChatStatusEvent) => void;
   onMetrics?: (payload: ChatMetricsEvent) => void;
+  onQueryRewrite?: (payload: ChatQueryRewriteEvent) => void;
   onRetrieval?: (payload: ChatRetrievalEvent) => void;
   onCitations?: (payload: ChatCitationsEvent) => void;
   onAnswerDelta?: (payload: ChatAnswerDeltaEvent) => void;
@@ -245,6 +255,7 @@ export async function streamNotebookChat({
   signal,
   onStatus,
   onMetrics,
+  onQueryRewrite,
   onRetrieval,
   onCitations,
   onAnswerDelta,
@@ -287,6 +298,9 @@ export async function streamNotebookChat({
         break;
       case "metrics":
         onMetrics?.(parsedEvent.data as ChatMetricsEvent);
+        break;
+      case "query_rewrite":
+        onQueryRewrite?.(parsedEvent.data as ChatQueryRewriteEvent);
         break;
       case "retrieval":
         onRetrieval?.(parsedEvent.data as ChatRetrievalEvent);

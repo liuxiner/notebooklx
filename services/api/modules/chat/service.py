@@ -12,6 +12,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any, Iterator, Protocol
 
+from services.api.modules.query.rewriter import QueryRewriteResult
 from services.api.modules.embeddings.providers import EmbeddingProvider
 from services.api.modules.retrieval.hybrid import HybridSearchResult
 
@@ -52,6 +53,15 @@ class ChatProviderProtocol(Protocol):
         ...
 
 
+class QueryRewriterProtocol(Protocol):
+    def rewrite_for_retrieval(
+        self,
+        query: str,
+        chat_history: list[dict[str, str]] | None = None,
+    ) -> QueryRewriteResult:
+        ...
+
+
 @dataclass(frozen=True)
 class EvidenceChunk:
     """Structured evidence used to ground a response."""
@@ -87,6 +97,7 @@ class GroundedQAPreparation:
     evidence: list[EvidenceChunk] = field(default_factory=list)
     messages: list[dict[str, Any]] = field(default_factory=list)
     metrics: "ChatTimingMetrics | None" = None
+    query_rewrite: QueryRewriteResult | None = None
 
 
 @dataclass(frozen=True)
@@ -178,6 +189,60 @@ def build_retrieval_diagnostics(evidence: list[EvidenceChunk]) -> RetrievalDiagn
         source_count=len(source_keys),
         chunks=evidence,
     )
+
+
+def merge_retrieval_results(
+    result_sets: list[list[HybridSearchResult]],
+    *,
+    top_k: int,
+) -> list[HybridSearchResult]:
+    """Merge retrieval results from multiple rewritten search queries."""
+    if not result_sets:
+        return []
+
+    if len(result_sets) == 1:
+        return result_sets[0][:top_k]
+
+    merged_by_chunk: dict[str, HybridSearchResult] = {}
+
+    for results in result_sets:
+        for result in results:
+            existing = merged_by_chunk.get(result.chunk_id)
+            if existing is None:
+                merged_by_chunk[result.chunk_id] = HybridSearchResult(
+                    chunk_id=result.chunk_id,
+                    source_id=result.source_id,
+                    notebook_id=result.notebook_id,
+                    content=result.content,
+                    score=result.score,
+                    vector_score=result.vector_score,
+                    bm25_score=result.bm25_score,
+                    vector_rank=result.vector_rank,
+                    bm25_rank=result.bm25_rank,
+                    metadata=dict(result.metadata or {}),
+                    source_title=result.source_title,
+                    chunk_index=result.chunk_index,
+                )
+                continue
+
+            existing.score += result.score
+            if result.vector_score is not None and (
+                existing.vector_score is None or result.vector_score > existing.vector_score
+            ):
+                existing.vector_score = result.vector_score
+                existing.vector_rank = result.vector_rank
+            if result.bm25_score is not None and (
+                existing.bm25_score is None or result.bm25_score > existing.bm25_score
+            ):
+                existing.bm25_score = result.bm25_score
+                existing.bm25_rank = result.bm25_rank
+
+    merged_results = sorted(
+        merged_by_chunk.values(),
+        key=lambda result: result.score,
+        reverse=True,
+    )
+    return merged_results[:top_k]
 
 
 def build_grounded_messages(
@@ -361,10 +426,12 @@ class GroundedQAService:
         retrieval_service: RetrievalServiceProtocol,
         embedding_provider: EmbeddingProvider,
         chat_provider: ChatProviderProtocol,
+        query_rewriter: QueryRewriterProtocol | None = None,
     ) -> None:
         self.retrieval_service = retrieval_service
         self.embedding_provider = embedding_provider
         self.chat_provider = chat_provider
+        self.query_rewriter = query_rewriter
 
     async def prepare_answer(
         self,
@@ -372,25 +439,49 @@ class GroundedQAService:
         notebook_id: str,
         *,
         top_k: int = 5,
+        chat_history: list[dict[str, str]] | None = None,
     ) -> GroundedQAPreparation:
         """Retrieve evidence and assemble prompt messages for a grounded answer."""
+        chat_history = chat_history or []
+        rewritten_query: QueryRewriteResult | None = None
+        retrieval_queries = (question,)
+        prompt_question = question
+
+        if self.query_rewriter is not None:
+            rewritten_query = self.query_rewriter.rewrite_for_retrieval(
+                question,
+                chat_history=chat_history,
+            )
+            if rewritten_query.search_queries:
+                retrieval_queries = rewritten_query.search_queries
+            if rewritten_query.standalone_query:
+                prompt_question = rewritten_query.standalone_query
+
         embed_start = time.monotonic()
-        query_embedding = self.embedding_provider.embed(question)
+        query_embeddings = [
+            self.embedding_provider.embed(retrieval_query)
+            for retrieval_query in retrieval_queries
+        ]
         embed_duration = time.monotonic() - embed_start
         logger.info(f"[CHAT] Embedding generation took {embed_duration:.2f}s")
 
         search_start = time.monotonic()
-        retrieved = await self.retrieval_service.search(
-            query=question,
-            query_embedding=query_embedding,
-            notebook_id=notebook_id,
-            top_k=top_k,
-        )
+        retrieved_sets: list[list[HybridSearchResult]] = []
+        for retrieval_query, query_embedding in zip(retrieval_queries, query_embeddings):
+            retrieved_sets.append(
+                await self.retrieval_service.search(
+                    query=retrieval_query,
+                    query_embedding=query_embedding,
+                    notebook_id=notebook_id,
+                    top_k=top_k,
+                )
+            )
+        retrieved = merge_retrieval_results(retrieved_sets, top_k=top_k)
         search_duration = time.monotonic() - search_start
         logger.info(f"[CHAT] Vector search took {search_duration:.2f}s, found {len(retrieved)} results")
 
         evidence = format_evidence_pack(retrieved)
-        messages = build_grounded_messages(question, evidence)
+        messages = build_grounded_messages(prompt_question, evidence)
         prepare_duration = embed_duration + search_duration
         metrics = ChatTimingMetrics(
             model=getattr(self.chat_provider, "model", None),
@@ -402,6 +493,7 @@ class GroundedQAService:
             evidence=evidence,
             messages=messages,
             metrics=metrics,
+            query_rewrite=rewritten_query,
         )
 
     def stream_answer(
@@ -431,6 +523,7 @@ class GroundedQAService:
         notebook_id: str,
         *,
         top_k: int = 5,
+        chat_history: list[dict[str, str]] | None = None,
     ) -> GroundedQAResponse:
         """Retrieve evidence and generate a grounded answer."""
         start_time = time.monotonic()
@@ -440,6 +533,7 @@ class GroundedQAService:
             question,
             notebook_id,
             top_k=top_k,
+            chat_history=chat_history,
         )
         if not prepared.evidence:
             logger.warning(f"[CHAT] No evidence found for question: '{question[:50]}...'")

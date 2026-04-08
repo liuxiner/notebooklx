@@ -17,6 +17,7 @@ describe("streamNotebookChat", () => {
   it("dispatches CRLF-delimited SSE frames before the stream completes", async () => {
     const onStatus = jest.fn();
     const onMetrics = jest.fn();
+    const onQueryRewrite = jest.fn();
     const onRetrieval = jest.fn();
     let resolvePendingRead:
       | ((result: ReadableStreamReadResult<Uint8Array>) => void)
@@ -38,6 +39,14 @@ describe("streamNotebookChat", () => {
           value: new Uint8Array(
             Buffer.from(
               'event: metrics\r\ndata: {"model":"glm-4.7","query_embedding_seconds":6.41,"retrieval_seconds":0.16,"prepare_seconds":6.57}\r\n\r\n'
+            )
+          ),
+        })
+        .mockResolvedValueOnce({
+          done: false,
+          value: new Uint8Array(
+            Buffer.from(
+              'event: query_rewrite\r\ndata: {"original_query":"What is Alpha?","standalone_query":"What does the notebook say about Alpha?","search_queries":["Alpha overview","Alpha key points"],"strategy":"keyword_enrichment","used_llm":true,"rewritten":true}\r\n\r\n'
             )
           ),
         })
@@ -71,6 +80,7 @@ describe("streamNotebookChat", () => {
       question: "What is Alpha?",
       onStatus,
       onMetrics,
+      onQueryRewrite,
       onRetrieval,
     });
 
@@ -85,6 +95,14 @@ describe("streamNotebookChat", () => {
       query_embedding_seconds: 6.41,
       retrieval_seconds: 0.16,
       prepare_seconds: 6.57,
+    });
+    expect(onQueryRewrite).toHaveBeenCalledWith({
+      original_query: "What is Alpha?",
+      standalone_query: "What does the notebook say about Alpha?",
+      search_queries: ["Alpha overview", "Alpha key points"],
+      strategy: "keyword_enrichment",
+      used_llm: true,
+      rewritten: true,
     });
     expect(onRetrieval).toHaveBeenCalledWith({
       chunk_count: 2,

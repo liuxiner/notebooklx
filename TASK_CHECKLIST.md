@@ -228,10 +228,11 @@ Quick reference checklist for tracking development progress. Check off items as 
 - ⬜ Performance testing
 - ⬜ A/B evaluation
 
-**Query Rewriting**
+**Query Rewriting** ⚡
 - ✓ Rewriter function
 - ✓ Chat history integration
-- ⬜ Transparency option
+- ✓ Chat flow integration before retrieval
+- ✓ Transparency option
 - ⬜ Quality testing
 
 **Evaluation**
@@ -293,6 +294,7 @@ Quick reference checklist for tracking development progress. Check off items as 
 - ⬜ Architecture docs
 - ⬜ Deployment guide
 - ⬜ User guide
+- ⬜ Design system (DESIGN.md) - Run /design-consultation
 
 **Deployment**
 - ⬜ Docker setup

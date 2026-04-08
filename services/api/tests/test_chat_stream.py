@@ -60,7 +60,9 @@ class TestGroundedChatStream:
                 notebook_id: str,
                 *,
                 top_k: int = 5,
+                chat_history=None,
             ):
+                _ = chat_history
                 self.calls.append((question, notebook_id, top_k))
                 evidence = [_make_citation_chunk()]
                 return GroundedQAPreparation(
@@ -167,7 +169,9 @@ class TestGroundedChatStream:
                 notebook_id: str,
                 *,
                 top_k: int = 5,
+                chat_history=None,
             ):
+                _ = chat_history
                 evidence = [_make_citation_chunk()]
                 return GroundedQAPreparation(
                     evidence=evidence,
@@ -210,6 +214,89 @@ class TestGroundedChatStream:
             assert stream.headers["x-accel-buffering"] == "no"
             _ = "".join(stream.iter_text())
 
+    def test_stream_endpoint_emits_query_rewrite_transparency_event(
+        self,
+        client: TestClient,
+        sample_notebook_data: dict,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """
+        AC: User can see rewritten query (optional transparency).
+        """
+        from services.api.modules.chat import routes as chat_routes
+        from services.api.modules.query.rewriter import QueryRewriteResult
+
+        notebook_response = client.post("/api/notebooks", json=sample_notebook_data)
+        assert notebook_response.status_code == 201
+        notebook_id = notebook_response.json()["id"]
+
+        class FakeGroundedQAService:
+            async def prepare_answer(
+                self,
+                question: str,
+                notebook_id: str,
+                *,
+                top_k: int = 5,
+                chat_history=None,
+            ):
+                _ = (question, notebook_id, top_k, chat_history)
+                evidence = [_make_citation_chunk()]
+                return GroundedQAPreparation(
+                    evidence=evidence,
+                    messages=[
+                        {"role": "system", "content": "Use evidence only."},
+                        {"role": "user", "content": "Question: What are the NotebookLX project risks?"},
+                    ],
+                    query_rewrite=QueryRewriteResult(
+                        original_query="What are the risks?",
+                        standalone_query="What are the NotebookLX project risks?",
+                        search_queries=(
+                            "NotebookLX project risks",
+                            "NotebookLX architecture risks",
+                        ),
+                        strategy="keyword_enrichment",
+                        used_llm=True,
+                    ),
+                )
+
+            def stream_answer(self, messages):
+                _ = messages
+                yield "Alpha is supported."
+
+            def finalize_answer(self, raw_answer, evidence, messages) -> GroundedQAResponse:
+                return GroundedQAResponse(
+                    answer=raw_answer,
+                    evidence=evidence,
+                    citations=evidence,
+                    citation_indices=[1],
+                    missing_citation_indices=[],
+                    raw_answer=raw_answer,
+                    messages=messages,
+                )
+
+        monkeypatch.setattr(
+            chat_routes,
+            "get_grounded_qa_service",
+            lambda _db: FakeGroundedQAService(),
+        )
+
+        response = client.stream(
+            "POST",
+            f"/api/notebooks/{notebook_id}/chat/stream",
+            json={"question": "What are the risks?"},
+        )
+
+        with response as stream:
+            assert stream.status_code == 200
+            body = "".join(stream.iter_text())
+
+        assert "event: query_rewrite" in body
+        assert '"original_query": "What are the risks?"' in body
+        assert '"standalone_query": "What are the NotebookLX project risks?"' in body
+        assert '"search_queries": ["NotebookLX project risks", "NotebookLX architecture risks"]' in body
+        assert '"strategy": "keyword_enrichment"' in body
+        assert body.index("event: query_rewrite") < body.index("event: retrieval")
+
     def test_stream_endpoint_emits_error_event_without_aborting_connection(
         self,
         client: TestClient,
@@ -236,8 +323,9 @@ class TestGroundedChatStream:
                 notebook_id: str,
                 *,
                 top_k: int = 5,
+                chat_history=None,
             ):
-                _ = (question, notebook_id, top_k)
+                _ = (question, notebook_id, top_k, chat_history)
                 raise RuntimeError("Unexpected upstream failure")
 
         monkeypatch.setattr(
@@ -283,8 +371,9 @@ class TestGroundedChatStream:
                 notebook_id: str,
                 *,
                 top_k: int = 5,
+                chat_history=None,
             ):
-                _ = (question, notebook_id, top_k)
+                _ = (question, notebook_id, top_k, chat_history)
                 raise RuntimeError(
                     "openai.RateLimitError: Error code: 429 - "
                     "{'error': {'code': '1113', 'message': '余额不足或无可用资源包,请充值。'}}"
@@ -334,8 +423,9 @@ class TestGroundedChatStream:
                 notebook_id: str,
                 *,
                 top_k: int = 5,
+                chat_history=None,
             ):
-                _ = (question, notebook_id, top_k)
+                _ = (question, notebook_id, top_k, chat_history)
                 raise RuntimeError(
                     "Request blocked by content policy because it may contain violative terms."
                 )
@@ -385,7 +475,9 @@ class TestGroundedChatStream:
                 notebook_id: str,
                 *,
                 top_k: int = 5,
+                chat_history=None,
             ):
+                _ = chat_history
                 evidence = [_make_citation_chunk()]
                 return GroundedQAPreparation(
                     evidence=evidence,
@@ -465,7 +557,9 @@ class TestGroundedChatStream:
                 notebook_id: str,
                 *,
                 top_k: int = 5,
+                chat_history=None,
             ):
+                _ = chat_history
                 return GroundedQAPreparation(
                     evidence=[],
                     messages=[{"role": "user", "content": question}],

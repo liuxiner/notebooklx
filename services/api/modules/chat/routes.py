@@ -33,6 +33,7 @@ from services.api.modules.chat.service import build_retrieval_diagnostics
 from services.api.modules.embeddings.providers import BigModelEmbeddingProvider
 from services.api.modules.notebooks.models import Notebook
 from services.api.modules.notebooks.routes import get_current_user_id
+from services.api.modules.query import QueryRewriter, get_recent_chat_history
 from services.api.modules.retrieval.hybrid import HybridSearchService
 
 
@@ -75,7 +76,13 @@ def get_grounded_qa_service(db: Session) -> GroundedQAService:
     retrieval_service = HybridSearchService(db)
     embedding_provider = BigModelEmbeddingProvider()
     chat_provider = BigModelChatProvider()
-    return GroundedQAService(retrieval_service, embedding_provider, chat_provider)
+    query_rewriter = QueryRewriter(chat_provider=chat_provider)
+    return GroundedQAService(
+        retrieval_service,
+        embedding_provider,
+        chat_provider,
+        query_rewriter=query_rewriter,
+    )
 
 
 def _get_notebook_for_user(
@@ -274,15 +281,26 @@ async def stream_grounded_chat(
         await asyncio.sleep(0)
 
         try:
+            chat_history = get_recent_chat_history(db, str(notebook.id))
             preparation = await grounded_qa_service.prepare_answer(
                 payload.question,
                 str(notebook.id),
                 top_k=payload.top_k,
+                chat_history=chat_history,
             )
             if preparation.metrics is not None:
                 yield _format_sse_event(
                     "metrics",
                     asdict(preparation.metrics),
+                )
+                await asyncio.sleep(0)
+
+            if preparation.query_rewrite is not None:
+                rewrite_payload = asdict(preparation.query_rewrite)
+                rewrite_payload["rewritten"] = preparation.query_rewrite.rewritten
+                yield _format_sse_event(
+                    "query_rewrite",
+                    rewrite_payload,
                 )
                 await asyncio.sleep(0)
 

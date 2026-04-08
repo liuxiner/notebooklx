@@ -830,7 +830,7 @@ This document outlines the detailed development plan, acceptance criteria, and t
 - [x] Vague queries expanded with context
 - [x] Follow-up questions include chat history
 - [ ] Improved retrieval recall
-- [ ] User can see rewritten query (optional transparency)
+- [x] User can see rewritten query (optional transparency)
 - [ ] Configurable rewriting strategies
 
 **Tasks:**
@@ -839,8 +839,8 @@ This document outlines the detailed development plan, acceptance criteria, and t
    - Analyze user query
    - Include chat history context
    - Generate improved query
-3. Integrate into chat flow (before retrieval)
-4. Add transparency option (show rewritten query)
+3. [x] Integrate into chat flow (before retrieval)
+4. [x] Add transparency option (show rewritten query)
 5. [x] Test with various query types
 6. Measure impact on retrieval quality
 7. [x] Write unit tests
