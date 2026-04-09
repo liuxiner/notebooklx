@@ -1,7 +1,7 @@
 """
 Database connection and session management.
 """
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.orm import declarative_base
@@ -63,8 +63,29 @@ def initialize_database(bind_engine: Engine | None = None) -> None:
     from services.api.modules.ingestion.models import IngestionJob  # noqa: F401
     from services.api.modules.chunking.models import SourceChunk  # noqa: F401
     from services.api.modules.chat.models import Message  # noqa: F401
+    from services.api.modules.evaluation.models import EvaluationRun, EvaluationMetric  # noqa: F401
 
     Base.metadata.create_all(bind=active_engine)
+    _ensure_sqlite_evaluation_columns(active_engine)
+
+
+def _ensure_sqlite_evaluation_columns(active_engine: Engine) -> None:
+    """Backfill newly added SQLite columns for local development databases."""
+    inspector = inspect(active_engine)
+
+    if not inspector.has_table("evaluation_runs"):
+        return
+
+    column_names = {column["name"] for column in inspector.get_columns("evaluation_runs")}
+
+    if "ground_truth_chunk_ids" not in column_names:
+        with active_engine.begin() as connection:
+            connection.execute(
+                text(
+                    "ALTER TABLE evaluation_runs "
+                    "ADD COLUMN ground_truth_chunk_ids JSON"
+                )
+            )
 
 
 def get_db() -> Generator[Session, None, None]:

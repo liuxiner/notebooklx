@@ -193,3 +193,76 @@ def delete_notebook(
     db.commit()
 
     return None  # 204 No Content
+
+
+@router.get("/{notebook_id}/chunks")
+def list_notebook_chunks(
+    notebook_id: uuid.UUID,
+    limit: int = 100,
+    offset: int = 0,
+    db: Session = Depends(get_db),
+    user_id: uuid.UUID = Depends(get_current_user_id)
+):
+    """
+    Get all chunks for a notebook (for evaluation ground truth selection).
+
+    Returns chunks with source information for display in UI.
+    """
+    from services.api.modules.chunking.models import SourceChunk
+    from services.api.modules.sources.models import Source
+
+    # Verify notebook ownership
+    notebook = db.query(Notebook).filter(
+        Notebook.id == notebook_id,
+        Notebook.user_id == user_id,
+        Notebook.deleted_at.is_(None)
+    ).first()
+
+    if not notebook:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "not_found", "message": f"Notebook {notebook_id} not found"}
+        )
+
+    # Get chunks from sources in this notebook
+    chunks_query = (
+        db.query(SourceChunk, Source)
+        .join(Source, SourceChunk.source_id == Source.id)
+        .filter(Source.notebook_id == notebook_id)
+        .order_by(Source.title, SourceChunk.chunk_index)
+        .limit(limit)
+        .offset(offset)
+    )
+
+    results = chunks_query.all()
+
+    chunks_list = []
+    for chunk, source in results:
+        # Truncate content for display
+        preview = chunk.content[:200] + "..." if len(chunk.content) > 200 else chunk.content
+
+        chunks_list.append({
+            "id": str(chunk.id),
+            "source_id": str(source.id),
+            "source_title": source.title,
+            "chunk_index": chunk.chunk_index,
+            "content": chunk.content,
+            "preview": preview,
+            "token_count": chunk.token_count,
+            "metadata": chunk.chunk_metadata or {}
+        })
+
+    # Get total count
+    total_count = (
+        db.query(SourceChunk)
+        .join(Source, SourceChunk.source_id == Source.id)
+        .filter(Source.notebook_id == notebook_id)
+        .count()
+    )
+
+    return {
+        "chunks": chunks_list,
+        "total": total_count,
+        "limit": limit,
+        "offset": offset
+    }

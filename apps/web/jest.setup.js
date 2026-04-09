@@ -17,3 +17,11 @@ Object.defineProperty(window, "matchMedia", {
 if (!Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = jest.fn();
 }
+
+if (!global.ResizeObserver) {
+  global.ResizeObserver = class ResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+}

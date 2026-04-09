@@ -939,12 +939,18 @@ This document outlines the detailed development plan, acceptance criteria, and t
 ### Feature 6.3: Evaluation Dashboard
 
 **Acceptance Criteria:**
-- [ ] Track retrieval metrics: recall@5, recall@10, MRR
+- [x] Track retrieval metrics: recall@5, recall@10, MRR
 - [ ] Track citation metrics: support rate, wrong citation rate
 - [ ] Track answer quality: groundedness, completeness, faithfulness
 - [ ] Dashboard shows trends over time
 - [ ] Filterable by notebook, time range
 - [ ] Export metrics as CSV
+- [x] Manual evaluation creation requires selecting a notebook in the create dialog
+- [x] Evaluation filters use a notebook picker instead of raw notebook ID entry
+- [x] Ground truth chunk selection is a multi-selector scoped to the selected notebook
+- [x] Changing the selected notebook clears stale ground truth chunk selections
+- [x] Evaluation runs table exposes Start and Retry actions for runnable evaluations
+- [x] Frontend shows clear loading, empty, and error states for notebook and chunk selection
 
 **Tasks:**
 1. Create evaluation dataset
@@ -966,6 +972,13 @@ This document outlines the detailed development plan, acceptance criteria, and t
 11. Schedule automated evaluation runs
 12. Write unit tests
 13. Add database migration
+14. [x] Build the manual evaluation creation UX slice
+   - [x] Add notebook picker to dashboard filters
+   - [x] Add required notebook picker inside Create Evaluation dialog
+   - [x] Drive chunk multi-selector from the selected notebook
+   - [x] Clear chunk selections when notebook changes
+   - [x] Add Start / Retry row actions in the evaluation runs table
+   - [x] Add focused frontend tests for notebook, chunk, and run actions
 
 ---
 

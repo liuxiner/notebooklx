@@ -35,6 +35,7 @@ from services.api.modules.citations.routes import router as citations_router
 from services.api.modules.ingestion.routes import router as ingestion_router
 from services.api.modules.notebooks.routes import router as notebooks_router
 from services.api.modules.sources.routes import router as sources_router
+from services.api.modules.evaluation.routes import router as evaluation_router
 
 # Configure logging
 logging.basicConfig(
@@ -78,6 +79,7 @@ app.include_router(sources_router)
 app.include_router(ingestion_router)
 app.include_router(chat_router)
 app.include_router(citations_router)
+app.include_router(evaluation_router)
 
 
 @app.get("/")

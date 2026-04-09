@@ -259,9 +259,19 @@ Quick reference checklist for tracking development progress. Check off items as 
 - ✓ Rewriter configuration options
 - ⬜ Quality testing
 
+**Evaluation Dashboard - Manual Create UX** ✓
+- ✓ Manual evaluation create flow tracked in DEVELOPMENT_PLAN.md
+- ✓ Notebook picker in dashboard filters
+- ✓ Required notebook picker in create-evaluation dialog
+- ✓ Notebook-scoped ground-truth chunk multi-selector
+- ✓ Clear chunk selections when notebook changes
+- ✓ Start evaluation action in runs table
+- ✓ Retry evaluation action in runs table
+- ✓ Frontend tests for evaluation create/start/retry flow and chunk selector loop regression
+
 **Evaluation**
 - ⬜ Evaluation dataset (20-50 Q&As)
-- ⬜ Retrieval metrics (recall, MRR)
+- ✓ Retrieval metrics (recall, MRR)
 - ⬜ Citation metrics
 - ⬜ Answer quality metrics
 - ⬜ Dashboard UI

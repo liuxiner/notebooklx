@@ -372,3 +372,87 @@ class TestNotebookErrorHandling:
         """
         # Placeholder - would need to mock database failure
         pass
+
+
+class TestNotebookChunks:
+    """Tests for GET /api/notebooks/{id}/chunks endpoint."""
+
+    def test_list_notebook_chunks(self, client: TestClient, db, sample_notebook, sample_source):
+        """
+        Test listing chunks for a notebook (for evaluation ground truth selection)
+        """
+        from services.api.modules.chunking.models import SourceChunk
+
+        # Create some test chunks
+        chunk1 = SourceChunk(
+            source_id=sample_source.id,
+            chunk_index=0,
+            content="This is the first chunk of content.",
+            token_count=10,
+            char_start=0,
+            char_end=35,
+            chunk_metadata={"page": 1}
+        )
+        chunk2 = SourceChunk(
+            source_id=sample_source.id,
+            chunk_index=1,
+            content="This is the second chunk of content.",
+            token_count=10,
+            char_start=36,
+            char_end=72,
+            chunk_metadata={"page": 1}
+        )
+        db.add(chunk1)
+        db.add(chunk2)
+        db.commit()
+
+        response = client.get(f"/api/notebooks/{sample_notebook.id}/chunks")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "chunks" in data
+        assert "total" in data
+        assert len(data["chunks"]) == 2
+        assert data["total"] == 2
+        assert data["chunks"][0]["source_title"] == sample_source.title
+        assert data["chunks"][0]["chunk_index"] == 0
+        assert "preview" in data["chunks"][0]
+
+    def test_list_notebook_chunks_with_pagination(self, client: TestClient, db, sample_notebook, sample_source):
+        """
+        Test pagination for chunks listing
+        """
+        from services.api.modules.chunking.models import SourceChunk
+
+        # Create multiple chunks
+        for i in range(5):
+            chunk = SourceChunk(
+                source_id=sample_source.id,
+                chunk_index=i,
+                content=f"Chunk {i} content" * 10,
+                token_count=20,
+                char_start=i * 100,
+                char_end=(i + 1) * 100,
+            )
+            db.add(chunk)
+        db.commit()
+
+        # Test with limit
+        response = client.get(f"/api/notebooks/{sample_notebook.id}/chunks?limit=3&offset=0")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["chunks"]) == 3
+        assert data["total"] == 5
+        assert data["limit"] == 3
+        assert data["offset"] == 0
+
+    def test_list_notebook_chunks_returns_404_for_nonexistent_notebook(self, client: TestClient):
+        """
+        Test that listing chunks for nonexistent notebook returns 404
+        """
+        fake_id = str(uuid.uuid4())
+        response = client.get(f"/api/notebooks/{fake_id}/chunks")
+
+        assert response.status_code == 404
+        assert "not_found" in response.json()["detail"]["error"]
