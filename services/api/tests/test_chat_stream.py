@@ -297,6 +297,86 @@ class TestGroundedChatStream:
         assert '"strategy": "keyword_enrichment"' in body
         assert body.index("event: query_rewrite") < body.index("event: retrieval")
 
+    def test_stream_endpoint_emits_query_rewrite_when_secondary_search_query_changes(
+        self,
+        client: TestClient,
+        sample_notebook_data: dict,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """
+        AC: Rewrite metadata is exposed whenever retrieval inputs actually change.
+        """
+        from services.api.modules.chat import routes as chat_routes
+        from services.api.modules.query.rewriter import QueryRewriteResult
+
+        notebook_response = client.post("/api/notebooks", json=sample_notebook_data)
+        assert notebook_response.status_code == 201
+        notebook_id = notebook_response.json()["id"]
+
+        class FakeGroundedQAService:
+            async def prepare_answer(
+                self,
+                question: str,
+                notebook_id: str,
+                *,
+                top_k: int = 5,
+                chat_history=None,
+            ):
+                _ = (question, notebook_id, top_k, chat_history)
+                evidence = [_make_citation_chunk()]
+                return GroundedQAPreparation(
+                    evidence=evidence,
+                    messages=[
+                        {"role": "system", "content": "Use evidence only."},
+                        {"role": "user", "content": "Question: What are the main NotebookLX project risks?"},
+                    ],
+                    query_rewrite=QueryRewriteResult(
+                        original_query="What are the risks?",
+                        standalone_query="What are the main NotebookLX project risks?",
+                        search_queries=(
+                            "What are the risks?",
+                            "NotebookLX project risks",
+                        ),
+                        strategy="keyword_enrichment",
+                        used_llm=True,
+                    ),
+                )
+
+            def stream_answer(self, messages):
+                _ = messages
+                yield "Alpha is supported."
+
+            def finalize_answer(self, raw_answer, evidence, messages) -> GroundedQAResponse:
+                return GroundedQAResponse(
+                    answer=raw_answer,
+                    evidence=evidence,
+                    citations=evidence,
+                    citation_indices=[1],
+                    missing_citation_indices=[],
+                    raw_answer=raw_answer,
+                    messages=messages,
+                )
+
+        monkeypatch.setattr(
+            chat_routes,
+            "get_grounded_qa_service",
+            lambda _db: FakeGroundedQAService(),
+        )
+
+        response = client.stream(
+            "POST",
+            f"/api/notebooks/{notebook_id}/chat/stream",
+            json={"question": "What are the risks?"},
+        )
+
+        with response as stream:
+            assert stream.status_code == 200
+            body = "".join(stream.iter_text())
+
+        assert "event: query_rewrite" in body
+        assert '"search_queries": ["What are the risks?", "NotebookLX project risks"]' in body
+        assert body.index("event: query_rewrite") < body.index("event: retrieval")
+
     def test_stream_endpoint_emits_error_event_without_aborting_connection(
         self,
         client: TestClient,

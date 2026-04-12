@@ -288,6 +288,23 @@ class TestQueryRewriter:
         assert result.rewritten is False
         assert result.primary_query == "What about pgvector?"
 
+    def test_rewrite_result_counts_secondary_search_variants_as_rewritten(self):
+        """Secondary retrieval queries should still surface rewrite transparency."""
+        from services.api.modules.query.rewriter import QueryRewriteResult
+
+        result = QueryRewriteResult(
+            original_query="What are the risks?",
+            standalone_query="What are the main NotebookLX project risks?",
+            search_queries=(
+                "What are the risks?",
+                "NotebookLX project risks",
+            ),
+            strategy="keyword_enrichment",
+            used_llm=True,
+        )
+
+        assert result.rewritten is True
+
 
 class TestQueryRewriterIntegration:
     """Integration tests for query rewriting with database."""

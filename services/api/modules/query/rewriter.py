@@ -234,7 +234,16 @@ class QueryRewriteResult:
         if not self.search_queries and not self.standalone_query:
             return False
         normalized_original = _normalize_whitespace(self.original_query)
-        return self.primary_query != normalized_original
+        normalized_standalone = _normalize_whitespace(self.standalone_query)
+        if normalized_standalone and normalized_standalone != normalized_original:
+            return True
+
+        normalized_search_queries = tuple(
+            _normalize_whitespace(query)
+            for query in self.search_queries
+            if _normalize_whitespace(query)
+        )
+        return any(query != normalized_original for query in normalized_search_queries)
 
 
 class ChatProviderProtocol(Protocol):
