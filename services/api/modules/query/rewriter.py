@@ -20,6 +20,8 @@ from typing import Any, Protocol
 
 from sqlalchemy.orm import Session
 
+from services.api.core.language import build_query_rewrite_language_instruction
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_HISTORY_LIMIT = 10
@@ -666,6 +668,7 @@ def build_rewrite_prompt(
             "Return 1 standalone_query and up to "
             f"{max_search_queries} search_queries for document retrieval."
         ),
+        build_query_rewrite_language_instruction(normalized_query),
     ]
     if history_text:
         user_sections.append(f"Relevant recent context:\n{history_text}")

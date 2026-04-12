@@ -12,6 +12,10 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any, Iterator, Protocol
 
+from services.api.core.language import build_answer_language_instruction
+from services.api.core.language import get_not_enough_information_message
+from services.api.core.language import infer_language_from_messages
+from services.api.core.language import is_not_enough_information_message
 from services.api.modules.query.rewriter import QueryRewriteResult
 from services.api.modules.embeddings.providers import EmbeddingProvider
 from services.api.modules.retrieval.hybrid import HybridSearchResult
@@ -21,8 +25,8 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_GROUNDED_SYSTEM_PROMPT = (
     "You answer questions using only the evidence provided. "
-    "If the evidence does not support the answer, say: "
-    "\"I don't have enough information\"."
+    "If the evidence does not support the answer, clearly say that you do not "
+    "have enough information."
 )
 
 
@@ -274,9 +278,13 @@ def build_grounded_messages(
     evidence: list[EvidenceChunk],
 ) -> list[dict[str, str]]:
     """Build the prompt messages for a grounded answer request."""
+    system_prompt = (
+        f"{DEFAULT_GROUNDED_SYSTEM_PROMPT} "
+        f"{build_answer_language_instruction(question)}"
+    )
     if not evidence:
         return [
-            {"role": "system", "content": DEFAULT_GROUNDED_SYSTEM_PROMPT},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": question},
         ]
 
@@ -303,7 +311,7 @@ def build_grounded_messages(
     )
 
     return [
-        {"role": "system", "content": DEFAULT_GROUNDED_SYSTEM_PROMPT},
+        {"role": "system", "content": system_prompt},
         {"role": "user", "content": user_prompt},
     ]
 
@@ -406,10 +414,12 @@ def finalize_grounded_answer(
 ) -> GroundedQAResponse:
     """Build the final grounded answer payload from raw streamed or full text."""
     stripped_raw_answer = raw_answer.strip()
+    language = infer_language_from_messages(messages)
+    fallback_answer = get_not_enough_information_message(language)
 
     if not evidence:
         return GroundedQAResponse(
-            answer="I don't have enough information",
+            answer=fallback_answer,
             evidence=[],
             citations=[],
             citation_indices=[],
@@ -422,7 +432,7 @@ def finalize_grounded_answer(
     answer = parsed.answer.strip()
     if not answer:
         return GroundedQAResponse(
-            answer="I don't have enough information",
+            answer=fallback_answer,
             evidence=evidence,
             citations=[],
             citation_indices=[],
@@ -620,7 +630,7 @@ class GroundedQAService:
             prepared.evidence,
             prepared.messages,
         )
-        if response.answer == "I don't have enough information":
+        if is_not_enough_information_message(response.answer):
             logger.warning(f"[CHAT] LLM returned empty answer for question: '{question[:50]}...'")
         else:
             logger.info(f"[CHAT] Final answer ({len(response.answer)} chars): \"{_truncate_for_log(response.answer, 200)}\"")

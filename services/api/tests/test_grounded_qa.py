@@ -79,9 +79,29 @@ class TestGroundedMessages:
         messages = build_grounded_messages("What is Alpha?", [])
 
         assert messages[0]["role"] == "system"
-        assert messages[0]["content"] == DEFAULT_GROUNDED_SYSTEM_PROMPT
+        assert DEFAULT_GROUNDED_SYSTEM_PROMPT in messages[0]["content"]
+        assert "Respond in English." in messages[0]["content"]
         assert messages[1]["role"] == "user"
         assert messages[1]["content"] == "What is Alpha?"
+
+    def test_build_grounded_messages_requests_chinese_output_for_chinese_questions(self):
+        evidence = [
+            format_evidence_pack(
+                [
+                    make_result(
+                        chunk_id="chunk-1",
+                        source_title="中文文档",
+                        content="这是与问题相关的证据。",
+                        score=0.91,
+                        quote="这是与问题相关的证据。",
+                    )
+                ]
+            )[0]
+        ]
+
+        messages = build_grounded_messages("这个功能怎么工作？", evidence)
+
+        assert "Respond in Simplified Chinese." in messages[0]["content"]
 
     def test_build_grounded_messages_embeds_numbered_evidence(self):
         evidence = [
@@ -197,6 +217,17 @@ class TestStructuredAnswerParsing:
 
 
 class TestGroundedQAService:
+    def test_finalize_grounded_answer_localizes_empty_answer_for_chinese_questions(self):
+        messages = build_grounded_messages("这个功能怎么工作？", [])
+
+        response = finalize_grounded_answer(
+            raw_answer="",
+            evidence=[],
+            messages=messages,
+        )
+
+        assert response.answer == "我没有足够的信息"
+
     def test_finalize_grounded_answer_uses_streamed_text_and_aligns_citations(self):
         evidence = format_evidence_pack(
             [

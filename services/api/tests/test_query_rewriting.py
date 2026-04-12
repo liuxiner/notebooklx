@@ -429,6 +429,16 @@ class TestQueryRewriterPrompt:
         assert "bm25" in prompt_str
         assert "search_queries" in prompt_str
 
+    def test_build_rewrite_prompt_requests_chinese_output_for_chinese_queries(self):
+        """Rewrite prompt should keep Chinese queries in Chinese."""
+        from services.api.modules.query.rewriter import build_rewrite_prompt
+
+        prompt = build_rewrite_prompt("这个功能怎么工作？", chat_history=[])
+        prompt_text = str(prompt)
+
+        assert "Simplified Chinese" in prompt_text
+        assert "same language as the original user query" in prompt_text
+
     def test_build_rewrite_prompt_with_history_uses_recent_turns_and_topics(self):
         """Prompt should prioritize recent turns and topic hints."""
         from services.api.modules.query.rewriter import build_rewrite_prompt
