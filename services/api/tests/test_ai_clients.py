@@ -157,11 +157,48 @@ class TestBigModelChatProvider:
             )
 
         assert result == "hello from bigmodel"
+        usage = provider.consume_last_usage()
+        assert usage is None
         mock_client.chat.completions.create.assert_called_once_with(
             model="glm-4",
             messages=[{"role": "user", "content": "hello"}],
             temperature=0.3,
         )
+
+    def test_chat_provider_captures_provider_usage_from_sync_response(self):
+        """Sync chat responses should retain provider token usage."""
+        from services.api.core.ai import BigModelChatProvider
+
+        mock_message = MagicMock()
+        mock_message.content = "hello from bigmodel"
+
+        mock_choice = MagicMock()
+        mock_choice.message = mock_message
+
+        mock_usage = MagicMock()
+        mock_usage.prompt_tokens = 123
+        mock_usage.completion_tokens = 45
+        mock_usage.total_tokens = 168
+
+        mock_response = MagicMock()
+        mock_response.choices = [mock_choice]
+        mock_response.usage = mock_usage
+
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.return_value = mock_response
+
+        with patch("services.api.core.ai.build_openai_compatible_client", return_value=mock_client):
+            provider = BigModelChatProvider(api_key="test-key", model="glm-4")
+            result = provider.chat([{"role": "user", "content": "hello"}])
+
+        assert result == "hello from bigmodel"
+        usage = provider.consume_last_usage()
+        assert usage is not None
+        assert usage.prompt_tokens == 123
+        assert usage.completion_tokens == 45
+        assert usage.total_tokens == 168
+        assert usage.usage_source == "provider"
+        assert provider.consume_last_usage() is None
 
     def test_chat_stream_provider_yields_incremental_text(self):
         """Streaming chat should expose text deltas in order."""
@@ -192,12 +229,56 @@ class TestBigModelChatProvider:
             )
 
         assert result == ["Alpha ", "is supported."]
+        assert provider.consume_last_usage() is None
         mock_client.chat.completions.create.assert_called_once_with(
             model="glm-4",
             messages=[{"role": "user", "content": "hello"}],
             stream=True,
             temperature=0.3,
         )
+
+    def test_chat_stream_provider_captures_usage_from_final_chunk(self):
+        """Streaming chat should retain usage when the provider reports it at the end."""
+        from services.api.core.ai import BigModelChatProvider
+
+        def make_chunk(content):
+            delta = MagicMock()
+            delta.content = content
+            choice = MagicMock()
+            choice.delta = delta
+            chunk = MagicMock()
+            chunk.choices = [choice]
+            chunk.usage = None
+            return chunk
+
+        usage_chunk = MagicMock()
+        usage_chunk.choices = []
+        usage = MagicMock()
+        usage.prompt_tokens = 321
+        usage.completion_tokens = 67
+        usage.total_tokens = 388
+        usage.cached_tokens = 12
+        usage_chunk.usage = usage
+
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.return_value = [
+            make_chunk("Alpha "),
+            make_chunk("is supported."),
+            usage_chunk,
+        ]
+
+        with patch("services.api.core.ai.build_openai_compatible_client", return_value=mock_client):
+            provider = BigModelChatProvider(api_key="test-key", model="glm-4")
+            result = list(provider.chat_stream([{"role": "user", "content": "hello"}]))
+
+        assert result == ["Alpha ", "is supported."]
+        captured_usage = provider.consume_last_usage()
+        assert captured_usage is not None
+        assert captured_usage.prompt_tokens == 321
+        assert captured_usage.completion_tokens == 67
+        assert captured_usage.total_tokens == 388
+        assert captured_usage.cached_tokens == 12
+        assert captured_usage.usage_source == "provider"
 
     def test_chat_stream_provider_falls_back_to_non_streaming_on_connection_error(self):
         """If streaming fails before the first delta, fall back to a normal chat call."""

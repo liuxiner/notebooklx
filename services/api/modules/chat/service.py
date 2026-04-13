@@ -12,10 +12,13 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any, Iterator, Protocol
 
+from services.api.core.ai import ChatUsage
 from services.api.core.language import build_answer_language_instruction
 from services.api.core.language import get_not_enough_information_message
 from services.api.core.language import infer_language_from_messages
 from services.api.core.language import is_not_enough_information_message
+from services.api.modules.chunking import count_tokens
+from services.api.modules.embeddings.service import estimate_embedding_cost_usd
 from services.api.modules.query.rewriter import QueryRewriteResult
 from services.api.modules.embeddings.providers import EmbeddingProvider
 from services.api.modules.retrieval.hybrid import HybridSearchResult
@@ -143,12 +146,22 @@ class ChatTimingMetrics:
 
     model: str | None = None
     query_embedding_seconds: float | None = None
+    query_embedding_model: str | None = None
+    query_embedding_token_count: int | None = None
+    query_embedding_estimated_cost_usd: float | None = None
+    query_embedding_requests: int | None = None
     retrieval_seconds: float | None = None
     prepare_seconds: float | None = None
     time_to_first_delta_seconds: float | None = None
     llm_stream_seconds: float | None = None
     delta_chunks_received: int | None = None
     stream_delivery: str | None = None
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None
+    total_tokens: int | None = None
+    cached_tokens: int | None = None
+    usage_source: str | None = None
+    estimated_cost_usd: float | None = None
 
 
 @dataclass(frozen=True)
@@ -518,6 +531,13 @@ class GroundedQAService:
         for i, q in enumerate(retrieval_queries, 1):
             logger.info(f"[CHAT]   Query {i}: \"{_truncate_for_log(q, 80)}\"")
 
+        query_embedding_model = getattr(self.embedding_provider, "model", None)
+        query_embedding_token_count = sum(count_tokens(retrieval_query) for retrieval_query in retrieval_queries)
+        query_embedding_estimated_cost_usd = estimate_embedding_cost_usd(
+            query_embedding_token_count,
+            model_name=query_embedding_model,
+        )
+
         embed_start = time.monotonic()
         query_embeddings = [
             self.embedding_provider.embed(retrieval_query)
@@ -563,6 +583,10 @@ class GroundedQAService:
         metrics = ChatTimingMetrics(
             model=getattr(self.chat_provider, "model", None),
             query_embedding_seconds=round(embed_duration, 2),
+            query_embedding_model=query_embedding_model,
+            query_embedding_token_count=query_embedding_token_count,
+            query_embedding_estimated_cost_usd=query_embedding_estimated_cost_usd,
+            query_embedding_requests=len(retrieval_queries),
             retrieval_seconds=round(search_duration, 2),
             prepare_seconds=round(prepare_duration, 2),
         )
@@ -580,6 +604,13 @@ class GroundedQAService:
     ) -> Iterator[str]:
         """Stream answer deltas from the chat provider."""
         return self.chat_provider.chat_stream(messages, **kwargs)
+
+    def consume_chat_usage(self) -> ChatUsage | None:
+        """Read and clear the most recent provider usage payload, if available."""
+        consumer = getattr(self.chat_provider, "consume_last_usage", None)
+        if callable(consumer):
+            return consumer()
+        return None
 
     def finalize_answer(
         self,

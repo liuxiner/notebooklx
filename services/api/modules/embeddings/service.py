@@ -4,6 +4,7 @@ Embedding service for generating and managing embeddings.
 Feature 2.3: Embedding Generation
 """
 import os
+import re
 from typing import List, Optional, TYPE_CHECKING
 from sqlalchemy.orm import Session
 
@@ -89,20 +90,11 @@ class EmbeddingService:
 
     def _resolve_cost_per_1k_tokens(self, explicit_value: Optional[float]) -> float:
         """Resolve the embedding cost rate from args or environment."""
-        if explicit_value is not None:
-            return explicit_value
-
-        for env_name in (
-            "ZAI_API_EMBEDDING_COST_PER_1K_TOKENS",
-            "ZHIPUAI_API_EMBEDDING_COST_PER_1K_TOKENS",
-            "OPENAI_EMBEDDING_COST_PER_1K_TOKENS",
-        ):
-            raw_value = os.getenv(env_name)
-            if raw_value is None or raw_value == "":
-                continue
-            return float(raw_value)
-
-        return self.DEFAULT_COST_PER_1K_TOKENS
+        return resolve_embedding_cost_per_1k_tokens(
+            model_name=self._model_name,
+            explicit_value=explicit_value,
+            default=self.DEFAULT_COST_PER_1K_TOKENS,
+        )
 
     def _estimate_cost_usd(self, token_count: int) -> float:
         """Estimate embedding cost in USD from token count."""
@@ -206,3 +198,75 @@ class EmbeddingService:
             db.flush()
 
         return results
+
+
+def _sanitize_model_name_for_env(model_name: str) -> str:
+    """Convert a model name into a safe env-var suffix."""
+    sanitized = re.sub(r"[^A-Za-z0-9]+", "_", model_name.strip().upper())
+    sanitized = re.sub(r"_+", "_", sanitized).strip("_")
+    return sanitized
+
+
+def resolve_embedding_cost_per_1k_tokens_optional(model_name: Optional[str]) -> float | None:
+    """Resolve embedding token cost from model-specific or generic environment variables."""
+    env_names: list[str] = []
+
+    if model_name and model_name.strip():
+        suffix = _sanitize_model_name_for_env(model_name)
+        env_names.extend(
+            [
+                f"ZAI_API_EMBEDDING_{suffix}_COST_PER_1K_TOKENS",
+                f"ZHIPUAI_API_EMBEDDING_{suffix}_COST_PER_1K_TOKENS",
+                f"OPENAI_EMBEDDING_{suffix}_COST_PER_1K_TOKENS",
+            ]
+        )
+
+    env_names.extend(
+        [
+            "ZAI_API_EMBEDDING_COST_PER_1K_TOKENS",
+            "ZHIPUAI_API_EMBEDDING_COST_PER_1K_TOKENS",
+            "OPENAI_EMBEDDING_COST_PER_1K_TOKENS",
+        ]
+    )
+
+    for env_name in env_names:
+        raw_value = os.getenv(env_name)
+        if raw_value is None or raw_value == "":
+            continue
+        return float(raw_value)
+
+    return None
+
+
+def resolve_embedding_cost_per_1k_tokens(
+    *,
+    model_name: Optional[str],
+    explicit_value: Optional[float] = None,
+    default: float = 0.0,
+) -> float:
+    """Resolve embedding token cost with explicit value, model-specific envs, then generic envs."""
+    if explicit_value is not None:
+        return explicit_value
+
+    configured_value = resolve_embedding_cost_per_1k_tokens_optional(model_name)
+    if configured_value is not None:
+        return configured_value
+
+    return default
+
+
+def estimate_embedding_cost_usd(
+    token_count: int,
+    *,
+    model_name: Optional[str],
+    cost_per_1k_tokens: Optional[float] = None,
+) -> float | None:
+    """Estimate embedding cost when a model-specific or generic rate is configured."""
+    resolved_rate = (
+        cost_per_1k_tokens
+        if cost_per_1k_tokens is not None
+        else resolve_embedding_cost_per_1k_tokens_optional(model_name)
+    )
+    if resolved_rate is None:
+        return None
+    return (token_count / 1000.0) * resolved_rate

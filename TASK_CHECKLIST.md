@@ -166,12 +166,15 @@ Quick reference checklist for tracking development progress. Check off items as 
 - ✓ Retry CTA for transient chat failures
 - ✓ Backend and frontend tests
 
-**Streaming Observability & Retrieval Transparency** ⚡
+**Streaming Observability & Retrieval Transparency** ✓
 - ✓ Chat preparation timing visibility
+- ✓ Query embedding token and optional cost visibility with model-aware embedding pricing
+- ✓ Chat query top-k control with default 5
 - ✓ Time-to-first-answer visibility
 - ✓ Stream delivery mode visibility
 - ✓ Retrieved chunk count visibility
 - ✓ Chunk-to-source relationship panel
+- ✓ Chat token usage and optional cost visibility with provider-first reporting plus local fallback estimation
 - ✓ Incremental assistant bubble streaming
 - ✓ Stable stream finalization without duplicate bubbles
 - ✓ Backend and frontend tests

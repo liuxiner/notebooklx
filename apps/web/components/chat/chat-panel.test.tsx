@@ -17,6 +17,60 @@ describe("ChatPanel", () => {
     jest.clearAllMocks();
   });
 
+  it("defaults retrieval top-k to 5 and passes it into chat streaming", async () => {
+    const user = userEvent.setup();
+
+    (streamNotebookChat as jest.Mock).mockResolvedValueOnce(undefined);
+
+    render(<ChatPanel notebookId="notebook-123" notebookName="Deep Research Notes" />);
+
+    expect(screen.getByLabelText("Top-K")).toHaveValue(5);
+
+    await act(async () => {
+      await user.type(
+        screen.getByPlaceholderText("Ask a source-grounded question..."),
+        "What evidence supports the launch?"
+      );
+      await user.click(screen.getByRole("button", { name: "Send" }));
+    });
+
+    expect(streamNotebookChat).toHaveBeenCalledWith(
+      expect.objectContaining({
+        notebookId: "notebook-123",
+        question: "What evidence supports the launch?",
+        topK: 5,
+      })
+    );
+  });
+
+  it("lets the user change retrieval top-k before sending a question", async () => {
+    const user = userEvent.setup();
+
+    (streamNotebookChat as jest.Mock).mockResolvedValueOnce(undefined);
+
+    render(<ChatPanel notebookId="notebook-123" notebookName="Deep Research Notes" />);
+
+    const topKInput = screen.getByLabelText("Top-K");
+
+    await act(async () => {
+      await user.clear(topKInput);
+      await user.type(topKInput, "8");
+      await user.type(
+        screen.getByPlaceholderText("Ask a source-grounded question..."),
+        "Which sections matter most?"
+      );
+      await user.click(screen.getByRole("button", { name: "Send" }));
+    });
+
+    expect(streamNotebookChat).toHaveBeenCalledWith(
+      expect.objectContaining({
+        notebookId: "notebook-123",
+        question: "Which sections matter most?",
+        topK: 8,
+      })
+    );
+  });
+
   it("renders a notebook-friendly empty workflow state", () => {
     render(<ChatPanel notebookId="notebook-123" notebookName="Deep Research Notes" />);
 
@@ -147,6 +201,10 @@ describe("ChatPanel", () => {
         onMetrics?.({
           model: "glm-4.7",
           query_embedding_seconds: 6.41,
+          query_embedding_model: "embedding-3",
+          query_embedding_token_count: 18,
+          query_embedding_estimated_cost_usd: 0.00036,
+          query_embedding_requests: 2,
           retrieval_seconds: 0.16,
           prepare_seconds: 6.57,
         });
@@ -191,6 +249,12 @@ describe("ChatPanel", () => {
               llm_stream_seconds: 50.86,
               delta_chunks_received: 1,
               stream_delivery: "single_chunk",
+              prompt_tokens: 1_245,
+              completion_tokens: 218,
+              total_tokens: 1_463,
+              cached_tokens: 120,
+              usage_source: "provider",
+              estimated_cost_usd: 0.01234,
             });
             onAnswer?.({
               answer: "Alpha launches in phases [1].",
@@ -217,9 +281,12 @@ describe("ChatPanel", () => {
       screen.getAllByText("Waiting for the first answer chunk from the model").length
     ).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Alpha launches in phases")).toBeInTheDocument();
-    expect(screen.getByText("Chat timing")).toBeInTheDocument();
+    expect(screen.getByText("Chat timing & usage")).toBeInTheDocument();
     expect(screen.getByText("glm-4.7")).toBeInTheDocument();
     expect(screen.getByText("6.41s")).toBeInTheDocument();
+    expect(screen.getByText("embedding-3")).toBeInTheDocument();
+    expect(screen.getByText("18")).toBeInTheDocument();
+    expect(screen.getByText("$0.00036")).toBeInTheDocument();
     expect(screen.getByText("0.16s")).toBeInTheDocument();
     expect(screen.getByText("Retrieved evidence")).toBeInTheDocument();
     expect(screen.getByText("2 chunks from 2 sources were selected before answer generation.")).toBeInTheDocument();
@@ -227,6 +294,9 @@ describe("ChatPanel", () => {
     expect(screen.getByText("Risk Memo")).toBeInTheDocument();
     expect(screen.getByText("Chunk 1")).toBeInTheDocument();
     expect(screen.getByText("Chunk 5")).toBeInTheDocument();
+    expect(
+      screen.getByText("Query embedding totals cover 2 retrieval queries.")
+    ).toBeInTheDocument();
 
     await act(async () => {
       resolveStream?.();
@@ -241,6 +311,16 @@ describe("ChatPanel", () => {
     ).toBeGreaterThanOrEqual(1);
     expect((await screen.findAllByText("50.86s")).length).toBeGreaterThanOrEqual(1);
     expect(await screen.findByText("Provider returned a single final stream chunk.")).toBeInTheDocument();
+    expect(await screen.findByText("1,245")).toBeInTheDocument();
+    expect(await screen.findByText("218")).toBeInTheDocument();
+    expect(await screen.findByText("1,463")).toBeInTheDocument();
+    expect(await screen.findByText("$0.0123")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Token usage was reported directly by the model provider.")
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText("Provider reported 120 cached prompt tokens.")
+    ).toBeInTheDocument();
   });
 
   it("keeps rewritten-query transparency collapsed until the user expands it", async () => {

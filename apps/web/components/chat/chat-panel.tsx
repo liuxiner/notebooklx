@@ -12,6 +12,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -37,6 +39,9 @@ const STARTER_PROMPTS = [
   "Where do the sources disagree?",
   "What evidence supports the key claim?",
 ];
+const DEFAULT_TOP_K = 5;
+const MIN_TOP_K = 1;
+const MAX_TOP_K = 20;
 const transparencySectionClasses =
   "space-y-4 rounded-[1.5rem] border border-slate-200 bg-white/88 p-4 shadow-[0_1px_3px_rgba(15,23,42,0.05)] tablet:rounded-[1.75rem] tablet:p-5";
 const transparencyCardClasses =
@@ -54,6 +59,29 @@ function formatCount(count: number, singular: string, plural = `${singular}s`) {
 
 function formatSeconds(value: number) {
   return `${value.toFixed(2)}s`;
+}
+
+function formatInteger(value: number) {
+  return new Intl.NumberFormat("en-US").format(value);
+}
+
+function formatUsd(value: number) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: value >= 0.01 ? 2 : 4,
+    maximumFractionDigits: value >= 0.01 ? 4 : 6,
+  }).format(value);
+}
+
+function resolveTopK(value: string): number {
+  const parsed = Number.parseInt(value, 10);
+
+  if (Number.isNaN(parsed)) {
+    return DEFAULT_TOP_K;
+  }
+
+  return Math.min(MAX_TOP_K, Math.max(MIN_TOP_K, parsed));
 }
 
 function mergeMetrics(
@@ -165,6 +193,7 @@ function getWorkflowCardClasses(tone: WorkflowTone): string {
 
 export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
   const [draft, setDraft] = useState("");
+  const [topKInput, setTopKInput] = useState(String(DEFAULT_TOP_K));
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [chatFailure, setChatFailure] = useState<ChatFailureState | null>(null);
@@ -283,6 +312,23 @@ export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
       : workflowStage === "embedding_query" && liveStageSeconds !== null
         ? `${liveStageSeconds.toFixed(1)}s...`
         : "Pending";
+  const queryEmbeddingModelDisplay =
+    chatMetrics?.query_embedding_model ||
+    (workflowStage === "done" ? "Unavailable" : "Pending");
+  const queryEmbeddingTokensDisplay =
+    typeof chatMetrics?.query_embedding_token_count === "number"
+      ? formatInteger(chatMetrics.query_embedding_token_count)
+      : workflowStage === "done"
+        ? "Unavailable"
+        : "Pending";
+  const queryEmbeddingCostDisplay =
+    typeof chatMetrics?.query_embedding_estimated_cost_usd === "number"
+      ? formatUsd(chatMetrics.query_embedding_estimated_cost_usd)
+      : typeof chatMetrics?.query_embedding_token_count === "number"
+        ? "Not configured"
+        : workflowStage === "done"
+          ? "Unavailable"
+          : "Pending";
   const retrievalDisplay =
     typeof chatMetrics?.retrieval_seconds === "number"
       ? formatSeconds(chatMetrics.retrieval_seconds)
@@ -303,6 +349,53 @@ export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
         : chatMetrics?.stream_delivery === "no_chunks"
           ? "No LLM deltas were received before finalization."
           : null;
+  const promptTokensDisplay =
+    typeof chatMetrics?.prompt_tokens === "number"
+      ? formatInteger(chatMetrics.prompt_tokens)
+      : workflowStage === "done"
+        ? "Unavailable"
+        : "Pending";
+  const completionTokensDisplay =
+    typeof chatMetrics?.completion_tokens === "number"
+      ? formatInteger(chatMetrics.completion_tokens)
+      : workflowStage === "done"
+        ? "Unavailable"
+        : "Pending";
+  const totalTokensDisplay =
+    typeof chatMetrics?.total_tokens === "number"
+      ? formatInteger(chatMetrics.total_tokens)
+      : workflowStage === "done"
+        ? "Unavailable"
+        : "Pending";
+  const cachedTokensDisplay =
+    typeof chatMetrics?.cached_tokens === "number"
+      ? formatInteger(chatMetrics.cached_tokens)
+      : null;
+  const estimatedCostDisplay =
+    typeof chatMetrics?.estimated_cost_usd === "number"
+      ? formatUsd(chatMetrics.estimated_cost_usd)
+      : typeof chatMetrics?.total_tokens === "number"
+        ? "Not configured"
+        : workflowStage === "done"
+          ? "Unavailable"
+          : "Pending";
+  const usageSourceMessage =
+    chatMetrics?.usage_source === "provider"
+      ? "Token usage was reported directly by the model provider."
+      : chatMetrics?.usage_source === "estimated"
+        ? "Token usage is estimated locally when provider usage is unavailable."
+        : chatMetrics?.usage_source === "mixed"
+          ? "Token usage combines provider-reported values with local estimates for missing stages."
+          : chatMetrics?.usage_source === "none"
+            ? "No model request was needed to finish this response."
+            : null;
+  const queryEmbeddingMessage =
+    typeof chatMetrics?.query_embedding_requests === "number" &&
+    chatMetrics.query_embedding_requests > 1
+      ? `Query embedding totals cover ${formatCount(chatMetrics.query_embedding_requests, "retrieval query", "retrieval queries")}.`
+      : chatMetrics?.query_embedding_model
+        ? `Query embedding used ${chatMetrics.query_embedding_model}.`
+        : null;
 
   const workflowCard = chatFailure
     ? ({
@@ -384,9 +477,11 @@ export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
       return;
     }
 
+    const topK = resolveTopK(topKInput);
     const assistantMessageId = createMessageId("assistant");
 
     setDraft("");
+    setTopKInput(String(topK));
     setChatFailure(null);
     setLastSubmittedQuestion(question);
     setWorkflowStage("embedding_query");
@@ -428,6 +523,7 @@ export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
       await streamNotebookChat({
         notebookId,
         question,
+        topK,
         onStatus: (payload) => {
           const friendlyStatus = formatChatStatus(payload);
           setWorkflowStage(payload.stage);
@@ -682,9 +778,9 @@ export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
 
             <section className={transparencySectionClasses}>
               <div>
-                <h3 className="text-sm font-semibold text-slate-900">Chat timing</h3>
+                <h3 className="text-sm font-semibold text-slate-900">Chat timing &amp; usage</h3>
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                  Query embedding, retrieval, and model delivery timings for the
+                  Query embedding, retrieval, model delivery, and token usage for the
                   current answer.
                 </p>
               </div>
@@ -701,6 +797,27 @@ export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
                   <p className={transparencyLabelClasses}>Question Embedding</p>
                   <p className="mt-2 text-sm font-semibold text-slate-900">
                     {queryEmbeddingDisplay}
+                  </p>
+                </div>
+
+                <div className={transparencyCardClasses}>
+                  <p className={transparencyLabelClasses}>Embedding Model</p>
+                  <p className="mt-2 text-sm font-semibold text-slate-900">
+                    {queryEmbeddingModelDisplay}
+                  </p>
+                </div>
+
+                <div className={transparencyCardClasses}>
+                  <p className={transparencyLabelClasses}>Embedding Tokens</p>
+                  <p className="mt-2 text-sm font-semibold text-slate-900">
+                    {queryEmbeddingTokensDisplay}
+                  </p>
+                </div>
+
+                <div className={transparencyCardClasses}>
+                  <p className={transparencyLabelClasses}>Embedding Cost</p>
+                  <p className="mt-2 text-sm font-semibold text-slate-900">
+                    {queryEmbeddingCostDisplay}
                   </p>
                 </div>
 
@@ -737,10 +854,50 @@ export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
                       : "Pending"}
                   </p>
                 </div>
+
+                <div className={transparencyCardClasses}>
+                  <p className={transparencyLabelClasses}>Prompt Tokens</p>
+                  <p className="mt-2 text-sm font-semibold text-slate-900">
+                    {promptTokensDisplay}
+                  </p>
+                </div>
+
+                <div className={transparencyCardClasses}>
+                  <p className={transparencyLabelClasses}>Completion Tokens</p>
+                  <p className="mt-2 text-sm font-semibold text-slate-900">
+                    {completionTokensDisplay}
+                  </p>
+                </div>
+
+                <div className={transparencyCardClasses}>
+                  <p className={transparencyLabelClasses}>Total Tokens</p>
+                  <p className="mt-2 text-sm font-semibold text-slate-900">
+                    {totalTokensDisplay}
+                  </p>
+                </div>
+
+                <div className={transparencyCardClasses}>
+                  <p className={transparencyLabelClasses}>Estimated Cost</p>
+                  <p className="mt-2 text-sm font-semibold text-slate-900">
+                    {estimatedCostDisplay}
+                  </p>
+                </div>
               </div>
 
               {streamDeliveryMessage ? (
                 <div className={transparencyCardClasses}>{streamDeliveryMessage}</div>
+              ) : null}
+              {queryEmbeddingMessage ? (
+                <div className={transparencyCardClasses}>{queryEmbeddingMessage}</div>
+              ) : null}
+              {usageSourceMessage ? (
+                <div className={transparencyCardClasses}>{usageSourceMessage}</div>
+              ) : null}
+              {cachedTokensDisplay ? (
+                <div className={transparencyCardClasses}>
+                  Provider reported {cachedTokensDisplay} cached prompt token
+                  {chatMetrics?.cached_tokens === 1 ? "" : "s"}.
+                </div>
               ) : null}
             </section>
 
@@ -924,6 +1081,33 @@ export function ChatPanel({ notebookId, notebookName }: ChatPanelProps) {
               disabled={isStreaming}
               className="min-h-[104px] resize-none tablet:min-h-[110px]"
             />
+
+            <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3">
+              <div className="flex flex-col gap-2 xs:max-w-[180px]">
+                <Label
+                  htmlFor="chat-top-k"
+                  className="font-mono text-[11px] uppercase tracking-[0.16em] text-slate-500"
+                >
+                  Top-K
+                </Label>
+                <Input
+                  id="chat-top-k"
+                  type="number"
+                  inputMode="numeric"
+                  min={MIN_TOP_K}
+                  max={MAX_TOP_K}
+                  step={1}
+                  value={topKInput}
+                  onChange={(event) => setTopKInput(event.target.value)}
+                  onBlur={() => setTopKInput(String(resolveTopK(topKInput)))}
+                  disabled={isStreaming}
+                  className="h-10"
+                />
+                <p className="text-xs leading-5 text-muted-foreground">
+                  Retrieved chunks to keep for answer grounding. Defaults to {DEFAULT_TOP_K}.
+                </p>
+              </div>
+            </div>
 
             <div className="flex flex-col gap-3 xs:flex-row xs:items-center xs:justify-between">
               <p className="font-mono text-xs uppercase tracking-[0.12em] text-muted-foreground">

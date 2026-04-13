@@ -15,6 +15,8 @@ from services.api.modules.chat.service import (
     GroundedQAPreparation,
     GroundedQAResponse,
 )
+from services.api.core.ai import ChatUsage
+from services.api.modules.chunking import count_tokens
 
 
 def _make_citation_chunk(index: int = 1) -> EvidenceChunk:
@@ -53,6 +55,17 @@ class TestGroundedChatStream:
                 self.calls: list[tuple[str, str, int]] = []
                 self.stream_calls: list[list[dict[str, str]]] = []
                 self.finalize_calls: list[str] = []
+                self.usage_queue = [
+                    None,
+                    ChatUsage(
+                        prompt_tokens=120,
+                        completion_tokens=34,
+                        total_tokens=154,
+                        cached_tokens=10,
+                        usage_source="provider",
+                        estimated_cost_usd=0.0012,
+                    ),
+                ]
 
             async def prepare_answer(
                 self,
@@ -74,6 +87,10 @@ class TestGroundedChatStream:
                     metrics=ChatTimingMetrics(
                         model="glm-4.7",
                         query_embedding_seconds=6.41,
+                        query_embedding_model="embedding-3",
+                        query_embedding_token_count=18,
+                        query_embedding_estimated_cost_usd=0.00036,
+                        query_embedding_requests=2,
                         retrieval_seconds=0.16,
                         prepare_seconds=6.57,
                     ),
@@ -95,6 +112,9 @@ class TestGroundedChatStream:
                     raw_answer=raw_answer,
                     messages=messages,
                 )
+
+            def consume_chat_usage(self):
+                return self.usage_queue.pop(0) if self.usage_queue else None
 
         service = FakeGroundedQAService()
         monkeypatch.setattr(chat_routes, "get_grounded_qa_service", lambda _db: service)
@@ -124,6 +144,10 @@ class TestGroundedChatStream:
         assert '"stage": "grounding"' in body
         assert '"model": "glm-4.7"' in body
         assert '"query_embedding_seconds": 6.41' in body
+        assert '"query_embedding_model": "embedding-3"' in body
+        assert '"query_embedding_token_count": 18' in body
+        assert '"query_embedding_estimated_cost_usd": 0.00036' in body
+        assert '"query_embedding_requests": 2' in body
         assert '"retrieval_seconds": 0.16' in body
         assert '"prepare_seconds": 6.57' in body
         assert '"chunk_count": 1' in body
@@ -131,6 +155,12 @@ class TestGroundedChatStream:
         assert '"source_id": "source-1"' in body
         assert '"delta_chunks_received": 2' in body
         assert '"stream_delivery": "streaming"' in body
+        assert '"prompt_tokens": 120' in body
+        assert '"completion_tokens": 34' in body
+        assert '"total_tokens": 154' in body
+        assert '"cached_tokens": 10' in body
+        assert '"usage_source": "provider"' in body
+        assert '"estimated_cost_usd": 0.0012' in body
         assert '"answer": "Alpha is supported."' in body
         assert '"delta": "Alpha "' in body
         assert '"delta": "is supported."' in body
@@ -143,6 +173,76 @@ class TestGroundedChatStream:
         assert body.index("event: retrieval") < body.index('"stage": "waiting_model"')
         assert body.index('"stage": "waiting_model"') < body.index('"stage": "streaming"')
         assert body.index('"stage": "streaming"') < body.index("event: answer_delta")
+
+    def test_stream_endpoint_estimates_usage_when_provider_usage_is_missing(
+        self,
+        client: TestClient,
+        sample_notebook_data: dict,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Chat streams should fall back to local token estimates when usage is absent."""
+        from services.api.modules.chat import routes as chat_routes
+
+        notebook_response = client.post("/api/notebooks", json=sample_notebook_data)
+        assert notebook_response.status_code == 201
+        notebook_id = notebook_response.json()["id"]
+
+        class FakeGroundedQAService:
+            async def prepare_answer(
+                self,
+                question: str,
+                notebook_id: str,
+                *,
+                top_k: int = 5,
+                chat_history=None,
+            ):
+                _ = (notebook_id, top_k, chat_history)
+                evidence = [_make_citation_chunk()]
+                return GroundedQAPreparation(
+                    evidence=evidence,
+                    messages=[
+                        {"role": "system", "content": "Use evidence only."},
+                        {"role": "user", "content": question},
+                    ],
+                )
+
+            def stream_answer(self, messages):
+                _ = messages
+                yield "Alpha is supported."
+
+            def finalize_answer(self, raw_answer, evidence, messages) -> GroundedQAResponse:
+                return GroundedQAResponse(
+                    answer=raw_answer,
+                    evidence=evidence,
+                    citations=evidence,
+                    citation_indices=[1],
+                    missing_citation_indices=[],
+                    raw_answer=raw_answer,
+                    messages=messages,
+                )
+
+        monkeypatch.setattr(
+            chat_routes,
+            "get_grounded_qa_service",
+            lambda _db: FakeGroundedQAService(),
+        )
+
+        response = client.stream(
+            "POST",
+            f"/api/notebooks/{notebook_id}/chat/stream",
+            json={"question": "What is Alpha?"},
+        )
+
+        with response as stream:
+            assert stream.status_code == 200
+            body = "".join(stream.iter_text())
+
+        expected_prompt_tokens = count_tokens("system\nUse evidence only.\n\nuser\nWhat is Alpha?")
+        expected_completion_tokens = count_tokens("Alpha is supported.")
+        assert f'"prompt_tokens": {expected_prompt_tokens}' in body
+        assert f'"completion_tokens": {expected_completion_tokens}' in body
+        assert f'"total_tokens": {expected_prompt_tokens + expected_completion_tokens}' in body
+        assert '"usage_source": "estimated"' in body
 
     def test_stream_endpoint_sets_sse_no_buffering_headers(
         self,

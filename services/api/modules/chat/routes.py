@@ -18,7 +18,12 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from services.api.core.ai import BigModelChatProvider
+from services.api.core.ai import (
+    BigModelChatProvider,
+    ChatUsage,
+    estimate_chat_usage,
+    merge_chat_usage,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -151,6 +156,14 @@ def _persist_chat_exchange(
         ]
     )
     db.commit()
+
+
+def _consume_chat_usage(service: GroundedQAService) -> ChatUsage | None:
+    """Read and clear the latest provider usage payload when the service supports it."""
+    consumer = getattr(service, "consume_chat_usage", None)
+    if callable(consumer):
+        return consumer()
+    return None
 
 
 def _error_status_code(exc: Exception) -> int | None:
@@ -305,6 +318,7 @@ async def stream_grounded_chat(
                 top_k=payload.top_k,
                 chat_history=chat_history,
             )
+            rewrite_usage = _consume_chat_usage(grounded_qa_service)
             if preparation.metrics is not None:
                 yield _format_sse_event(
                     "metrics",
@@ -417,8 +431,9 @@ async def stream_grounded_chat(
                 },
             )
             await asyncio.sleep(0)
+            raw_answer = "".join(raw_answer_parts)
             response = grounded_qa_service.finalize_answer(
-                "".join(raw_answer_parts),
+                raw_answer,
                 preparation.evidence,
                 preparation.messages,
             )
@@ -427,6 +442,35 @@ async def stream_grounded_chat(
                 f"{len(response.citations)} citations"
             )
             _persist_chat_exchange(db, notebook.id, payload.question, response.answer)
+
+            answer_usage = _consume_chat_usage(grounded_qa_service)
+            if preparation.evidence and answer_usage is None:
+                answer_usage = estimate_chat_usage(preparation.messages, raw_answer)
+
+            combined_usage = merge_chat_usage(rewrite_usage, answer_usage)
+            if combined_usage is None:
+                combined_usage = merge_chat_usage(
+                    ChatUsage(
+                        prompt_tokens=0,
+                        completion_tokens=0,
+                        total_tokens=0,
+                        usage_source="none",
+                    )
+                )
+
+            if combined_usage is not None:
+                yield _format_sse_event(
+                    "metrics",
+                    {
+                        "prompt_tokens": combined_usage.prompt_tokens,
+                        "completion_tokens": combined_usage.completion_tokens,
+                        "total_tokens": combined_usage.total_tokens,
+                        "cached_tokens": combined_usage.cached_tokens,
+                        "usage_source": combined_usage.usage_source,
+                        "estimated_cost_usd": combined_usage.estimated_cost_usd,
+                    },
+                )
+                await asyncio.sleep(0)
 
             if not preparation.evidence and response.answer:
                 yield _format_sse_event("answer_delta", {"delta": response.answer})

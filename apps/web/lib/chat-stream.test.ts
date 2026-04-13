@@ -39,6 +39,10 @@ describe("streamNotebookChat", () => {
           value: new Uint8Array(
             Buffer.from(
               'event: metrics\r\ndata: {"model":"glm-4.7","query_embedding_seconds":6.41,"retrieval_seconds":0.16,"prepare_seconds":6.57}\r\n\r\n'
+                .replace(
+                  '{"model":"glm-4.7","query_embedding_seconds":6.41,"retrieval_seconds":0.16,"prepare_seconds":6.57}',
+                  '{"model":"glm-4.7","query_embedding_seconds":6.41,"query_embedding_model":"embedding-3","query_embedding_token_count":18,"query_embedding_estimated_cost_usd":0.00036,"query_embedding_requests":2,"retrieval_seconds":0.16,"prepare_seconds":6.57}'
+                )
             )
           ),
         })
@@ -93,6 +97,10 @@ describe("streamNotebookChat", () => {
     expect(onMetrics).toHaveBeenCalledWith({
       model: "glm-4.7",
       query_embedding_seconds: 6.41,
+      query_embedding_model: "embedding-3",
+      query_embedding_token_count: 18,
+      query_embedding_estimated_cost_usd: 0.00036,
+      query_embedding_requests: 2,
       retrieval_seconds: 0.16,
       prepare_seconds: 6.57,
     });

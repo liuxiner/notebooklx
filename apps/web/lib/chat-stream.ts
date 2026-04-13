@@ -34,12 +34,22 @@ export interface ChatRetrievalEvent {
 export interface ChatMetricsEvent {
   model?: string | null;
   query_embedding_seconds?: number | null;
+  query_embedding_model?: string | null;
+  query_embedding_token_count?: number | null;
+  query_embedding_estimated_cost_usd?: number | null;
+  query_embedding_requests?: number | null;
   retrieval_seconds?: number | null;
   prepare_seconds?: number | null;
   time_to_first_delta_seconds?: number | null;
   llm_stream_seconds?: number | null;
   delta_chunks_received?: number | null;
   stream_delivery?: string | null;
+  prompt_tokens?: number | null;
+  completion_tokens?: number | null;
+  total_tokens?: number | null;
+  cached_tokens?: number | null;
+  usage_source?: string | null;
+  estimated_cost_usd?: number | null;
 }
 
 export interface ChatQueryRewriteEvent {

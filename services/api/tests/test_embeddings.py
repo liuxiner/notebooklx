@@ -193,6 +193,27 @@ class TestEmbeddingCostTracking:
 
         assert service.cost_per_1k_tokens == pytest.approx(0.42)
 
+    def test_embedding_service_prefers_model_specific_cost_from_environment(self, monkeypatch):
+        """Model-specific embedding rates should override the generic fallback."""
+        from services.api.modules.embeddings import EmbeddingService
+
+        monkeypatch.setenv("ZHIPUAI_API_EMBEDDING_COST_PER_1K_TOKENS", "0.42")
+        monkeypatch.setenv("ZHIPUAI_API_EMBEDDING_EMBEDDING_3_COST_PER_1K_TOKENS", "0.73")
+
+        service = EmbeddingService(model_name="embedding-3")
+
+        assert service.cost_per_1k_tokens == pytest.approx(0.73)
+
+    def test_estimate_embedding_cost_uses_model_specific_env_rate(self, monkeypatch):
+        """Embedding cost helpers should support model-aware rate lookup."""
+        from services.api.modules.embeddings.service import estimate_embedding_cost_usd
+
+        monkeypatch.setenv("ZHIPUAI_API_EMBEDDING_EMBEDDING_2_COST_PER_1K_TOKENS", "0.50")
+
+        assert estimate_embedding_cost_usd(24, model_name="embedding-2") == pytest.approx(
+            (24 / 1000.0) * 0.50
+        )
+
 
 class TestMockEmbeddingProvider:
     """Test MockEmbeddingProvider for testing purposes."""

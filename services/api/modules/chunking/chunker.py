@@ -15,15 +15,37 @@ from services.api.modules.parsers.base import PageContent
 
 # Default tokenizer for OpenAI models
 _ENCODING: tiktoken.Encoding | None = None
+_ENCODING_UNAVAILABLE = False
 
 
-def _get_encoding() -> tiktoken.Encoding:
-    """Get or create the tiktoken encoding (lazy initialization)."""
-    global _ENCODING
-    if _ENCODING is None:
-        # Use cl100k_base which is used by text-embedding-3-small and GPT-4
-        _ENCODING = tiktoken.get_encoding("cl100k_base")
+def _get_encoding() -> tiktoken.Encoding | None:
+    """Get or create the tiktoken encoding without requiring runtime network access."""
+    global _ENCODING, _ENCODING_UNAVAILABLE
+    if _ENCODING is None and not _ENCODING_UNAVAILABLE:
+        try:
+            # Use cl100k_base which is used by text-embedding-3-small and GPT-4
+            _ENCODING = tiktoken.get_encoding("cl100k_base")
+        except Exception:
+            _ENCODING_UNAVAILABLE = True
     return _ENCODING
+
+
+def _estimate_tokens_without_encoding(text: str) -> int:
+    """Approximate token counts when the tokenizer assets are unavailable offline."""
+    if not text:
+        return 0
+
+    cjk_chars = len(re.findall(r"[\u3400-\u9FFF\u3040-\u30FF\uAC00-\uD7AF]", text))
+    ascii_chars = len(re.findall(r"[\x00-\x7F]", text))
+    other_chars = max(0, len(text) - cjk_chars - ascii_chars)
+
+    # Rough heuristic:
+    # - ASCII text averages ~4 chars/token for English-like content.
+    # - CJK characters are closer to 1 char/token.
+    # - Treat other non-ASCII scripts conservatively as ~2 chars/token.
+    ascii_tokens = max(1, round(ascii_chars / 4)) if ascii_chars else 0
+    other_tokens = max(0, round(other_chars / 2))
+    return max(1, ascii_tokens + cjk_chars + other_tokens)
 
 
 def count_tokens(text: str) -> int:
@@ -39,6 +61,8 @@ def count_tokens(text: str) -> int:
     if not text:
         return 0
     encoding = _get_encoding()
+    if encoding is None:
+        return _estimate_tokens_without_encoding(text)
     return len(encoding.encode(text))
 
 
@@ -348,6 +372,14 @@ class Chunker:
         text that does not follow English punctuation rules.
         """
         encoding = _get_encoding()
+        if encoding is None:
+            approx_chars_per_token = 4
+            segment_char_size = max(self.max_tokens * approx_chars_per_token, 1)
+            return [
+                text[start:start + segment_char_size]
+                for start in range(0, len(text), segment_char_size)
+                if text[start:start + segment_char_size].strip()
+            ]
         token_ids = encoding.encode(text)
         segments: List[str] = []
 
