@@ -42,11 +42,13 @@ from services.api.modules.snapshots import (
     prepare_source_chunks,
 )
 from services.api.modules.sources.models import Source, SourceType
+from services.api.modules.sources.storage import StorageError
 
 
 logger = logging.getLogger(__name__)
 
 USER_FACING_INGESTION_MESSAGES = {
+    "cancelled": "Ingestion was cancelled.",
     "fetch": "Ingestion failed while loading the source.",
     "parse": "Ingestion failed while parsing the source.",
     "chunk": "Ingestion failed while preparing chunks.",
@@ -161,6 +163,7 @@ class IngestionOrchestrator:
         chunker: Chunker | None = None,
         progress_callback: Callable[[IngestionProgress], None] | None = None,
         file_content_loader: Callable[[str], bytes] | None = None,
+        cancellation_check: Callable[[], None] | None = None,
     ):
         """
         Initialize the orchestrator.
@@ -178,8 +181,16 @@ class IngestionOrchestrator:
         self.chunker = chunker or Chunker()
         self.progress_callback = progress_callback
         self.file_content_loader = file_content_loader
+        self.cancellation_check = cancellation_check
         self.progress = IngestionProgress()
         self._active_source_id: str | None = None
+
+    def _ensure_not_cancelled(self) -> None:
+        """Abort if the ingestion was invalidated while work was in flight."""
+        if self.cancellation_check is None:
+            return
+
+        self.cancellation_check()
 
     def _update_progress(
         self,
@@ -248,13 +259,23 @@ class IngestionOrchestrator:
             if not source.file_path:
                 raise IngestionError("fetch", "PDF source missing file_path")
             if self.file_content_loader:
-                return self.file_content_loader(source.file_path)
+                try:
+                    return self.file_content_loader(source.file_path)
+                except StorageError as exc:
+                    raise IngestionError("fetch", f"Failed to load source content: {exc}", cause=exc)
+                except Exception as exc:
+                    raise IngestionError("fetch", f"Failed to load source content: {exc}", cause=exc)
             raise IngestionError("fetch", "No file content loader configured for PDF")
 
         elif source.source_type == SourceType.TEXT:
             # For text sources, the content is stored directly or via file_path
             if source.file_path and self.file_content_loader:
-                content = self.file_content_loader(source.file_path)
+                try:
+                    content = self.file_content_loader(source.file_path)
+                except StorageError as exc:
+                    raise IngestionError("fetch", f"Failed to load source content: {exc}", cause=exc)
+                except Exception as exc:
+                    raise IngestionError("fetch", f"Failed to load source content: {exc}", cause=exc)
                 return content.decode("utf-8")
             raise IngestionError("fetch", "Text source missing content")
 
@@ -331,7 +352,7 @@ class IngestionOrchestrator:
         except Exception as e:
             raise IngestionError("chunk", f"Chunking failed: {e}", cause=e)
 
-    def _generate_snapshot(
+    async def _generate_snapshot(
         self,
         source: Source,
         parse_result: ParseResult,
@@ -346,11 +367,19 @@ class IngestionOrchestrator:
         )
 
         try:
-            self.snapshot_service.build_and_persist_snapshot(
-                source=source,
-                parse_result=parse_result,
-                prepared_chunks=prepared_chunks,
-            )
+            build_async = getattr(self.snapshot_service, "build_and_persist_snapshot_async", None)
+            if callable(build_async):
+                await build_async(
+                    source=source,
+                    parse_result=parse_result,
+                    prepared_chunks=prepared_chunks,
+                )
+            else:
+                self.snapshot_service.build_and_persist_snapshot(
+                    source=source,
+                    parse_result=parse_result,
+                    prepared_chunks=prepared_chunks,
+                )
             logger.info("Generated snapshot for source %s", source.id)
         except SnapshotGenerationError as exc:
             raise IngestionError("snapshot", f"Snapshot generation failed: {exc}", cause=exc)
@@ -442,11 +471,17 @@ class IngestionOrchestrator:
         self._update_progress("starting", 0)
 
         try:
+            self._ensure_not_cancelled()
+
             # Step 1: Fetch content
             content = self._fetch_content(source)
 
+            self._ensure_not_cancelled()
+
             # Step 2: Parse
             parse_result = self._parse_content(source, content)
+
+            self._ensure_not_cancelled()
 
             # Step 3: Chunk
             chunks = self._chunk_content(source, parse_result)
@@ -456,11 +491,17 @@ class IngestionOrchestrator:
 
             prepared_chunks = prepare_source_chunks(source, chunks)
 
+            self._ensure_not_cancelled()
+
             # Step 4: Snapshot
-            self._generate_snapshot(source, parse_result, prepared_chunks)
+            await self._generate_snapshot(source, parse_result, prepared_chunks)
+
+            self._ensure_not_cancelled()
 
             # Step 5: Generate embeddings (async)
             embeddings = await self._generate_embeddings(prepared_chunks)
+
+            self._ensure_not_cancelled()
 
             # Step 6: Save to database
             saved_chunks = self._save_chunks(source, prepared_chunks, embeddings)
@@ -496,6 +537,7 @@ async def run_ingestion(
     embedding_service: EmbeddingService | None = None,
     file_content_loader: Callable[[str], bytes] | None = None,
     progress_callback: Callable[[IngestionProgress], None] | None = None,
+    cancellation_check: Callable[[], None] | None = None,
 ) -> IngestionResult:
     """
     Convenience function to run ingestion for a source.
@@ -507,5 +549,6 @@ async def run_ingestion(
         embedding_service=embedding_service,
         file_content_loader=file_content_loader,
         progress_callback=progress_callback,
+        cancellation_check=cancellation_check,
     )
     return await orchestrator.ingest(source)

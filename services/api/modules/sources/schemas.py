@@ -51,3 +51,11 @@ class SourceListResponse(BaseModel):
     file_size: Optional[int] = None
     created_at: datetime
     updated_at: datetime
+
+
+class SourceSnapshotSummaryResponse(BaseModel):
+    """Minimal snapshot summary payload for source preview surfaces."""
+
+    overview: str
+    covered_themes: list[str] = Field(default_factory=list)
+    top_keywords: list[str] = Field(default_factory=list)

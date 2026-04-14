@@ -27,6 +27,7 @@ from services.api.modules.chunking.models import SourceChunk
 
 
 router = APIRouter(prefix="/api", tags=["ingestion"])
+MAX_BULK_INGESTION_SOURCES = 50
 
 
 def utcnow() -> datetime:
@@ -223,6 +224,13 @@ def enqueue_sources_ingestion_batch(
     AC: Ingestion API accepts multiple source IDs in one enqueue request
     AC: Bulk ingestion validates ownership/not-found before enqueuing
     """
+    if len(payload.source_ids) > MAX_BULK_INGESTION_SOURCES:
+        raise build_error(
+            status.HTTP_400_BAD_REQUEST,
+            "validation_error",
+            f"Bulk ingestion supports up to {MAX_BULK_INGESTION_SOURCES} sources per request.",
+        )
+
     sources = get_sources_for_user(payload.source_ids, user_id, db)
     jobs: list[IngestionJobResponse] = []
     queue = get_ingestion_queue()
@@ -268,6 +276,13 @@ def get_sources_ingestion_status_batch(
     AC: Bulk status returns latest payloads in request order
     AC: Bulk status indicates whether any requested source is unresolved
     """
+    if len(payload.source_ids) > MAX_BULK_INGESTION_SOURCES:
+        raise build_error(
+            status.HTTP_400_BAD_REQUEST,
+            "validation_error",
+            f"Bulk status supports up to {MAX_BULK_INGESTION_SOURCES} sources per request.",
+        )
+
     sources = get_sources_for_user(payload.source_ids, user_id, db)
     latest_jobs = get_latest_jobs_for_sources(payload.source_ids, db)
     statuses = [

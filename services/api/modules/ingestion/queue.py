@@ -23,6 +23,18 @@ class IngestionQueueError(RuntimeError):
     """Raised when the ingestion queue cannot be reached."""
 
 
+def _env_int(name: str, default: int, minimum: int = 0) -> int:
+    """Read an integer environment variable with a lower bound."""
+    raw_value = os.getenv(name)
+    if raw_value is None or raw_value.strip() == "":
+        return default
+
+    try:
+        return max(minimum, int(raw_value))
+    except ValueError:
+        return default
+
+
 @dataclass(frozen=True)
 class IngestionQueueSettings:
     """Environment-derived queue settings."""
@@ -49,6 +61,17 @@ def redis_settings_from_url(redis_url: str) -> RedisSettings:
     if parsed.path and parsed.path != "/":
         database = int(parsed.path.strip("/"))
 
+    conn_timeout_seconds = _env_int("REDIS_CONN_TIMEOUT_SECONDS", 5, minimum=1)
+    conn_retries = _env_int("REDIS_CONN_RETRIES", 20, minimum=1)
+    conn_retry_delay_seconds = _env_int("REDIS_CONN_RETRY_DELAY_SECONDS", 1, minimum=0)
+    max_connections = _env_int("REDIS_MAX_CONNECTIONS", 200, minimum=1)
+    retry_on_timeout = os.getenv("REDIS_RETRY_ON_TIMEOUT", "1").strip().lower() not in {
+        "0",
+        "false",
+        "no",
+        "off",
+    }
+
     return RedisSettings(
         host=parsed.hostname or "127.0.0.1",
         port=parsed.port or 6379,
@@ -56,6 +79,11 @@ def redis_settings_from_url(redis_url: str) -> RedisSettings:
         username=parsed.username,
         password=parsed.password,
         ssl=parsed.scheme == "rediss",
+        conn_timeout=conn_timeout_seconds,
+        conn_retries=conn_retries,
+        conn_retry_delay=conn_retry_delay_seconds,
+        max_connections=max_connections,
+        retry_on_timeout=retry_on_timeout,
     )
 
 

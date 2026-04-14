@@ -24,7 +24,9 @@ if DATABASE_URL.startswith("sqlite"):
     # SQLite-specific configuration
     engine = create_engine(
         DATABASE_URL,
-        connect_args={"check_same_thread": False}  # Needed for SQLite
+        # `timeout` makes sqlite wait on write locks before raising
+        # "database is locked" under worker contention.
+        connect_args={"check_same_thread": False, "timeout": 30}
     )
 
     @event.listens_for(engine, "connect")
@@ -32,6 +34,8 @@ if DATABASE_URL.startswith("sqlite"):
         """Keep SQLite foreign key constraints enabled across all connections."""
         cursor = dbapi_connection.cursor()
         cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.execute("PRAGMA busy_timeout=30000")
+        cursor.execute("PRAGMA journal_mode=WAL")
         cursor.close()
 else:
     # PostgreSQL or other databases

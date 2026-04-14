@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Plus, RefreshCw, Trash2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Eye, Plus, RefreshCw, Trash2 } from "lucide-react";
 
 import { SourceDeleteDialog } from "@/components/notebooks/source-delete-dialog";
 import { SourceManagementDialog } from "@/components/notebooks/source-management-dialog";
@@ -11,6 +11,7 @@ import { Spinner } from "@/components/ui/spinner";
 import {
   sourcesApi,
   type NotebookSource,
+  type SourceSnapshotSummary,
   type SourceIngestionStatus,
   type SourceStatus,
   type SourceType,
@@ -107,6 +108,20 @@ function isResolvedStatus(status: SourceStatus): boolean {
   return status === "ready" || status === "failed";
 }
 
+function getSnapshotUnavailableMessage(source: WorkspaceSource): string {
+  const status = getEffectiveStatus(source);
+
+  if (status === "failed") {
+    return "Snapshot preview is unavailable because ingestion failed.";
+  }
+
+  if (status === "processing" || status === "pending") {
+    return "Snapshot preview becomes available after ingestion finishes.";
+  }
+
+  return "Snapshot preview is not available for this source yet.";
+}
+
 async function buildWorkspaceSources(
   notebookId: string
 ): Promise<WorkspaceSource[]> {
@@ -138,6 +153,15 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
   );
   const [isDeletingSource, setIsDeletingSource] = useState(false);
   const [deleteErrorMessage, setDeleteErrorMessage] = useState<string | null>(null);
+  const [activeSnapshotSourceId, setActiveSnapshotSourceId] = useState<string | null>(null);
+  const [snapshotLoadingSourceId, setSnapshotLoadingSourceId] = useState<string | null>(null);
+  const [snapshotSummaries, setSnapshotSummaries] = useState<
+    Record<string, SourceSnapshotSummary>
+  >({});
+  const [snapshotErrorMessages, setSnapshotErrorMessages] = useState<
+    Record<string, string>
+  >({});
+  const snapshotPreviewRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const sourceCounts = sources.reduce(
     (counts, source) => {
       counts.total += 1;
@@ -244,12 +268,56 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
 
     setIsLoading(true);
     setTrackedIngestionIds([]);
+    setActiveSnapshotSourceId(null);
+    setSnapshotLoadingSourceId(null);
+    setSnapshotSummaries({});
+    setSnapshotErrorMessages({});
     void hydrateSources();
 
     return () => {
       isActive = false;
     };
   }, [notebookId]);
+
+  useEffect(() => {
+    if (!activeSnapshotSourceId) {
+      return;
+    }
+
+    function handlePointerDown(event: PointerEvent) {
+      const previewContainer = snapshotPreviewRefs.current[activeSnapshotSourceId];
+      if (
+        previewContainer &&
+        event.target instanceof Node &&
+        !previewContainer.contains(event.target)
+      ) {
+        setActiveSnapshotSourceId(null);
+      }
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setActiveSnapshotSourceId(null);
+      }
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [activeSnapshotSourceId]);
+
+  useEffect(() => {
+    if (
+      activeSnapshotSourceId &&
+      !sources.some((source) => source.id === activeSnapshotSourceId)
+    ) {
+      setActiveSnapshotSourceId(null);
+    }
+  }, [activeSnapshotSourceId, sources]);
 
   useEffect(() => {
     if (trackedIngestionIds.length === 0 || isLoading || isRefreshing) {
@@ -306,6 +374,65 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
       setIsSourceDialogOpen(false);
     } finally {
       setIsSubmittingSource(false);
+    }
+  }
+
+  function handleSnapshotPreviewBlur(
+    sourceId: string,
+    event: React.FocusEvent<HTMLDivElement>
+  ) {
+    const previewContainer = snapshotPreviewRefs.current[sourceId];
+    if (!previewContainer) {
+      return;
+    }
+
+    const nextFocusedElement = event.relatedTarget;
+    if (nextFocusedElement instanceof Node && previewContainer.contains(nextFocusedElement)) {
+      return;
+    }
+
+    setActiveSnapshotSourceId((currentSourceId) =>
+      currentSourceId === sourceId ? null : currentSourceId
+    );
+  }
+
+  async function handleSourceSnapshotToggle(source: WorkspaceSource) {
+    const nextIsClosing = activeSnapshotSourceId === source.id;
+    setActiveSnapshotSourceId(nextIsClosing ? null : source.id);
+
+    if (nextIsClosing || getEffectiveStatus(source) !== "ready") {
+      return;
+    }
+
+    if (snapshotSummaries[source.id]) {
+      return;
+    }
+
+    setSnapshotLoadingSourceId(source.id);
+    setSnapshotErrorMessages((currentMessages) => {
+      const nextMessages = { ...currentMessages };
+      delete nextMessages[source.id];
+      return nextMessages;
+    });
+
+    try {
+      const summary = await sourcesApi.getSnapshotSummary(notebookId, source.id);
+      setSnapshotSummaries((currentSummaries) => ({
+        ...currentSummaries,
+        [source.id]: summary,
+      }));
+    } catch (error) {
+      setSnapshotErrorMessages((currentMessages) => ({
+        ...currentMessages,
+        [source.id]:
+          error instanceof Error
+            ? error.message
+            : "Snapshot preview is not available for this source yet.",
+      }));
+    } finally {
+      setSnapshotLoadingSourceId((currentLoadingSourceId) =>
+        currentLoadingSourceId === source.id ? null : currentLoadingSourceId
+      );
     }
   }
 
@@ -471,6 +598,17 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
                           type="button"
                           variant="ghost"
                           size="sm"
+                          className="text-slate-600 hover:bg-slate-100"
+                          onClick={() => void handleSourceSnapshotToggle(source)}
+                          aria-label={`View source snapshot for ${source.title}`}
+                        >
+                          <Eye className="mr-2 h-4 w-4" />
+                          Snapshot
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
                           className="text-slate-600 hover:bg-rose-50 hover:text-rose-700"
                           onClick={() => {
                             setDeleteErrorMessage(null);
@@ -492,6 +630,74 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
                     {failureMessage ? (
                       <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
                         {failureMessage}
+                      </div>
+                    ) : null}
+
+                    {activeSnapshotSourceId === source.id ? (
+                      <div
+                        ref={(element) => {
+                          snapshotPreviewRefs.current[source.id] = element;
+                        }}
+                        className="mt-4 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-[0_2px_8px_rgba(15,23,42,0.06)]"
+                        onBlur={(event) => handleSnapshotPreviewBlur(source.id, event)}
+                      >
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Snapshot preview
+                        </p>
+
+                        {snapshotLoadingSourceId === source.id ? (
+                          <p className="mt-2 text-sm text-muted-foreground">
+                            Loading snapshot preview...
+                          </p>
+                        ) : snapshotErrorMessages[source.id] ? (
+                          <p className="mt-2 text-sm text-rose-700">
+                            {snapshotErrorMessages[source.id]}
+                          </p>
+                        ) : snapshotSummaries[source.id] ? (
+                          <div className="mt-3 space-y-3">
+                            <p className="text-sm leading-6 text-slate-700">
+                              {snapshotSummaries[source.id].overview}
+                            </p>
+                            {snapshotSummaries[source.id].covered_themes.length > 0 ? (
+                              <div>
+                                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                                  Themes
+                                </p>
+                                <div className="mt-1 flex flex-wrap gap-1.5">
+                                  {snapshotSummaries[source.id].covered_themes.map((theme) => (
+                                    <span
+                                      key={theme}
+                                      className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs text-slate-700"
+                                    >
+                                      {theme}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : null}
+                            {snapshotSummaries[source.id].top_keywords.length > 0 ? (
+                              <div>
+                                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                                  Keywords
+                                </p>
+                                <div className="mt-1 flex flex-wrap gap-1.5">
+                                  {snapshotSummaries[source.id].top_keywords.map((keyword) => (
+                                    <span
+                                      key={keyword}
+                                      className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-0.5 text-xs text-sky-800"
+                                    >
+                                      {keyword}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <p className="mt-2 text-sm text-muted-foreground">
+                            {getSnapshotUnavailableMessage(source)}
+                          </p>
+                        )}
                       </div>
                     ) : null}
                   </article>

@@ -2,20 +2,22 @@
 API routes for Source operations.
 """
 from pathlib import Path
+import logging
 import re
-from typing import List, TypedDict, cast
+from typing import Any, List, TypedDict, cast
 import uuid
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
-from sqlalchemy import delete
 from sqlalchemy.orm import Session
 
 from services.api.core.database import get_db
 from services.api.modules.notebooks.models import Notebook
 from services.api.modules.notebooks.routes import get_current_user_id
+from services.api.modules.sources.cleanup import delete_source_artifacts
 from services.api.modules.sources.models import Source, SourceStatus, SourceType
 from services.api.modules.sources.schemas import (
     SourceListResponse,
+    SourceSnapshotSummaryResponse,
     SourceResponse,
     SourceTextCreate,
     SourceURLCreate,
@@ -24,8 +26,10 @@ from services.api.modules.sources.storage import StorageError, get_object_storag
 
 
 router = APIRouter(prefix="/api/notebooks", tags=["sources"])
+logger = logging.getLogger(__name__)
 
 TEXT_SOURCE_MAX_BYTES = 10 * 1024 * 1024
+MAX_BATCH_UPLOAD_FILES = 50
 UPLOAD_RULES = {
     "application/pdf": {
         "source_type": SourceType.PDF,
@@ -44,6 +48,7 @@ UPLOAD_RULES = {
     },
 }
 FILENAME_SANITIZE_PATTERN = re.compile(r"[^A-Za-z0-9._-]+")
+FILENAME_CONTROL_CHARS_PATTERN = re.compile(r"[\x00-\x1f\x7f]+")
 
 
 class UploadRule(TypedDict):
@@ -115,6 +120,96 @@ def build_error(status_code: int, error: str, message: str) -> HTTPException:
     )
 
 
+def _normalize_string_list(values: Any, *, limit: int) -> list[str]:
+    """Convert a raw list payload into a deduplicated list of strings."""
+    if not isinstance(values, list):
+        return []
+
+    normalized: list[str] = []
+    for value in values:
+        if not isinstance(value, str):
+            continue
+
+        stripped = value.strip()
+        if not stripped or stripped in normalized:
+            continue
+
+        normalized.append(stripped)
+        if len(normalized) >= limit:
+            break
+
+    return normalized
+
+
+def build_snapshot_summary_response(snapshot_data: Any) -> SourceSnapshotSummaryResponse | None:
+    """Extract the UI-facing snapshot summary fields from stored snapshot data."""
+    if not isinstance(snapshot_data, dict):
+        return None
+
+    semantic = snapshot_data.get("semantic")
+    if not isinstance(semantic, dict):
+        return None
+
+    content_digest = semantic.get("content_digest")
+    keywords = semantic.get("keywords")
+
+    overview = ""
+    covered_themes: list[str] = []
+    top_keywords: list[str] = []
+
+    if isinstance(content_digest, dict):
+        raw_overview = content_digest.get("overview")
+        if isinstance(raw_overview, str):
+            overview = raw_overview.strip()
+
+        covered_themes = _normalize_string_list(
+            content_digest.get("covered_themes"),
+            limit=8,
+        )
+
+        if not overview:
+            key_assertions = _normalize_string_list(
+                content_digest.get("key_assertions"),
+                limit=2,
+            )
+            if key_assertions:
+                overview = " ".join(key_assertions).strip()
+
+        if not overview:
+            representative_passages = content_digest.get("representative_passages")
+            if isinstance(representative_passages, list):
+                for passage in representative_passages:
+                    if not isinstance(passage, dict):
+                        continue
+                    passage_text = passage.get("text")
+                    if isinstance(passage_text, str) and passage_text.strip():
+                        overview = passage_text.strip()
+                        break
+
+    if isinstance(keywords, list):
+        for keyword in keywords:
+            term = keyword.get("term") if isinstance(keyword, dict) else keyword
+            if not isinstance(term, str):
+                continue
+
+            stripped = term.strip()
+            if not stripped or stripped in top_keywords:
+                continue
+
+            top_keywords.append(stripped)
+            if len(top_keywords) >= 10:
+                break
+
+    if not overview and not covered_themes and not top_keywords:
+        return None
+
+    return SourceSnapshotSummaryResponse(
+        overview=overview,
+        covered_themes=covered_themes,
+        top_keywords=top_keywords,
+    )
+
+
 def slugify_text_filename(title: str | None) -> str:
     """Generate a predictable `.txt` filename for raw text sources."""
     stem = (title or "").strip().lower()
@@ -125,11 +220,29 @@ def slugify_text_filename(title: str | None) -> str:
     return f"{stem}.txt"
 
 
+def split_filename_extension(filename: str) -> tuple[str, str]:
+    """Split a filename into stem + last extension while preserving leading dots."""
+    if "." not in filename or filename.startswith(".") and filename.count(".") == 1:
+        return filename, ""
+    stem, extension = filename.rsplit(".", 1)
+    return stem, f".{extension}"
+
+
+def derive_source_title_from_filename(filename: str, fallback: str) -> str:
+    """Use the original filename stem as the default source title."""
+    stem, _extension = split_filename_extension(filename)
+    normalized_stem = stem.strip()
+    return normalized_stem or fallback
+
+
 def sanitize_filename(filename: str | None, fallback: str) -> str:
-    """Strip paths and unsupported characters from uploaded filenames."""
-    candidate = Path(filename or "").name.strip() or fallback
-    sanitized = FILENAME_SANITIZE_PATTERN.sub("-", candidate).strip()
-    return sanitized or fallback
+    """Strip paths and control characters while preserving visible filename text."""
+    raw_name = (filename or "").replace("\\", "/").split("/")[-1].strip()
+    candidate = raw_name or fallback
+    sanitized = FILENAME_CONTROL_CHARS_PATTERN.sub("", candidate).strip()
+    if sanitized in {"", ".", ".."}:
+        return fallback
+    return sanitized
 
 
 def build_object_path(
@@ -168,7 +281,10 @@ def validate_upload_file(file: UploadFile) -> ValidatedUpload:
         "content": file_bytes,
         "content_type": content_type,
         "filename": filename,
-        "title": filename,
+        "title": derive_source_title_from_filename(
+            filename,
+            Path(rule["default_filename"]).stem,
+        ),
     }
 
 
@@ -382,12 +498,78 @@ def upload_source_files_batch(
     AC: Bulk upload rejects unsupported file types
     """
     notebook = get_notebook_or_404(notebook_id, user_id, db)
+    if len(files) == 0:
+        raise build_error(
+            status.HTTP_400_BAD_REQUEST,
+            "validation_error",
+            "At least one file is required for batch upload.",
+        )
+
+    if len(files) > MAX_BATCH_UPLOAD_FILES:
+        raise build_error(
+            status.HTTP_400_BAD_REQUEST,
+            "validation_error",
+            f"Batch upload supports up to {MAX_BATCH_UPLOAD_FILES} files per request.",
+        )
+
     validated_uploads = [validate_upload_file(file) for file in files]
 
     return [
         create_uploaded_source(notebook_id=notebook.id, upload=upload, db=db)
         for upload in validated_uploads
     ]
+
+
+@router.get(
+    "/{notebook_id}/sources/{source_id}/snapshot",
+    response_model=SourceSnapshotSummaryResponse,
+)
+def get_source_snapshot_summary(
+    notebook_id: uuid.UUID,
+    source_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    user_id: uuid.UUID = Depends(get_current_user_id),
+):
+    """Return a compact snapshot summary for a single source."""
+    from services.api.modules.snapshots.models import SourceSnapshot
+
+    get_notebook_or_404(notebook_id, user_id, db)
+    source = get_source_or_404(notebook_id, source_id, db)
+
+    snapshot = (
+        db.query(SourceSnapshot)
+        .filter(SourceSnapshot.source_id == source.id)
+        .first()
+    )
+    if snapshot is None:
+        raise build_error(
+            status.HTTP_404_NOT_FOUND,
+            "not_found",
+            "Snapshot preview is not available for this source",
+        )
+
+    summary = build_snapshot_summary_response(snapshot.snapshot_data)
+    if summary is None:
+        logger.warning(
+            "Snapshot summary unavailable for source=%s notebook=%s; semantic payload keys=%s",
+            source.id,
+            notebook_id,
+            list(snapshot.snapshot_data.keys()) if isinstance(snapshot.snapshot_data, dict) else [],
+        )
+        raise build_error(
+            status.HTTP_404_NOT_FOUND,
+            "not_found",
+            "Snapshot preview is not available for this source",
+        )
+
+    if not summary.overview:
+        logger.warning(
+            "Snapshot summary overview still empty after fallback source=%s notebook=%s",
+            source.id,
+            notebook_id,
+        )
+
+    return summary
 
 
 @router.delete(
@@ -409,26 +591,7 @@ def delete_source(
     get_notebook_or_404(notebook_id, user_id, db)
     source = get_source_or_404(notebook_id, source_id, db)
 
-    if source.file_path:
-        try:
-            get_object_storage().delete_bytes(source.file_path)
-        except StorageError as exc:
-            import logging
-            logging.getLogger(__name__).warning(
-                "Failed to delete storage object %s for source %s: %s",
-                source.file_path, source.id, exc,
-            )
-
-    # Also clean up any snapshot row before the cascade.
-    try:
-        from services.api.modules.snapshots.models import SourceSnapshot
-        db.query(SourceSnapshot).filter(
-            SourceSnapshot.source_id == source.id
-        ).delete(synchronize_session=False)
-    except Exception:
-        pass
-
-    db.execute(delete(Source).where(Source.id == source.id))
+    delete_source_artifacts(db=db, sources=[source])
     db.commit()
 
     return None

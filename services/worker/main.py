@@ -5,11 +5,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from datetime import datetime, timezone
 from typing import Any, Callable
 import uuid
 
 from arq.worker import Worker, func
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session, sessionmaker
 
 from services.api.core.database import SessionLocal
@@ -19,6 +21,7 @@ from services.api.modules.ingestion.queue import (
     get_ingestion_queue_settings,
     redis_settings_from_url,
 )
+from services.api.modules.notebooks.models import Notebook
 from services.api.modules.sources.storage import get_object_storage
 from services.api.modules.sources.models import Source, SourceStatus
 
@@ -29,6 +32,14 @@ logger = logging.getLogger(__name__)
 DEFAULT_PROGRESS = {"step": "completed", "percentage": 100}
 WORKER_LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 WORKER_LOG_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
+# Keep runtime ingestion concurrency conservative by default so large bulk queues
+# do not overwhelm snapshot/embedding providers.
+DEFAULT_MAX_JOBS = max(1, int(os.getenv("INGESTION_MAX_JOBS", "4")))
+SQLITE_COMMIT_RETRY_ATTEMPTS = max(1, int(os.getenv("SQLITE_COMMIT_RETRY_ATTEMPTS", "6")))
+SQLITE_COMMIT_RETRY_BASE_SECONDS = max(
+    0.05,
+    float(os.getenv("SQLITE_COMMIT_RETRY_BASE_SECONDS", "0.2")),
+)
 
 
 def configure_worker_logging() -> None:
@@ -63,11 +74,76 @@ def utcnow() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
+def _is_sqlite_locked_error(exc: Exception) -> bool:
+    """Return True when the exception indicates SQLite lock contention."""
+    return "database is locked" in str(exc).lower()
+
+
+async def _commit_with_retry(db: Session, *, operation: str) -> None:
+    """Commit a session with bounded retries for transient SQLite write locks."""
+    for attempt in range(1, SQLITE_COMMIT_RETRY_ATTEMPTS + 1):
+        try:
+            db.commit()
+            return
+        except OperationalError as exc:
+            if not _is_sqlite_locked_error(exc) or attempt >= SQLITE_COMMIT_RETRY_ATTEMPTS:
+                raise
+
+            db.rollback()
+            delay = SQLITE_COMMIT_RETRY_BASE_SECONDS * (2 ** (attempt - 1))
+            logger.warning(
+                "SQLite lock contention during %s (attempt %s/%s); retrying in %.2fs",
+                operation,
+                attempt,
+                SQLITE_COMMIT_RETRY_ATTEMPTS,
+                delay,
+            )
+            await asyncio.sleep(delay)
+
+
 def build_user_facing_ingestion_error_message(exc: Exception) -> str:
     """Translate internal ingestion exceptions into user-facing status text."""
     from services.api.modules.ingestion.orchestrator import summarize_ingestion_error
 
     return summarize_ingestion_error(exc)
+
+
+def load_active_source_and_job(
+    *,
+    db: Session,
+    source_id: uuid.UUID,
+    job_id: uuid.UUID,
+) -> tuple[Source | None, IngestionJob | None]:
+    """Return the source/job pair only while its parent notebook is active."""
+    result = (
+        db.query(Source, IngestionJob)
+        .join(IngestionJob, IngestionJob.source_id == Source.id)
+        .join(Notebook, Notebook.id == Source.notebook_id)
+        .filter(
+            Source.id == source_id,
+            IngestionJob.id == job_id,
+            Notebook.deleted_at.is_(None),
+        )
+        .first()
+    )
+    if result is None:
+        return None, None
+
+    return result
+
+
+def assert_ingestion_not_cancelled(
+    *,
+    db: Session,
+    source_id: uuid.UUID,
+    job_id: uuid.UUID,
+) -> None:
+    """Abort a worker run when the source/job pair was deleted mid-flight."""
+    from services.api.modules.ingestion.orchestrator import IngestionError
+
+    source, job = load_active_source_and_job(db=db, source_id=source_id, job_id=job_id)
+    if source is None or job is None:
+        raise IngestionError("cancelled", "Source, notebook, or job was deleted")
 
 
 async def run_ingestion_pipeline(
@@ -87,9 +163,20 @@ async def run_ingestion_pipeline(
     )
 
     def update_job_progress(progress: IngestionProgress) -> None:
-        """Update job progress in database."""
+        """Persist job progress with short commits to avoid long SQLite write locks."""
         job.progress = progress.to_dict()
-        db.flush()
+        try:
+            db.commit()
+        except OperationalError as exc:
+            db.rollback()
+            if _is_sqlite_locked_error(exc):
+                logger.warning(
+                    "Skipping progress persistence due to SQLite lock for source=%s job=%s",
+                    source.id,
+                    job.id,
+                )
+                return
+            raise
 
     try:
         result = await run_ingestion(
@@ -97,6 +184,11 @@ async def run_ingestion_pipeline(
             db=db,
             file_content_loader=file_content_loader,
             progress_callback=update_job_progress,
+            cancellation_check=lambda: assert_ingestion_not_cancelled(
+                db=db,
+                source_id=source.id,
+                job_id=job.id,
+            ),
         )
         return result.to_dict()
     except Exception:
@@ -147,10 +239,18 @@ async def ingest_source(ctx: dict[str, Any], source_id: str, ingestion_job_id: s
     job_uuid = uuid.UUID(str(ingestion_job_id))
 
     try:
-        job = db.query(IngestionJob).filter(IngestionJob.id == job_uuid).first()
-        source = db.query(Source).filter(Source.id == source_uuid).first()
+        source, job = load_active_source_and_job(
+            db=db,
+            source_id=source_uuid,
+            job_id=job_uuid,
+        )
         if job is None or source is None:
-            raise RuntimeError("Source or ingestion job not found")
+            logger.info(
+                "Skipping ingestion for deleted or missing source=%s job=%s",
+                source_uuid,
+                job_uuid,
+            )
+            return {"step": "cancelled", "percentage": 100}
 
         logger.info("Starting ingestion job source=%s job=%s", source.id, job.id)
         job.status = IngestionJobStatus.RUNNING
@@ -158,7 +258,7 @@ async def ingest_source(ctx: dict[str, Any], source_id: str, ingestion_job_id: s
         job.error_message = None
         source.status = SourceStatus.PROCESSING
         source.error_message = None
-        db.commit()
+        await _commit_with_retry(db, operation="mark job running")
 
         # Get file content loader
         file_content_loader = _get_file_content_loader(ctx)
@@ -183,13 +283,24 @@ async def ingest_source(ctx: dict[str, Any], source_id: str, ingestion_job_id: s
             progress.get("chunks_created"),
             progress.get("embeddings_generated"),
         )
-        db.commit()
+        await _commit_with_retry(db, operation="mark job completed")
         return progress
     except Exception as exc:
         db.rollback()
-        job = db.query(IngestionJob).filter(IngestionJob.id == job_uuid).first()
-        source = db.query(Source).filter(Source.id == source_uuid).first()
+        source, job = load_active_source_and_job(
+            db=db,
+            source_id=source_uuid,
+            job_id=job_uuid,
+        )
         user_facing_error = build_user_facing_ingestion_error_message(exc)
+
+        if user_facing_error == "Ingestion was cancelled." and source is None and job is None:
+            logger.info(
+                "Cancelled ingestion for deleted source=%s job=%s",
+                source_uuid,
+                job_uuid,
+            )
+            return {"step": "cancelled", "percentage": 100}
 
         logger.exception("Ingestion job failed source=%s job=%s", source_uuid, job_uuid)
 
@@ -202,7 +313,7 @@ async def ingest_source(ctx: dict[str, Any], source_id: str, ingestion_job_id: s
             source.status = SourceStatus.FAILED
             source.error_message = user_facing_error
 
-        db.commit()
+        await _commit_with_retry(db, operation="mark job failed")
         raise
     finally:
         db.close()
@@ -214,7 +325,7 @@ def build_worker(
     queue_name: str | None = None,
     session_factory: sessionmaker | None = None,
     burst: bool = False,
-    max_jobs: int = 10,
+    max_jobs: int = DEFAULT_MAX_JOBS,
 ) -> Worker:
     """Create a configured Arq worker instance."""
     settings = get_ingestion_queue_settings()
@@ -250,7 +361,7 @@ class WorkerSettings:
     on_startup = on_worker_startup
     on_shutdown = on_worker_shutdown
     ctx = {"session_factory": SessionLocal}
-    max_jobs = 10
+    max_jobs = DEFAULT_MAX_JOBS
     poll_delay = 0.1
     retry_jobs = False
     health_check_interval = 30

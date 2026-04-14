@@ -7,6 +7,7 @@ import { sourcesApi } from "@/lib/api";
 jest.mock("@/lib/api", () => ({
   sourcesApi: {
     list: jest.fn(),
+    getSnapshotSummary: jest.fn(),
     getStatus: jest.fn(),
     bulkStatus: jest.fn(),
     ingest: jest.fn(),
@@ -91,6 +92,13 @@ const batchUploadSources = [
   },
 ];
 
+const readySourceSnapshot = {
+  overview:
+    "Launch Risks Memo summarizes the operational blockers, ownership gaps, and mitigation paths for the release.",
+  covered_themes: ["Operational risks", "Mitigation planning", "Ownership"],
+  top_keywords: ["launch readiness", "dependencies", "owners"],
+};
+
 function deferredPromise<T>() {
   let resolve: (value: T | PromiseLike<T>) => void = () => undefined;
   let reject: (reason?: unknown) => void = () => undefined;
@@ -174,6 +182,7 @@ describe("NotebookWorkspace", () => {
   beforeEach(() => {
     jest.resetAllMocks();
     (sourcesApi.list as jest.Mock).mockResolvedValue(existingSources);
+    (sourcesApi.getSnapshotSummary as jest.Mock).mockResolvedValue(readySourceSnapshot);
     (sourcesApi.ingest as jest.Mock).mockResolvedValue({
       source_id: "source-default",
       status: "pending",
@@ -209,6 +218,73 @@ describe("NotebookWorkspace", () => {
     expect(within(dialog).getByRole("button", { name: "URL" })).toBeInTheDocument();
     expect(sourcesApi.bulkStatus).toHaveBeenCalledWith(["source-1", "source-2"]);
     expect(sourcesApi.getStatus).not.toHaveBeenCalled();
+  });
+
+  it("opens a source snapshot preview card for ready sources and closes it on outside click", async () => {
+    const user = userEvent.setup();
+    const request = deferredPromise<typeof readySourceSnapshot>();
+    (sourcesApi.getSnapshotSummary as jest.Mock).mockReturnValueOnce(request.promise);
+
+    render(<NotebookWorkspace notebookId="notebook-123" />);
+
+    expect(await screen.findByText("Launch Risks Memo")).toBeInTheDocument();
+
+    await act(async () => {
+      await user.click(
+        screen.getByRole("button", {
+          name: "View source snapshot for Launch Risks Memo",
+        })
+      );
+    });
+
+    expect(await screen.findByText("Loading snapshot preview...")).toBeInTheDocument();
+    expect(sourcesApi.getSnapshotSummary).toHaveBeenCalledWith(
+      "notebook-123",
+      "source-2"
+    );
+
+    await act(async () => {
+      request.resolve(readySourceSnapshot);
+    });
+
+    expect(await screen.findByText("Snapshot preview")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Launch Risks Memo summarizes the operational blockers, ownership gaps, and mitigation paths for the release."
+      )
+    ).toBeInTheDocument();
+    expect(screen.getByText("Operational risks")).toBeInTheDocument();
+    expect(screen.getByText("launch readiness")).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.pointerDown(document.body);
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByText("Snapshot preview")).not.toBeInTheDocument();
+    });
+  });
+
+  it("shows an unavailable state for sources that are not ready yet", async () => {
+    const user = userEvent.setup();
+
+    render(<NotebookWorkspace notebookId="notebook-123" />);
+
+    expect(await screen.findByText("Alpha Research Dossier")).toBeInTheDocument();
+
+    await act(async () => {
+      await user.click(
+        screen.getByRole("button", {
+          name: "View source snapshot for Alpha Research Dossier",
+        })
+      );
+    });
+
+    expect(await screen.findByText("Snapshot preview")).toBeInTheDocument();
+    expect(
+      screen.getByText("Snapshot preview becomes available after ingestion finishes.")
+    ).toBeInTheDocument();
+    expect(sourcesApi.getSnapshotSummary).not.toHaveBeenCalled();
   });
 
   it("creates a URL source and refreshes the source list in place", async () => {

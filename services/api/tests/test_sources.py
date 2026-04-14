@@ -60,6 +60,147 @@ class TestListSources:
         assert response.status_code == 404
 
 
+class TestSourceSnapshotSummary:
+    """Tests for GET /api/notebooks/{notebook_id}/sources/{source_id}/snapshot."""
+
+    def test_get_source_snapshot_summary_returns_overview_themes_and_keywords(
+        self, client: TestClient, created_notebook: dict, db
+    ):
+        """
+        AC: Source snapshot preview exposes only overview, covered themes, and top keywords.
+        """
+        from services.api.modules.snapshots.models import SourceSnapshot
+        from services.api.modules.sources.models import Source, SourceStatus, SourceType
+
+        source = Source(
+            notebook_id=uuid.UUID(created_notebook["id"]),
+            source_type=SourceType.PDF,
+            title="Snapshot-backed source",
+            status=SourceStatus.READY,
+        )
+        db.add(source)
+        db.commit()
+        db.refresh(source)
+
+        snapshot = SourceSnapshot(
+            source_id=source.id,
+            notebook_id=source.notebook_id,
+            schema_version="1.0",
+            source_content_hash="abc123",
+            generation_method="llm",
+            model_name="glm-4.5-air",
+            snapshot_data={
+                "source_identity": {"source_id": str(source.id)},
+                "deterministic": {"content_metrics": {"chunk_count": 3}},
+                "semantic": {
+                    "content_digest": {
+                        "overview": "A concise summary of the source.",
+                        "covered_themes": ["Theme A", "Theme B"],
+                    },
+                    "keywords": [
+                        {"term": "keyword-one", "weight": 1.0, "chunk_ids": []},
+                        {"term": "keyword-two", "weight": 0.8, "chunk_ids": []},
+                    ],
+                },
+            },
+        )
+        db.add(snapshot)
+        db.commit()
+
+        response = client.get(
+            f"/api/notebooks/{created_notebook['id']}/sources/{source.id}/snapshot"
+        )
+
+        assert response.status_code == 200
+        assert response.json() == {
+            "overview": "A concise summary of the source.",
+            "covered_themes": ["Theme A", "Theme B"],
+            "top_keywords": ["keyword-one", "keyword-two"],
+        }
+
+    def test_get_source_snapshot_summary_returns_404_when_missing(
+        self, client: TestClient, created_notebook: dict, db
+    ):
+        """
+        AC: Snapshot preview returns not-found when no snapshot is available yet.
+        """
+        from services.api.modules.sources.models import Source, SourceStatus, SourceType
+
+        source = Source(
+            notebook_id=uuid.UUID(created_notebook["id"]),
+            source_type=SourceType.URL,
+            title="No snapshot yet",
+            original_url="https://example.com/no-snapshot",
+            status=SourceStatus.READY,
+        )
+        db.add(source)
+        db.commit()
+        db.refresh(source)
+
+        response = client.get(
+            f"/api/notebooks/{created_notebook['id']}/sources/{source.id}/snapshot"
+        )
+
+        assert response.status_code == 404
+        detail = response.json()["detail"]
+        assert detail["error"] == "not_found"
+        assert detail["message"] == "Snapshot preview is not available for this source"
+
+    def test_get_source_snapshot_summary_falls_back_when_overview_is_empty(
+        self, client: TestClient, created_notebook: dict, db
+    ):
+        """
+        AC: Snapshot preview derives overview from semantic details when stored overview is blank.
+        """
+        from services.api.modules.snapshots.models import SourceSnapshot
+        from services.api.modules.sources.models import Source, SourceStatus, SourceType
+
+        source = Source(
+            notebook_id=uuid.UUID(created_notebook["id"]),
+            source_type=SourceType.PDF,
+            title="Fallback overview source",
+            status=SourceStatus.READY,
+        )
+        db.add(source)
+        db.commit()
+        db.refresh(source)
+
+        snapshot = SourceSnapshot(
+            source_id=source.id,
+            notebook_id=source.notebook_id,
+            schema_version="1.0",
+            source_content_hash="fallback123",
+            generation_method="llm",
+            model_name="glm-4.5-air",
+            snapshot_data={
+                "source_identity": {"source_id": str(source.id)},
+                "deterministic": {"content_metrics": {"chunk_count": 2}},
+                "semantic": {
+                    "content_digest": {
+                        "overview": "",
+                        "covered_themes": ["Theme A"],
+                        "key_assertions": ["Key assertion one", "Key assertion two"],
+                    },
+                    "keywords": [
+                        {"term": "keyword-one", "weight": 1.0, "chunk_ids": []},
+                    ],
+                },
+            },
+        )
+        db.add(snapshot)
+        db.commit()
+
+        response = client.get(
+            f"/api/notebooks/{created_notebook['id']}/sources/{source.id}/snapshot"
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["overview"] == "Key assertion one Key assertion two"
+        assert data["covered_themes"] == ["Theme A"]
+        assert data["top_keywords"] == ["keyword-one"]
+
+
 class TestCreateURLSource:
     """Tests for POST /api/notebooks/{notebook_id}/sources/url endpoint."""
 
@@ -322,6 +463,34 @@ class TestUploadSourceFile:
         assert data["status"] == "pending"
         assert data["file_path"].endswith(f"/{filename}")
 
+    def test_upload_defaults_title_to_full_filename_stem_without_stripping_unicode(
+        self, client: TestClient, created_notebook: dict, monkeypatch: pytest.MonkeyPatch
+    ):
+        """
+        AC: Default upload title keeps the original filename text except the extension.
+        AC: Unicode and special characters are preserved for file-backed source titles.
+        """
+        from services.api.modules.sources import routes as source_routes
+
+        class RecordingStorage:
+            def store_bytes(self, _content: bytes, object_path: str, _content_type: str) -> str:
+                return object_path
+
+        monkeypatch.setattr(source_routes, "get_object_storage", lambda: RecordingStorage())
+
+        notebook_id = created_notebook["id"]
+        filename = "2026预算（终版） #A&B?.pdf"
+
+        response = client.post(
+            f"/api/notebooks/{notebook_id}/sources/upload",
+            files={"file": (filename, io.BytesIO(b"%PDF"), "application/pdf")},
+        )
+
+        assert response.status_code == 201
+        data = response.json()
+        assert data["title"] == "2026预算（终版） #A&B?"
+        assert data["file_path"].endswith(f"/{filename}")
+
     def test_upload_invalid_mime_type_returns_400(
         self, client: TestClient, created_notebook: dict
     ):
@@ -402,7 +571,7 @@ class TestBulkUploadSourceFiles:
         """
         AC: Sources API creates one source record per uploaded file and returns
         created sources in request order.
-        AC: Bulk upload defaults each created source title to the filename.
+        AC: Bulk upload defaults each created source title to the filename stem.
         """
         from services.api.modules.sources import routes as source_routes
 
@@ -438,7 +607,7 @@ class TestBulkUploadSourceFiles:
         assert response.status_code == 201
         data = response.json()
 
-        assert [item["title"] for item in data] == ["brief.pdf", "notes.txt"]
+        assert [item["title"] for item in data] == ["brief", "notes"]
         assert [item["source_type"] for item in data] == ["pdf", "text"]
         assert [item["status"] for item in data] == ["pending", "pending"]
         assert data[0]["file_path"].endswith("/brief.pdf")
@@ -446,6 +615,33 @@ class TestBulkUploadSourceFiles:
         assert len(storage.calls) == 2
         assert storage.calls[0]["content"] == pdf_bytes
         assert storage.calls[1]["content"] == txt_bytes
+
+    def test_bulk_upload_preserves_unicode_and_special_characters_in_default_titles(
+        self, client: TestClient, created_notebook: dict, monkeypatch: pytest.MonkeyPatch
+    ):
+        """
+        AC: Bulk upload preserves the original filename stem for mixed-language names.
+        """
+        from services.api.modules.sources import routes as source_routes
+
+        class RecordingStorage:
+            def store_bytes(self, _content: bytes, object_path: str, _content_type: str) -> str:
+                return object_path
+
+        monkeypatch.setattr(source_routes, "get_object_storage", lambda: RecordingStorage())
+
+        notebook_id = created_notebook["id"]
+        filename = "第2章 研发总结（v1.0） #A&B?.txt"
+
+        response = client.post(
+            f"/api/notebooks/{notebook_id}/sources/upload/batch",
+            files=[("files", (filename, io.BytesIO(b"batch notes"), "text/plain"))],
+        )
+
+        assert response.status_code == 201
+        data = response.json()
+        assert [item["title"] for item in data] == ["第2章 研发总结（v1.0） #A&B?"]
+        assert data[0]["file_path"].endswith(f"/{filename}")
 
     def test_bulk_upload_rejects_mixed_unsupported_files_without_persisting_sources(
         self,
@@ -499,6 +695,30 @@ class TestBulkUploadSourceFiles:
             == 0
         )
 
+    def test_bulk_upload_rejects_more_than_fifty_files(
+        self,
+        client: TestClient,
+        created_notebook: dict,
+    ):
+        """
+        AC: Batch upload supports at most 50 files in a single request.
+        """
+        notebook_id = created_notebook["id"]
+        files = [
+            ("files", (f"doc-{index}.txt", io.BytesIO(b"payload"), "text/plain"))
+            for index in range(51)
+        ]
+
+        response = client.post(
+            f"/api/notebooks/{notebook_id}/sources/upload/batch",
+            files=files,
+        )
+
+        assert response.status_code == 400
+        detail = response.json()["detail"]
+        assert detail["error"] == "validation_error"
+        assert detail["message"] == "Batch upload supports up to 50 files per request."
+
 
 class TestDeleteSource:
     """Tests for DELETE /api/notebooks/{notebook_id}/sources/{source_id} endpoint."""
@@ -510,7 +730,7 @@ class TestDeleteSource:
         AC: Deleting a source removes it from the notebook and returns 204.
         AC: File-backed sources remove their stored payload.
         """
-        from services.api.modules.sources import routes as source_routes
+        from services.api.modules.sources import cleanup as source_cleanup
         from services.api.modules.sources.models import Source, SourceStatus, SourceType
 
         class RecordingStorage:
@@ -521,7 +741,7 @@ class TestDeleteSource:
                 self.deleted_paths.append(object_path)
 
         storage = RecordingStorage()
-        monkeypatch.setattr(source_routes, "get_object_storage", lambda: storage)
+        monkeypatch.setattr(source_cleanup, "get_object_storage", lambda: storage)
 
         source = Source(
             notebook_id=uuid.UUID(created_notebook["id"]),
@@ -610,7 +830,7 @@ class TestDeleteSource:
         """
         AC: Non-file sources delete cleanly without storage calls.
         """
-        from services.api.modules.sources import routes as source_routes
+        from services.api.modules.sources import cleanup as source_cleanup
         from services.api.modules.sources.models import Source, SourceStatus, SourceType
 
         class RecordingStorage:
@@ -621,7 +841,7 @@ class TestDeleteSource:
                 self.deleted_paths.append(object_path)
 
         storage = RecordingStorage()
-        monkeypatch.setattr(source_routes, "get_object_storage", lambda: storage)
+        monkeypatch.setattr(source_cleanup, "get_object_storage", lambda: storage)
 
         source = Source(
             notebook_id=uuid.UUID(created_notebook["id"]),
@@ -666,6 +886,43 @@ class TestDeleteSource:
 
 class TestObjectStorageConfiguration:
     """Tests for environment-driven object storage selection."""
+
+    def test_s3_load_bytes_retries_retryable_gateway_errors(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """
+        AC: Object storage reads retry transient 5xx gateway failures.
+        """
+        from services.api.modules.sources import storage as source_storage
+
+        class FakeBody:
+            def read(self) -> bytes:
+                return b"ok"
+
+        class FakeClient:
+            def __init__(self) -> None:
+                self.calls = 0
+
+            def get_object(self, **_kwargs):
+                self.calls += 1
+                if self.calls < 3:
+                    raise Exception("An error occurred (502) when calling the GetObject operation")
+                return {"Body": FakeBody()}
+
+        storage = source_storage.S3ObjectStorage(bucket_name="test-bucket")
+        storage.client = FakeClient()
+        sleeps: list[float] = []
+
+        monkeypatch.setattr(source_storage, "DEFAULT_STORAGE_READ_MAX_ATTEMPTS", 3)
+        monkeypatch.setattr(source_storage, "DEFAULT_STORAGE_READ_RETRY_BASE_SECONDS", 0.2)
+        monkeypatch.setattr(source_storage.time, "sleep", lambda seconds: sleeps.append(seconds))
+
+        content = storage.load_bytes("path/to/object.pdf")
+
+        assert content == b"ok"
+        assert storage.client.calls == 3
+        assert sleeps == [0.2, 0.4]
 
     def test_upload_fails_when_implicit_minio_is_unavailable(
         self,
@@ -812,6 +1069,36 @@ class TestObjectStorageConfiguration:
         storage = source_storage._build_object_storage_from_env()
 
         assert isinstance(storage, RecordingS3Storage)
+
+    def test_s3_client_disables_proxies_for_local_minio_endpoint(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """
+        AC: Local MinIO endpoint bypasses HTTP proxy settings.
+        """
+        from services.api.modules.sources import storage as source_storage
+
+        captured: dict[str, object] = {}
+
+        class FakeBoto3:
+            @staticmethod
+            def client(service_name: str, **kwargs):
+                captured["service_name"] = service_name
+                captured.update(kwargs)
+                return object()
+
+        monkeypatch.setitem(__import__("sys").modules, "boto3", FakeBoto3)
+
+        source_storage.S3ObjectStorage(
+            bucket_name="notebooklx",
+            endpoint_url="http://localhost:9000",
+            access_key_id="minioadmin",
+            secret_access_key="minioadmin",
+        )
+
+        assert captured["service_name"] == "s3"
+        assert "config" in captured
+        assert getattr(captured["config"], "proxies", None) == {}
 
 
 class TestSourceModel:

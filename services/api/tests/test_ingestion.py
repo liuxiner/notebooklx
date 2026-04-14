@@ -16,6 +16,7 @@ import os
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.exc import OperationalError
 
 
 @pytest.fixture
@@ -223,6 +224,33 @@ class TestEnqueueIngestionTask:
         assert queue.calls == []
         assert db.query(IngestionJob).count() == 0
 
+    def test_bulk_enqueue_rejects_more_than_fifty_source_ids(
+        self,
+        client: TestClient,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        """
+        AC: Bulk ingestion enqueue supports up to 50 sources per request.
+        """
+        from services.api.modules.ingestion import routes as ingestion_routes
+
+        class RecordingQueue:
+            def enqueue_ingestion(self, *, source_id: uuid.UUID, ingestion_job_id: uuid.UUID) -> str:
+                del source_id, ingestion_job_id
+                raise AssertionError("queue should not be called for oversized payload")
+
+        monkeypatch.setattr(ingestion_routes, "get_ingestion_queue", lambda: RecordingQueue())
+
+        response = client.post(
+            "/api/sources/ingest/batch",
+            json={"source_ids": [str(uuid.uuid4()) for _ in range(51)]},
+        )
+
+        assert response.status_code == 400
+        detail = response.json()["detail"]
+        assert detail["error"] == "validation_error"
+        assert detail["message"] == "Bulk ingestion supports up to 50 sources per request."
+
 
 class TestGetSourceIngestionStatus:
     """Tests for GET /api/sources/{source_id}/status."""
@@ -426,6 +454,48 @@ class TestIngestionQueueStatus:
         }
 
 
+class TestIngestionQueueSettings:
+    def test_redis_settings_from_url_applies_resilience_defaults(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """AC: Worker queue uses resilient Redis connection defaults."""
+        from services.api.modules.ingestion.queue import redis_settings_from_url
+
+        monkeypatch.delenv("REDIS_CONN_TIMEOUT_SECONDS", raising=False)
+        monkeypatch.delenv("REDIS_CONN_RETRIES", raising=False)
+        monkeypatch.delenv("REDIS_CONN_RETRY_DELAY_SECONDS", raising=False)
+        monkeypatch.delenv("REDIS_MAX_CONNECTIONS", raising=False)
+        monkeypatch.delenv("REDIS_RETRY_ON_TIMEOUT", raising=False)
+
+        settings = redis_settings_from_url("redis://localhost:6379/0")
+
+        assert settings.conn_timeout == 5
+        assert settings.conn_retries == 20
+        assert settings.conn_retry_delay == 1
+        assert settings.max_connections == 200
+        assert settings.retry_on_timeout is True
+
+    def test_redis_settings_from_url_honors_resilience_overrides(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """AC: Redis resilience settings can be tuned via env variables."""
+        from services.api.modules.ingestion.queue import redis_settings_from_url
+
+        monkeypatch.setenv("REDIS_CONN_TIMEOUT_SECONDS", "9")
+        monkeypatch.setenv("REDIS_CONN_RETRIES", "40")
+        monkeypatch.setenv("REDIS_CONN_RETRY_DELAY_SECONDS", "2")
+        monkeypatch.setenv("REDIS_MAX_CONNECTIONS", "300")
+        monkeypatch.setenv("REDIS_RETRY_ON_TIMEOUT", "false")
+
+        settings = redis_settings_from_url("redis://localhost:6379/0")
+
+        assert settings.conn_timeout == 9
+        assert settings.conn_retries == 40
+        assert settings.conn_retry_delay == 2
+        assert settings.max_connections == 300
+        assert settings.retry_on_timeout is False
+
+
 class TestDeleteIngestionDataRoute:
     def test_delete_ingestion_data_removes_jobs_and_chunks(
         self, client: TestClient, created_source: dict, db
@@ -627,8 +697,91 @@ class TestWorkerBootstrap:
         assert loader("notebook/source/upload.txt") == b"stored-content"
         assert calls == ["notebook/source/upload.txt"]
 
+    @pytest.mark.asyncio
+    async def test_worker_commit_retries_on_sqlite_lock(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """
+        AC: Worker retries transient SQLite lock errors when committing state.
+        """
+        from services.worker import main as worker_main
+
+        class FakeSession:
+            def __init__(self) -> None:
+                self.commit_calls = 0
+                self.rollback_calls = 0
+
+            def commit(self) -> None:
+                self.commit_calls += 1
+                if self.commit_calls < 3:
+                    raise OperationalError(
+                        "UPDATE sources SET status='processing'",
+                        {},
+                        Exception("database is locked"),
+                    )
+
+            def rollback(self) -> None:
+                self.rollback_calls += 1
+
+        fake_db = FakeSession()
+        sleeps: list[float] = []
+
+        async def fake_sleep(seconds: float) -> None:
+            sleeps.append(seconds)
+
+        monkeypatch.setattr(worker_main.asyncio, "sleep", fake_sleep)
+
+        await worker_main._commit_with_retry(fake_db, operation="unit-test")
+
+        assert fake_db.commit_calls == 3
+        assert fake_db.rollback_calls == 2
+        assert sleeps == [
+            worker_main.SQLITE_COMMIT_RETRY_BASE_SECONDS,
+            worker_main.SQLITE_COMMIT_RETRY_BASE_SECONDS * 2,
+        ]
+
 
 class TestWorkerFailureMessages:
+    @pytest.mark.asyncio
+    async def test_ingest_source_returns_cancelled_when_source_was_deleted(
+        self,
+        db,
+        sample_notebook,
+    ):
+        """
+        AC: Deleted source jobs stop cleanly instead of reviving deleted state.
+        """
+        from services.api.modules.ingestion.models import IngestionJob, IngestionJobStatus
+        from services.api.modules.sources.models import Source, SourceStatus, SourceType
+        from services.api.tests.conftest import TestingSessionLocal
+        from services.worker import main as worker_main
+
+        source = Source(
+            notebook_id=sample_notebook.id,
+            source_type=SourceType.URL,
+            title="Deleted source",
+            original_url="https://example.com/deleted",
+            status=SourceStatus.PENDING,
+        )
+        db.add(source)
+        db.flush()
+
+        job = IngestionJob(source_id=source.id, status=IngestionJobStatus.QUEUED)
+        db.add(job)
+        db.commit()
+
+        db.delete(job)
+        db.delete(source)
+        db.commit()
+
+        result = await worker_main.ingest_source(
+            {"session_factory": TestingSessionLocal},
+            str(source.id),
+            str(job.id),
+        )
+
+        assert result == {"step": "cancelled", "percentage": 100}
+
     @pytest.mark.asyncio
     async def test_ingest_source_persists_user_friendly_snapshot_error(
         self,
@@ -683,6 +836,52 @@ class TestWorkerFailureMessages:
         assert refreshed_job.status == IngestionJobStatus.FAILED
         assert refreshed_source.error_message == "Ingestion failed during snapshot generation."
         assert refreshed_job.error_message == "Ingestion failed during snapshot generation."
+
+    @pytest.mark.asyncio
+    async def test_ingest_source_returns_cancelled_when_deleted_mid_flight(
+        self,
+        db,
+        sample_notebook,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        """
+        AC: Mid-flight cleanup exits the worker task as cancelled.
+        """
+        from services.api.modules.ingestion.models import IngestionJob, IngestionJobStatus
+        from services.api.modules.ingestion.orchestrator import IngestionError
+        from services.api.modules.sources.models import Source, SourceStatus, SourceType
+        from services.api.tests.conftest import TestingSessionLocal
+        from services.worker import main as worker_main
+
+        source = Source(
+            notebook_id=sample_notebook.id,
+            source_type=SourceType.URL,
+            title="Deleted mid-flight",
+            original_url="https://example.com/deleted-mid-flight",
+            status=SourceStatus.PENDING,
+        )
+        db.add(source)
+        db.flush()
+
+        job = IngestionJob(source_id=source.id, status=IngestionJobStatus.QUEUED)
+        db.add(job)
+        db.commit()
+
+        async def cancel_ingestion(_source, _job, run_db, **_kwargs):
+            run_db.delete(_job)
+            run_db.delete(_source)
+            run_db.commit()
+            raise IngestionError("cancelled", "deleted during cleanup")
+
+        monkeypatch.setattr(worker_main, "run_ingestion_pipeline", cancel_ingestion)
+
+        result = await worker_main.ingest_source(
+            {"session_factory": TestingSessionLocal},
+            str(source.id),
+            str(job.id),
+        )
+
+        assert result == {"step": "cancelled", "percentage": 100}
 
 
 @pytest.mark.skipif(

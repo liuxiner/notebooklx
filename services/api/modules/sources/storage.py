@@ -4,13 +4,24 @@ Storage backends for uploaded source payloads.
 from __future__ import annotations
 
 from functools import lru_cache
+import logging
 from pathlib import Path
+import time
+from urllib.parse import urlparse
 from typing import Protocol
 import os
 
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 DEFAULT_LOCAL_STORAGE_ROOT = REPO_ROOT / "tmp" / "source_uploads"
+DEFAULT_STORAGE_READ_MAX_ATTEMPTS = max(
+    1, int(os.getenv("SOURCE_STORAGE_READ_MAX_ATTEMPTS", "3"))
+)
+DEFAULT_STORAGE_READ_RETRY_BASE_SECONDS = max(
+    0.1, float(os.getenv("SOURCE_STORAGE_READ_RETRY_BASE_SECONDS", "0.5"))
+)
+
+logger = logging.getLogger(__name__)
 
 
 class StorageError(Exception):
@@ -71,14 +82,23 @@ class S3ObjectStorage:
         secret_access_key: str | None = None,
     ) -> None:
         import boto3
+        from botocore.config import Config
 
         self.bucket_name = bucket_name
+        client_config = Config()
+        parsed_endpoint = urlparse(endpoint_url) if endpoint_url else None
+        endpoint_host = (parsed_endpoint.hostname or "").lower() if parsed_endpoint else ""
+        if endpoint_host in {"localhost", "127.0.0.1", "::1"}:
+            # Avoid routing local MinIO traffic through corporate/system HTTP proxies.
+            client_config = Config(proxies={})
+
         self.client = boto3.client(
             "s3",
             endpoint_url=endpoint_url,
             region_name=region_name,
             aws_access_key_id=access_key_id,
             aws_secret_access_key=secret_access_key,
+            config=client_config,
         )
 
     def store_bytes(self, content: bytes, object_path: str, content_type: str) -> str:
@@ -94,12 +114,49 @@ class S3ObjectStorage:
 
         return object_path
 
+    @staticmethod
+    def _is_retryable_read_error(exc: Exception) -> bool:
+        message = str(exc).lower()
+        retryable_markers = (
+            "bad gateway",
+            "gateway timeout",
+            "service unavailable",
+            "temporarily unavailable",
+            "internal server error",
+            "reached max retries",
+            "timed out",
+            "connection reset",
+            "connection aborted",
+            "could not connect",
+            "(500)",
+            "(502)",
+            "(503)",
+            "(504)",
+        )
+        return any(marker in message for marker in retryable_markers)
+
     def load_bytes(self, object_path: str) -> bytes:
-        try:
-            response = self.client.get_object(Bucket=self.bucket_name, Key=object_path)
-            return response["Body"].read()
-        except Exception as exc:  # pragma: no cover - boto3 exception graph is broad
-            raise StorageError(str(exc)) from exc
+        attempts = DEFAULT_STORAGE_READ_MAX_ATTEMPTS
+        base_delay = DEFAULT_STORAGE_READ_RETRY_BASE_SECONDS
+
+        for attempt in range(1, attempts + 1):
+            try:
+                response = self.client.get_object(Bucket=self.bucket_name, Key=object_path)
+                return response["Body"].read()
+            except Exception as exc:  # pragma: no cover - boto3 exception graph is broad
+                if attempt >= attempts or not self._is_retryable_read_error(exc):
+                    raise StorageError(str(exc)) from exc
+
+                delay = base_delay * (2 ** (attempt - 1))
+                logger.warning(
+                    "Object storage read failed for key=%s attempt=%s/%s, retrying in %.2fs: %s",
+                    object_path,
+                    attempt,
+                    attempts,
+                    delay,
+                    exc,
+                )
+                time.sleep(delay)
 
     def delete_bytes(self, object_path: str) -> None:
         try:

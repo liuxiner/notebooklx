@@ -29,6 +29,7 @@ interface SourceManagementDialogProps {
 
 const modeButtonStyles =
   "rounded-full border px-3 py-1.5 text-sm font-medium transition-colors";
+const MAX_BATCH_UPLOAD_FILES = 50;
 
 function isSupportedUploadFile(file: File): boolean {
   const filename = file.name.toLowerCase();
@@ -84,6 +85,12 @@ export function SourceManagementDialog({
   }
 
   function handleUploadFileChange(nextFiles: File[]) {
+    if (nextFiles.length > MAX_BATCH_UPLOAD_FILES) {
+      setFiles(nextFiles);
+      setErrorMessage(`You can upload up to ${MAX_BATCH_UPLOAD_FILES} files at once.`);
+      return;
+    }
+
     setFiles(nextFiles);
     setErrorMessage(null);
 
@@ -123,6 +130,11 @@ export function SourceManagementDialog({
 
         if (files.some((file) => !isSupportedUploadFile(file))) {
           setErrorMessage("Only PDF and TXT files are supported.");
+          return;
+        }
+
+        if (files.length > MAX_BATCH_UPLOAD_FILES) {
+          setErrorMessage(`You can upload up to ${MAX_BATCH_UPLOAD_FILES} files at once.`);
           return;
         }
 
@@ -255,7 +267,8 @@ export function SourceManagementDialog({
                     disabled={isSubmitting}
                   />
                   <p className="text-xs text-muted-foreground">
-                    Supported upload types: PDF and TXT.
+                    Supported upload types: PDF and TXT. Max {MAX_BATCH_UPLOAD_FILES} files per batch.
+                    Ingestion jobs are queued and processed with limited concurrency.
                   </p>
                 </div>
 
@@ -267,7 +280,7 @@ export function SourceManagementDialog({
                     <p className="text-sm text-muted-foreground">
                       Batch uploads use each filename as the source title.
                     </p>
-                    <ul className="space-y-2 text-sm text-slate-700">
+                    <ul className="space-y-2 text-sm text-slate-700 max-h-48 overflow-y-auto">
                       {files.map((file) => (
                         <li key={`${file.name}-${file.size}`} className="truncate">
                           {file.name}

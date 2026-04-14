@@ -16,6 +16,7 @@ from services.api.modules.notebooks.schemas import (
     NotebookListResponse,
     ErrorResponse
 )
+from services.api.modules.sources.cleanup import delete_notebook_source_artifacts
 
 router = APIRouter(prefix="/api/notebooks", tags=["notebooks"])
 
@@ -190,6 +191,7 @@ def delete_notebook(
 
     # Soft delete
     notebook.deleted_at = datetime.utcnow()
+    delete_notebook_source_artifacts(db=db, notebook_id=notebook.id)
     db.commit()
 
     return None  # 204 No Content

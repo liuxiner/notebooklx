@@ -42,6 +42,12 @@ export interface NotebookSource {
   updated_at: string;
 }
 
+export interface SourceSnapshotSummary {
+  overview: string;
+  covered_themes: string[];
+  top_keywords: string[];
+}
+
 export interface SourceIngestionStatus {
   source_id: string;
   status: SourceStatus;
@@ -182,6 +188,19 @@ export const sourcesApi = {
   async list(notebookId: string): Promise<NotebookSource[]> {
     const response = await fetch(`${API_URL}/api/notebooks/${notebookId}/sources`);
     return handleResponse<NotebookSource[]>(response);
+  },
+
+  /**
+   * Get the compact snapshot summary for a source.
+   */
+  async getSnapshotSummary(
+    notebookId: string,
+    sourceId: string
+  ): Promise<SourceSnapshotSummary> {
+    const response = await fetch(
+      `${API_URL}/api/notebooks/${notebookId}/sources/${sourceId}/snapshot`
+    );
+    return handleResponse<SourceSnapshotSummary>(response);
   },
 
   /**

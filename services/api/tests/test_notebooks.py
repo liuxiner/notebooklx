@@ -352,6 +352,89 @@ class TestDeleteNotebook:
         update_response = client.patch(f"/api/notebooks/{notebook_id}", json={"name": "New Name"})
         assert update_response.status_code == 404
 
+    def test_delete_notebook_removes_sources_and_derived_records(
+        self,
+        client: TestClient,
+        db,
+        monkeypatch: pytest.MonkeyPatch,
+        sample_notebook_data: dict,
+    ):
+        """
+        AC: Notebook deletion removes source-backed resources while keeping notebook soft-delete semantics.
+        """
+        from services.api.modules.chunking.models import SourceChunk
+        from services.api.modules.ingestion.models import IngestionJob, IngestionJobStatus
+        from services.api.modules.notebooks.models import Notebook
+        from services.api.modules.snapshots.models import SourceSnapshot
+        from services.api.modules.sources import cleanup as source_cleanup
+        from services.api.modules.sources.models import Source, SourceStatus, SourceType
+
+        class RecordingStorage:
+            def __init__(self) -> None:
+                self.deleted_paths = []
+
+            def delete_bytes(self, object_path: str) -> None:
+                self.deleted_paths.append(object_path)
+
+        storage = RecordingStorage()
+        monkeypatch.setattr(source_cleanup, "get_object_storage", lambda: storage)
+
+        create_response = client.post("/api/notebooks", json=sample_notebook_data)
+        notebook_id = uuid.UUID(create_response.json()["id"])
+
+        source = Source(
+            notebook_id=notebook_id,
+            source_type=SourceType.TEXT,
+            title="Source to cascade delete",
+            file_path="notebook/source.txt",
+            file_size=123,
+            status=SourceStatus.PROCESSING,
+        )
+        db.add(source)
+        db.commit()
+        db.refresh(source)
+
+        db.add(
+            SourceChunk(
+                source_id=source.id,
+                chunk_index=0,
+                content="Chunk content",
+                token_count=2,
+                char_start=0,
+                char_end=13,
+            )
+        )
+        db.add(
+            IngestionJob(
+                source_id=source.id,
+                status=IngestionJobStatus.QUEUED,
+                task_id="queued-task-1",
+            )
+        )
+        db.add(
+            SourceSnapshot(
+                source_id=source.id,
+                notebook_id=notebook_id,
+                schema_version="test-v1",
+                source_content_hash="abc123",
+                generation_method="heuristic",
+                snapshot_data={"semantic": {"content_digest": {"overview": "Overview"}}},
+            )
+        )
+        db.commit()
+
+        response = client.delete(f"/api/notebooks/{notebook_id}")
+
+        assert response.status_code == 204
+        assert storage.deleted_paths == ["notebook/source.txt"]
+        assert db.query(Source).filter(Source.id == source.id).first() is None
+        assert db.query(SourceChunk).filter(SourceChunk.source_id == source.id).count() == 0
+        assert db.query(SourceSnapshot).filter(SourceSnapshot.source_id == source.id).count() == 0
+        assert db.query(IngestionJob).filter(IngestionJob.source_id == source.id).count() == 0
+
+        notebook = db.query(Notebook).filter(Notebook.id == notebook_id).one()
+        assert notebook.deleted_at is not None
+
 
 class TestNotebookErrorHandling:
     """Tests for error handling and edge cases."""

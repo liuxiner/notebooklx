@@ -26,6 +26,8 @@ export MINIO_ENDPOINT="${MINIO_ENDPOINT:-http://localhost:9000}"
 export MINIO_ACCESS_KEY="${MINIO_ACCESS_KEY:-minioadmin}"
 export MINIO_SECRET_KEY="${MINIO_SECRET_KEY:-minioadmin}"
 export MINIO_BUCKET="${MINIO_BUCKET:-notebooklx}"
+export NO_PROXY="${NO_PROXY:-localhost,127.0.0.1,::1}"
+export no_proxy="${no_proxy:-localhost,127.0.0.1,::1}"
 
 echo "Configuration:"
 echo "  PYTHONPATH: $PYTHONPATH"

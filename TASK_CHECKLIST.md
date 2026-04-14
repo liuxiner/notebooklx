@@ -128,6 +128,7 @@ Quick reference checklist for tracking development progress. Check off items as 
 - ✓ Reserved generated-assets section
 - ✓ Workspace refresh behavior
 - ✓ Frontend tests
+- ⚡ Source snapshot preview card
 
 **Source Management UI** ✓
 - ✓ Add-source entry point
@@ -397,3 +398,5 @@ _Use this section for development notes, decisions, and learnings._
 - 2026-04-14: Snapshot LLM parsing now tolerates markdown-wrapped JSON responses during ingestion; unrecoverable snapshot errors still fail before embeddings/indexing.
 - 2026-04-14: Ingestion now logs per-step monitor events (`starting → fetching → parsing → chunking → snapshot → embedding → saving → completed`), snapshot-provider parse failures include a short output preview in logs, and API-visible ingestion failures are reduced to user-facing step summaries like "Ingestion failed during snapshot generation."
 - 2026-04-14: Snapshot ingestion now ranks multiple JSON objects by schema match, so chunk-like blobs no longer win over the final snapshot object; when the LLM payload is still malformed, the pipeline falls back to the heuristic snapshot instead of failing the source.
+- 2026-04-14: Bulk source ingestion/upload now accepts up to 50 items per request with explicit validation; worker concurrency defaults to `INGESTION_MAX_JOBS=4` (configurable) so queued jobs are processed in a controlled way; snapshot LLM calls now run via async thread offloading to avoid blocking the event loop while waiting on provider responses.
+- 2026-04-14: Notebook deletion now removes source-backed resources end-to-end: uploaded objects are deleted, source rows are hard-deleted so cascades clear chunks/snapshots/ingestion jobs, and worker tasks return `cancelled` if the source or notebook disappears mid-flight.

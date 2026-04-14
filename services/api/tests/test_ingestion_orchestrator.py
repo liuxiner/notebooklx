@@ -184,6 +184,32 @@ class TestIngestionOrchestrator:
         assert len(chunks) == result.chunks_created
 
     @pytest.mark.asyncio
+    async def test_ingest_maps_storage_load_failure_to_fetch_step(
+        self,
+        db: Session,
+        sample_text_source: Source,
+        mock_embedding_service: EmbeddingService,
+    ):
+        """
+        AC: Storage read failures are reported as fetch-step ingestion errors.
+        """
+        from services.api.modules.sources.storage import StorageError
+
+        def failing_file_loader(_file_path: str) -> bytes:
+            raise StorageError("GetObject 502 Bad Gateway")
+
+        orchestrator = IngestionOrchestrator(
+            db=db,
+            embedding_service=mock_embedding_service,
+            file_content_loader=failing_file_loader,
+        )
+
+        with pytest.raises(IngestionError) as error:
+            await orchestrator.ingest(sample_text_source)
+
+        assert error.value.step == "fetch"
+
+    @pytest.mark.asyncio
     async def test_ingest_reports_progress(
         self,
         db: Session,

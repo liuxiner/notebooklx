@@ -3,11 +3,13 @@ Source snapshot builders and persistence helpers.
 """
 from __future__ import annotations
 
+import asyncio
 from collections import defaultdict
 from dataclasses import dataclass
 from hashlib import sha1, sha256
 import json
 import logging
+import os
 import re
 from typing import Any, Protocol
 import uuid
@@ -34,6 +36,10 @@ MAX_KEYWORDS = 15
 MAX_STRUCTURE_EXPORT_DEPTH = 3
 MAX_LLM_CHUNK_CONTENT_CHARS = 1200
 MAX_SNAPSHOT_LOG_PREVIEW_CHARS = 240
+SNAPSHOT_LLM_TIMEOUT_SECONDS = max(
+    1.0,
+    float(os.getenv("SNAPSHOT_LLM_TIMEOUT_SECONDS", "30")),
+)
 SNAPSHOT_PAYLOAD_KEYS = (
     "overview",
     "covered_themes",
@@ -175,8 +181,8 @@ def _snapshot_payload_score(payload: dict[str, Any]) -> tuple[int, int, int]:
     return (overview_present, key_matches, len(payload))
 
 
-def _load_json_object_from_llm_output(raw_output: str) -> dict[str, Any]:
-    """Extract the best-matching JSON object from a model response string."""
+def _load_json_object_candidates_from_llm_output(raw_output: str) -> list[dict[str, Any]]:
+    """Extract ranked JSON object candidates from a model response string."""
     stripped_output = raw_output.strip()
     if not stripped_output:
         raise SnapshotGenerationError("Snapshot provider returned empty output")
@@ -201,7 +207,8 @@ def _load_json_object_from_llm_output(raw_output: str) -> dict[str, Any]:
     if candidates:
         # Prefer payloads that actually resemble the snapshot schema; on ties,
         # prefer later objects because model outputs often add the final answer last.
-        return max(candidates, key=lambda item: (item[0], item[1]))[2]
+        ranked = sorted(candidates, key=lambda item: (item[0], item[1]), reverse=True)
+        return [item[2] for item in ranked]
 
     if first_decode_error is not None:
         raise SnapshotGenerationError(
@@ -317,6 +324,19 @@ def _split_sentences(text: str) -> list[str]:
             if segment.strip()
         ]
     return [sentence for sentence in sentences if sentence]
+
+
+def _build_fallback_overview(full_text: str, prepared_chunks: list[PreparedSourceChunk]) -> str:
+    """Build a deterministic non-empty overview from parsed source content."""
+    sentences = _split_sentences(full_text)
+    if sentences:
+        candidate = " ".join(sentences[:2])
+    elif prepared_chunks:
+        candidate = " ".join(chunk.content for chunk in prepared_chunks[:2])
+    else:
+        candidate = full_text
+
+    return _trim_text_to_token_budget(candidate, MAX_CONTENT_DIGEST_OVERVIEW_TOKENS)
 
 
 def _merge_intervals(intervals: list[tuple[int, int]]) -> list[tuple[int, int]]:
@@ -558,14 +578,14 @@ Rules:
             deterministic_snapshot=deterministic_snapshot,
         )
 
-    def generate(
+    def _build_messages(
         self,
         *,
         source: Source,
         parse_result: ParseResult,
         prepared_chunks: list[PreparedSourceChunk],
         deterministic_snapshot: dict[str, Any],
-    ) -> SemanticSnapshotDraft:
+    ) -> list[dict[str, str]]:
         chunk_payload = []
         for chunk in prepared_chunks:
             chunk_payload.append(
@@ -588,7 +608,7 @@ Rules:
                 "Return all natural-language fields in the same language as the source content."
             )
 
-        messages = [
+        return [
             {"role": "system", "content": self.SYSTEM_PROMPT.strip()},
             {
                 "role": "user",
@@ -612,12 +632,15 @@ Rules:
             },
         ]
 
-        logger.info(
-            "Requesting semantic snapshot for source %s with %s chunks",
-            source.id,
-            len(prepared_chunks),
-        )
-        raw_output = self.chat_provider.chat(messages)
+    def _parse_raw_output(
+        self,
+        *,
+        raw_output: str,
+        source: Source,
+        parse_result: ParseResult,
+        prepared_chunks: list[PreparedSourceChunk],
+        deterministic_snapshot: dict[str, Any],
+    ) -> SemanticSnapshotDraft:
         logger.info(
             "Snapshot provider returned output for source %s chars=%s",
             source.id,
@@ -625,8 +648,7 @@ Rules:
         )
 
         try:
-            payload = _load_json_object_from_llm_output(raw_output)
-            parsed = _LLMSnapshotPayload.model_validate(payload)
+            candidates = _load_json_object_candidates_from_llm_output(raw_output)
         except SnapshotGenerationError as exc:
             logger.warning(
                 "Snapshot provider output could not be parsed for source %s: %s preview=%r",
@@ -656,6 +678,31 @@ Rules:
                 reason=f"Snapshot provider returned invalid payload: {exc}",
             )
 
+        parsed: _LLMSnapshotPayload | None = None
+        last_validation_error: ValidationError | None = None
+        for candidate in candidates:
+            try:
+                parsed = _LLMSnapshotPayload.model_validate(candidate)
+                break
+            except ValidationError as exc:
+                last_validation_error = exc
+                continue
+
+        if parsed is None:
+            logger.warning(
+                "Snapshot provider returned invalid payload for source %s: %s preview=%r",
+                source.id,
+                last_validation_error,
+                _preview_log_text(raw_output),
+            )
+            return self._generate_heuristic_fallback(
+                source=source,
+                parse_result=parse_result,
+                prepared_chunks=prepared_chunks,
+                deterministic_snapshot=deterministic_snapshot,
+                reason=f"Snapshot provider returned invalid payload: {last_validation_error}",
+            )
+
         return SemanticSnapshotDraft(
             content_digest={
                 "overview": parsed.overview,
@@ -669,6 +716,85 @@ Rules:
             keywords=[keyword.model_dump() for keyword in parsed.keywords],
             generation_method="llm",
             model_name=self.model_name,
+        )
+
+    def generate(
+        self,
+        *,
+        source: Source,
+        parse_result: ParseResult,
+        prepared_chunks: list[PreparedSourceChunk],
+        deterministic_snapshot: dict[str, Any],
+    ) -> SemanticSnapshotDraft:
+        messages = self._build_messages(
+            source=source,
+            parse_result=parse_result,
+            prepared_chunks=prepared_chunks,
+            deterministic_snapshot=deterministic_snapshot,
+        )
+
+        logger.info(
+            "Requesting semantic snapshot for source %s with %s chunks",
+            source.id,
+            len(prepared_chunks),
+        )
+        raw_output = self.chat_provider.chat(messages)
+        return self._parse_raw_output(
+            raw_output=raw_output,
+            source=source,
+            parse_result=parse_result,
+            prepared_chunks=prepared_chunks,
+            deterministic_snapshot=deterministic_snapshot,
+        )
+
+    async def generate_async(
+        self,
+        *,
+        source: Source,
+        parse_result: ParseResult,
+        prepared_chunks: list[PreparedSourceChunk],
+        deterministic_snapshot: dict[str, Any],
+    ) -> SemanticSnapshotDraft:
+        """
+        Async wrapper for semantic snapshot generation.
+
+        The provider call is executed in a worker thread so one slow snapshot
+        response does not block the event loop from starting other ingestion jobs.
+        """
+        messages = self._build_messages(
+            source=source,
+            parse_result=parse_result,
+            prepared_chunks=prepared_chunks,
+            deterministic_snapshot=deterministic_snapshot,
+        )
+
+        logger.info(
+            "Requesting semantic snapshot for source %s with %s chunks (async)",
+            source.id,
+            len(prepared_chunks),
+        )
+        try:
+            raw_output = await asyncio.wait_for(
+                asyncio.to_thread(self.chat_provider.chat, messages),
+                timeout=SNAPSHOT_LLM_TIMEOUT_SECONDS,
+            )
+        except TimeoutError:
+            return self._generate_heuristic_fallback(
+                source=source,
+                parse_result=parse_result,
+                prepared_chunks=prepared_chunks,
+                deterministic_snapshot=deterministic_snapshot,
+                reason=(
+                    "Snapshot LLM timed out after "
+                    f"{SNAPSHOT_LLM_TIMEOUT_SECONDS:.0f}s"
+                ),
+            )
+        return self._parse_raw_output(
+            raw_output=raw_output,
+            source=source,
+            parse_result=parse_result,
+            prepared_chunks=prepared_chunks,
+            deterministic_snapshot=deterministic_snapshot,
         )
 
 
@@ -726,8 +852,88 @@ class SourceSnapshotService:
             },
         }
 
+        semantic_draft = self._generate_semantic_draft(
+            source=source,
+            parse_result=parse_result,
+            prepared_chunks=prepared_chunks,
+            deterministic_snapshot=deterministic_snapshot,
+        )
+        return self._persist_snapshot_payload(
+            source=source,
+            parse_result=parse_result,
+            prepared_chunks=prepared_chunks,
+            source_content_hash=source_content_hash,
+            deterministic_snapshot=deterministic_snapshot,
+            keyword_candidates=keyword_candidates,
+            semantic_draft=semantic_draft,
+        )
+
+    async def build_and_persist_snapshot_async(
+        self,
+        *,
+        source: Source,
+        parse_result: ParseResult,
+        prepared_chunks: list[PreparedSourceChunk],
+    ) -> SourceSnapshot:
+        source_content_hash = sha256(parse_result.full_text.encode("utf-8")).hexdigest()
+        structure_outline = _build_structure_outline(prepared_chunks)
+        keyword_candidates = _extract_keyword_candidates(prepared_chunks)
+        representative_refs = _build_representative_refs(prepared_chunks)
+
+        deterministic_snapshot = {
+            "content_metrics": {
+                "char_length": len(parse_result.full_text),
+                "estimated_token_count": count_tokens(parse_result.full_text),
+                "chunk_count": len(prepared_chunks),
+                "section_count": len(structure_outline),
+                "heading_depth_max": max(
+                    (node["depth"] for node in structure_outline),
+                    default=0,
+                ),
+                "keyword_count": len(keyword_candidates),
+                "coverage_ratio": _compute_coverage_ratio(
+                    len(parse_result.full_text),
+                    prepared_chunks,
+                ),
+            },
+            "structure_outline": structure_outline,
+            "traceability": {
+                "representative_chunk_refs": representative_refs,
+                "source_ranges": [
+                    {
+                        "char_start": 0,
+                        "char_end": len(parse_result.full_text),
+                    }
+                ],
+            },
+        }
+
+        semantic_draft = await self._generate_semantic_draft_async(
+            source=source,
+            parse_result=parse_result,
+            prepared_chunks=prepared_chunks,
+            deterministic_snapshot=deterministic_snapshot,
+        )
+        return self._persist_snapshot_payload(
+            source=source,
+            parse_result=parse_result,
+            prepared_chunks=prepared_chunks,
+            source_content_hash=source_content_hash,
+            deterministic_snapshot=deterministic_snapshot,
+            keyword_candidates=keyword_candidates,
+            semantic_draft=semantic_draft,
+        )
+
+    def _generate_semantic_draft(
+        self,
+        *,
+        source: Source,
+        parse_result: ParseResult,
+        prepared_chunks: list[PreparedSourceChunk],
+        deterministic_snapshot: dict[str, Any],
+    ) -> SemanticSnapshotDraft:
         try:
-            semantic_draft = self.semantic_provider.generate(
+            return self.semantic_provider.generate(
                 source=source,
                 parse_result=parse_result,
                 prepared_chunks=prepared_chunks,
@@ -738,11 +944,88 @@ class SourceSnapshotService:
         except Exception as exc:
             raise SnapshotGenerationError(str(exc)) from exc
 
+    async def _generate_semantic_draft_async(
+        self,
+        *,
+        source: Source,
+        parse_result: ParseResult,
+        prepared_chunks: list[PreparedSourceChunk],
+        deterministic_snapshot: dict[str, Any],
+    ) -> SemanticSnapshotDraft:
+        generate_async = getattr(self.semantic_provider, "generate_async", None)
+        try:
+            if callable(generate_async):
+                return await generate_async(
+                    source=source,
+                    parse_result=parse_result,
+                    prepared_chunks=prepared_chunks,
+                    deterministic_snapshot=deterministic_snapshot,
+                )
+            return self.semantic_provider.generate(
+                source=source,
+                parse_result=parse_result,
+                prepared_chunks=prepared_chunks,
+                deterministic_snapshot=deterministic_snapshot,
+            )
+        except SnapshotGenerationError:
+            raise
+        except Exception as exc:
+            raise SnapshotGenerationError(str(exc)) from exc
+
+    def _persist_snapshot_payload(
+        self,
+        *,
+        source: Source,
+        parse_result: ParseResult,
+        prepared_chunks: list[PreparedSourceChunk],
+        source_content_hash: str,
+        deterministic_snapshot: dict[str, Any],
+        keyword_candidates: list[dict[str, Any]],
+        semantic_draft: SemanticSnapshotDraft,
+    ) -> SourceSnapshot:
+        raw_overview = " ".join(str(semantic_draft.content_digest.get("overview", "")).split()).strip()
+        raw_covered_themes = [
+            value
+            for value in semantic_draft.content_digest.get("covered_themes", [])
+            if isinstance(value, str) and value.strip()
+        ]
+        if (
+            semantic_draft.generation_method == "llm"
+            and not raw_overview
+            and (raw_covered_themes or semantic_draft.keywords)
+        ):
+            logger.warning(
+                "LLM snapshot payload returned empty overview with non-empty themes/keywords "
+                "source=%s themes=%s keywords=%s",
+                source.id,
+                len(raw_covered_themes),
+                len(semantic_draft.keywords),
+            )
+
         semantic_snapshot = self._normalize_semantic_snapshot(
             semantic_draft=semantic_draft,
             prepared_chunks=prepared_chunks,
             fallback_keywords=keyword_candidates,
+            fallback_overview=_build_fallback_overview(
+                parse_result.full_text,
+                prepared_chunks,
+            ),
         )
+        overview_value = (
+            semantic_snapshot.get("content_digest", {}).get("overview")
+            if isinstance(semantic_snapshot, dict)
+            else None
+        )
+        if not isinstance(overview_value, str) or not overview_value.strip():
+            logger.warning(
+                "Snapshot overview remained empty after normalization source=%s; applying deterministic fallback",
+                source.id,
+            )
+            semantic_snapshot.setdefault("content_digest", {})["overview"] = _build_fallback_overview(
+                parse_result.full_text,
+                prepared_chunks,
+            )
+
         deterministic_snapshot["content_metrics"]["keyword_count"] = len(
             semantic_snapshot["keywords"]
         )
@@ -800,9 +1083,16 @@ class SourceSnapshotService:
         semantic_draft: SemanticSnapshotDraft,
         prepared_chunks: list[PreparedSourceChunk],
         fallback_keywords: list[dict[str, Any]],
+        fallback_overview: str,
     ) -> dict[str, Any]:
         chunk_lookup = {str(chunk.chunk_id): chunk for chunk in prepared_chunks}
         content_digest = semantic_draft.content_digest
+        overview = _trim_text_to_token_budget(
+            str(content_digest.get("overview", "")),
+            MAX_CONTENT_DIGEST_OVERVIEW_TOKENS,
+        )
+        if not overview:
+            overview = fallback_overview
 
         representative_passages: list[dict[str, Any]] = []
         for passage in content_digest.get("representative_passages", []):
@@ -858,10 +1148,7 @@ class SourceSnapshotService:
 
         return {
             "content_digest": {
-                "overview": _trim_text_to_token_budget(
-                    str(content_digest.get("overview", "")),
-                    MAX_CONTENT_DIGEST_OVERVIEW_TOKENS,
-                ),
+                "overview": overview,
                 "covered_themes": _dedupe_strings(
                     list(content_digest.get("covered_themes", [])),
                     max_items=MAX_COVERED_THEMES,
