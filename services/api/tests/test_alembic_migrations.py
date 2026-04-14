@@ -13,6 +13,7 @@ from services.api.core.database import Base
 from services.api.modules.chunking.models import SourceChunk  # noqa: F401
 from services.api.modules.ingestion.models import IngestionJob  # noqa: F401
 from services.api.modules.notebooks.models import Notebook, User  # noqa: F401
+from services.api.modules.snapshots.models import SourceSnapshot  # noqa: F401
 from services.api.modules.sources.models import Source  # noqa: F401
 
 
@@ -41,6 +42,13 @@ def test_upgrade_head_skips_existing_sqlite_schema(tmp_path: Path, monkeypatch: 
                 text("select name from sqlite_master where type='table' order by name")
             )
         }
-        assert {"users", "notebooks", "sources", "ingestion_jobs", "source_chunks", "alembic_version"} <= tables
+        assert {
+            "users",
+            "notebooks",
+            "sources",
+            "ingestion_jobs",
+            "source_chunks",
+            "source_snapshots",
+            "alembic_version",
+        } <= tables
         assert connection.execute(text("select version_num from alembic_version")).scalar_one() == head_revision
-

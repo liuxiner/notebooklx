@@ -7,8 +7,9 @@ This module chains all ingestion steps:
 1. Fetch file/URL from storage
 2. Parse document based on source type
 3. Chunk text semantically
-4. Generate embeddings
-5. Save chunks and embeddings to database
+4. Generate source snapshot
+5. Generate embeddings
+6. Save chunks and embeddings to database
 6. Update source status
 """
 from __future__ import annotations
@@ -34,10 +35,26 @@ from services.api.modules.parsers import (
     YouTubeParser,
     GoogleDocsParser,
 )
+from services.api.modules.snapshots import (
+    PreparedSourceChunk,
+    SnapshotGenerationError,
+    SourceSnapshotService,
+    prepare_source_chunks,
+)
 from services.api.modules.sources.models import Source, SourceType
 
 
 logger = logging.getLogger(__name__)
+
+USER_FACING_INGESTION_MESSAGES = {
+    "fetch": "Ingestion failed while loading the source.",
+    "parse": "Ingestion failed while parsing the source.",
+    "chunk": "Ingestion failed while preparing chunks.",
+    "snapshot": "Ingestion failed during snapshot generation.",
+    "embed": "Ingestion failed while generating embeddings.",
+    "save": "Ingestion failed while saving processed chunks.",
+    "unknown": "Ingestion failed.",
+}
 
 
 def _build_runtime_embedding_service() -> EmbeddingService:
@@ -60,6 +77,11 @@ def _build_runtime_embedding_service() -> EmbeddingService:
     )
 
 
+def _build_runtime_snapshot_service(db: Session) -> SourceSnapshotService:
+    """Build the default runtime source snapshot service."""
+    return SourceSnapshotService(db=db)
+
+
 class IngestionError(Exception):
     """Raised when ingestion fails at any step."""
 
@@ -67,6 +89,17 @@ class IngestionError(Exception):
         super().__init__(f"[{step}] {message}")
         self.step = step
         self.cause = cause
+
+    def to_user_message(self) -> str:
+        """Return a user-facing summary that omits provider internals."""
+        return USER_FACING_INGESTION_MESSAGES.get(self.step, "Ingestion failed.")
+
+
+def summarize_ingestion_error(exc: Exception) -> str:
+    """Convert internal ingestion exceptions into safe user-facing status text."""
+    if isinstance(exc, IngestionError):
+        return exc.to_user_message()
+    return "Ingestion failed."
 
 
 @dataclass
@@ -115,14 +148,16 @@ class IngestionOrchestrator:
     1. Fetch content (from storage or URL)
     2. Parse (extract text with metadata)
     3. Chunk (semantic segmentation)
-    4. Embed (generate vector embeddings)
-    5. Save (persist chunks to database)
+    4. Snapshot (persist structured source metadata)
+    5. Embed (generate vector embeddings)
+    6. Save (persist chunks to database)
     """
 
     def __init__(
         self,
         db: Session,
         embedding_service: EmbeddingService | None = None,
+        snapshot_service: SourceSnapshotService | None = None,
         chunker: Chunker | None = None,
         progress_callback: Callable[[IngestionProgress], None] | None = None,
         file_content_loader: Callable[[str], bytes] | None = None,
@@ -139,10 +174,12 @@ class IngestionOrchestrator:
         """
         self.db = db
         self.embedding_service = embedding_service or _build_runtime_embedding_service()
+        self.snapshot_service = snapshot_service or _build_runtime_snapshot_service(db)
         self.chunker = chunker or Chunker()
         self.progress_callback = progress_callback
         self.file_content_loader = file_content_loader
         self.progress = IngestionProgress()
+        self._active_source_id: str | None = None
 
     def _update_progress(
         self,
@@ -154,6 +191,24 @@ class IngestionOrchestrator:
         self.progress.current_step = step
         self.progress.percentage = percentage
         self.progress.details.update(kwargs)
+
+        if self._active_source_id is not None:
+            detail_items = [
+                f"{key}={value}"
+                for key, value in sorted(kwargs.items())
+                if value is not None
+            ]
+            detail_suffix = f" details={', '.join(detail_items)}" if detail_items else ""
+            logger.info(
+                "Ingestion progress source=%s step=%s percentage=%s total_chunks=%s "
+                "embedded_chunks=%s%s",
+                self._active_source_id,
+                step,
+                percentage,
+                self.progress.total_chunks,
+                self.progress.embedded_chunks,
+                detail_suffix,
+            )
 
         if self.progress_callback:
             try:
@@ -276,15 +331,41 @@ class IngestionOrchestrator:
         except Exception as e:
             raise IngestionError("chunk", f"Chunking failed: {e}", cause=e)
 
+    def _generate_snapshot(
+        self,
+        source: Source,
+        parse_result: ParseResult,
+        prepared_chunks: list[PreparedSourceChunk],
+    ) -> None:
+        """Build and persist a source snapshot before embeddings start."""
+        self._update_progress("snapshot", 45)
+        logger.info(
+            "Generating snapshot for source %s with %s prepared chunks",
+            source.id,
+            len(prepared_chunks),
+        )
+
+        try:
+            self.snapshot_service.build_and_persist_snapshot(
+                source=source,
+                parse_result=parse_result,
+                prepared_chunks=prepared_chunks,
+            )
+            logger.info("Generated snapshot for source %s", source.id)
+        except SnapshotGenerationError as exc:
+            raise IngestionError("snapshot", f"Snapshot generation failed: {exc}", cause=exc)
+        except Exception as exc:
+            raise IngestionError("snapshot", f"Snapshot generation failed: {exc}", cause=exc)
+
     async def _generate_embeddings(
         self,
-        chunks: list[ChunkResult],
+        prepared_chunks: list[PreparedSourceChunk],
     ) -> list[EmbeddingResult]:
         """Generate embeddings for all chunks."""
         self._update_progress("embedding", 50)
 
         try:
-            texts = [chunk.content for chunk in chunks]
+            texts = [chunk.content for chunk in prepared_chunks]
             results = await self.embedding_service.embed_batch(texts)
 
             self.progress.embedded_chunks = len(results)
@@ -301,30 +382,35 @@ class IngestionOrchestrator:
     def _save_chunks(
         self,
         source: Source,
-        chunks: list[ChunkResult],
+        prepared_chunks: list[PreparedSourceChunk],
         embeddings: list[EmbeddingResult],
     ) -> list[SourceChunk]:
         """Save chunks with embeddings to the database."""
         self._update_progress("saving", 85)
 
         try:
+            self.db.query(SourceChunk).filter(
+                SourceChunk.source_id == source.id
+            ).delete(synchronize_session=False)
+
             saved_chunks = []
-            for i, (chunk, embedding_result) in enumerate(zip(chunks, embeddings)):
+            for prepared_chunk, embedding_result in zip(prepared_chunks, embeddings):
                 # Normalize embedding for cosine similarity
                 normalized_embedding = normalize_embedding(embedding_result.embedding)
 
                 source_chunk = SourceChunk(
+                    id=prepared_chunk.chunk_id,
                     source_id=source.id,
-                    chunk_index=i,
-                    content=chunk.content,
-                    token_count=chunk.token_count,
-                    char_start=chunk.char_start,
-                    char_end=chunk.char_end,
+                    chunk_index=prepared_chunk.chunk_index,
+                    content=prepared_chunk.content,
+                    token_count=prepared_chunk.token_count,
+                    char_start=prepared_chunk.char_start,
+                    char_end=prepared_chunk.char_end,
                     chunk_metadata={
-                        "page": chunk.page_number,
-                        "pages": chunk.page_numbers,
-                        "headings": chunk.heading_context,
-                        "source_title": chunk.source_title,
+                        "page": prepared_chunk.page_number,
+                        "pages": prepared_chunk.page_numbers,
+                        "headings": prepared_chunk.heading_context,
+                        "source_title": prepared_chunk.source_title,
                     },
                     embedding=normalized_embedding,
                 )
@@ -351,6 +437,7 @@ class IngestionOrchestrator:
         Raises:
             IngestionError: If any step fails
         """
+        self._active_source_id = str(source.id)
         logger.info(f"Starting ingestion for source {source.id} ({source.source_type})")
         self._update_progress("starting", 0)
 
@@ -367,11 +454,16 @@ class IngestionOrchestrator:
             if not chunks:
                 raise IngestionError("chunk", "No chunks generated from content")
 
-            # Step 4: Generate embeddings (async)
-            embeddings = await self._generate_embeddings(chunks)
+            prepared_chunks = prepare_source_chunks(source, chunks)
 
-            # Step 5: Save to database
-            saved_chunks = self._save_chunks(source, chunks, embeddings)
+            # Step 4: Snapshot
+            self._generate_snapshot(source, parse_result, prepared_chunks)
+
+            # Step 5: Generate embeddings (async)
+            embeddings = await self._generate_embeddings(prepared_chunks)
+
+            # Step 6: Save to database
+            saved_chunks = self._save_chunks(source, prepared_chunks, embeddings)
 
             # Finalize
             self._update_progress("completed", 100)
@@ -394,6 +486,8 @@ class IngestionOrchestrator:
             raise
         except Exception as e:
             raise IngestionError("unknown", f"Unexpected error: {e}", cause=e)
+        finally:
+            self._active_source_id = None
 
 
 async def run_ingestion(

@@ -548,10 +548,11 @@ class TestDeleteSource:
         self, client: TestClient, created_notebook: dict, db
     ):
         """
-        AC: Deleting a source cascades to chunks and ingestion jobs.
+        AC: Deleting a source cascades to chunks, snapshots, and ingestion jobs.
         """
         from services.api.modules.chunking.models import SourceChunk
         from services.api.modules.ingestion.models import IngestionJob, IngestionJobStatus
+        from services.api.modules.snapshots.models import SourceSnapshot
         from services.api.modules.sources.models import Source, SourceStatus, SourceType
 
         source = Source(
@@ -578,7 +579,19 @@ class TestDeleteSource:
             status=IngestionJobStatus.COMPLETED,
             progress={"step": "completed"},
         )
-        db.add_all([chunk, job])
+        snapshot = SourceSnapshot(
+            source_id=source.id,
+            notebook_id=source.notebook_id,
+            schema_version="test-v1",
+            source_content_hash="abc123",
+            generation_method="heuristic",
+            snapshot_data={
+                "source_identity": {"source_id": str(source.id)},
+                "deterministic": {"content_metrics": {"chunk_count": 1}},
+                "semantic": {"content_digest": {"overview": "Overview"}, "keywords": []},
+            },
+        )
+        db.add_all([chunk, job, snapshot])
         db.commit()
 
         response = client.delete(
@@ -588,6 +601,7 @@ class TestDeleteSource:
         assert response.status_code == 204
         assert db.query(Source).filter(Source.id == source.id).first() is None
         assert db.query(SourceChunk).filter(SourceChunk.source_id == source.id).count() == 0
+        assert db.query(SourceSnapshot).filter(SourceSnapshot.source_id == source.id).count() == 0
         assert db.query(IngestionJob).filter(IngestionJob.source_id == source.id).count() == 0
 
     def test_delete_source_without_file_path_skips_storage_cleanup(
@@ -653,11 +667,76 @@ class TestDeleteSource:
 class TestObjectStorageConfiguration:
     """Tests for environment-driven object storage selection."""
 
-    def test_minio_env_uses_s3_storage_backend(
+    def test_upload_fails_when_implicit_minio_is_unavailable(
+        self,
+        client: TestClient,
+        created_notebook: dict,
+        monkeypatch: pytest.MonkeyPatch,
+        db,
+    ) -> None:
+        """
+        Bug: uploads must fail when implicit MinIO config is present but the
+        MinIO/S3 backend itself is unavailable.
+        """
+        from services.api.modules.sources import storage as source_storage
+        from services.api.modules.sources.models import Source, SourceStatus
+
+        class FailingS3Storage:
+            def __init__(
+                self,
+                bucket_name: str,
+                endpoint_url: str | None = None,
+                region_name: str | None = None,
+                access_key_id: str | None = None,
+                secret_access_key: str | None = None,
+            ) -> None:
+                del bucket_name, endpoint_url, region_name, access_key_id, secret_access_key
+
+            def store_bytes(self, _content: bytes, _object_path: str, _content_type: str) -> str:
+                raise source_storage.StorageError("Could not connect to the endpoint URL")
+
+            def load_bytes(self, _object_path: str) -> bytes:
+                raise source_storage.StorageError("Could not connect to the endpoint URL")
+
+            def delete_bytes(self, _object_path: str) -> None:
+                raise source_storage.StorageError("Could not connect to the endpoint URL")
+
+        monkeypatch.delenv("SOURCE_STORAGE_BACKEND", raising=False)
+        monkeypatch.delenv("SOURCE_STORAGE_BUCKET", raising=False)
+        monkeypatch.delenv("SOURCE_STORAGE_ENDPOINT_URL", raising=False)
+        monkeypatch.delenv("SOURCE_STORAGE_REGION", raising=False)
+        monkeypatch.delenv("SOURCE_STORAGE_ACCESS_KEY_ID", raising=False)
+        monkeypatch.delenv("SOURCE_STORAGE_SECRET_ACCESS_KEY", raising=False)
+        monkeypatch.setenv("MINIO_BUCKET", "notebooklx")
+        monkeypatch.setenv("MINIO_ENDPOINT", "http://localhost:9000")
+        monkeypatch.setenv("MINIO_ACCESS_KEY", "minioadmin")
+        monkeypatch.setenv("MINIO_SECRET_KEY", "minioadmin")
+        monkeypatch.setattr(source_storage, "S3ObjectStorage", FailingS3Storage)
+        source_storage.get_object_storage.cache_clear()
+
+        try:
+            notebook_id = created_notebook["id"]
+            response = client.post(
+                f"/api/notebooks/{notebook_id}/sources/upload",
+                files={"file": ("strict-minio.pdf", io.BytesIO(b"%PDF-1.7 strict minio"), "application/pdf")},
+            )
+        finally:
+            source_storage.get_object_storage.cache_clear()
+
+        assert response.status_code == 500
+        detail = response.json()["detail"]
+        assert detail["error"] == "upload_failed"
+
+        source = db.query(Source).filter(Source.notebook_id == uuid.UUID(notebook_id)).one()
+        assert source.status == SourceStatus.FAILED
+        assert source.error_message == "Could not connect to the endpoint URL"
+
+    def test_minio_env_uses_strict_s3_storage_backend(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """
-        AC: Local MinIO dev configuration resolves to the shared S3-compatible backend.
+        AC: Implicit local MinIO configuration resolves directly to the shared
+        S3-compatible backend with no local fallback wrapper.
         """
         from services.api.modules.sources import storage as source_storage
 
@@ -704,6 +783,35 @@ class TestObjectStorageConfiguration:
             "access_key_id": "minioadmin",
             "secret_access_key": "minioadmin",
         }
+
+    def test_explicit_minio_backend_uses_strict_s3_storage_backend(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """
+        AC: Explicit MinIO/S3 backend selection remains strict and does not
+        silently switch to local storage.
+        """
+        from services.api.modules.sources import storage as source_storage
+
+        class RecordingS3Storage:
+            def __init__(
+                self,
+                bucket_name: str,
+                endpoint_url: str | None = None,
+                region_name: str | None = None,
+                access_key_id: str | None = None,
+                secret_access_key: str | None = None,
+            ) -> None:
+                del bucket_name, endpoint_url, region_name, access_key_id, secret_access_key
+
+        monkeypatch.setenv("SOURCE_STORAGE_BACKEND", "minio")
+        monkeypatch.setenv("MINIO_BUCKET", "notebooklx")
+        monkeypatch.setenv("MINIO_ENDPOINT", "http://localhost:9000")
+        monkeypatch.setattr(source_storage, "S3ObjectStorage", RecordingS3Storage)
+
+        storage = source_storage._build_object_storage_from_env()
+
+        assert isinstance(storage, RecordingS3Storage)
 
 
 class TestSourceModel:

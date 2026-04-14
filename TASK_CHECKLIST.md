@@ -74,6 +74,14 @@ Quick reference checklist for tracking development progress. Check off items as 
 - ✓ Progress tracking
 - ✓ Integration tests
 
+**Source Snapshots & Content Map** ⚡
+- ✓ SourceSnapshot schema & persistence
+- ✓ Snapshot stage in ingestion pipeline
+- ⚡ Snapshot failure/status visibility
+- ⬜ NotebookContentMap aggregation
+- ⬜ Sitemap projection & budget compaction
+- ⬜ Source mutation regeneration triggers
+
 ---
 
 ## Phase 3: Retrieval & Chat
@@ -385,3 +393,7 @@ Quick reference checklist for tracking development progress. Check off items as 
 ## Notes
 
 _Use this section for development notes, decisions, and learnings._
+
+- 2026-04-14: Snapshot LLM parsing now tolerates markdown-wrapped JSON responses during ingestion; unrecoverable snapshot errors still fail before embeddings/indexing.
+- 2026-04-14: Ingestion now logs per-step monitor events (`starting → fetching → parsing → chunking → snapshot → embedding → saving → completed`), snapshot-provider parse failures include a short output preview in logs, and API-visible ingestion failures are reduced to user-facing step summaries like "Ingestion failed during snapshot generation."
+- 2026-04-14: Snapshot ingestion now ranks multiple JSON objects by schema match, so chunk-like blobs no longer win over the final snapshot object; when the LLM payload is still malformed, the pipeline falls back to the heuristic snapshot instead of failing the source.

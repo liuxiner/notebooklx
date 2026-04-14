@@ -4,6 +4,7 @@ Tests for async ingestion pipeline skeleton endpoints.
 Feature: 1.4 Async Ingestion Pipeline Skeleton
 Slice: enqueue ingestion jobs + query task status
 """
+import logging
 import socket
 import subprocess
 import sys
@@ -540,6 +541,30 @@ class TestIngestionHealth:
 
 
 class TestWorkerBootstrap:
+    def test_worker_logging_defaults_to_info_level(self) -> None:
+        """
+        AC: Worker monitor logs are visible without extra local logger setup.
+        """
+        from services.worker import main as worker_main
+
+        root_logger = logging.getLogger()
+        original_level = root_logger.level
+        original_handlers = list(root_logger.handlers)
+
+        for handler in list(root_logger.handlers):
+            root_logger.removeHandler(handler)
+        root_logger.setLevel(logging.WARNING)
+
+        try:
+            worker_main.configure_worker_logging()
+            assert logging.getLogger().getEffectiveLevel() == logging.INFO
+        finally:
+            for handler in list(root_logger.handlers):
+                root_logger.removeHandler(handler)
+            for handler in original_handlers:
+                root_logger.addHandler(handler)
+            root_logger.setLevel(original_level)
+
     def test_worker_bootstrap_installs_event_loop_when_missing(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -601,6 +626,63 @@ class TestWorkerBootstrap:
 
         assert loader("notebook/source/upload.txt") == b"stored-content"
         assert calls == ["notebook/source/upload.txt"]
+
+
+class TestWorkerFailureMessages:
+    @pytest.mark.asyncio
+    async def test_ingest_source_persists_user_friendly_snapshot_error(
+        self,
+        db,
+        sample_notebook,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        """
+        AC: Failed ingestion updates source with a user-facing step summary.
+        """
+        from services.api.modules.ingestion.models import IngestionJob, IngestionJobStatus
+        from services.api.modules.ingestion.orchestrator import IngestionError
+        from services.api.modules.sources.models import Source, SourceStatus, SourceType
+        from services.api.tests.conftest import TestingSessionLocal
+        from services.worker import main as worker_main
+
+        source = Source(
+            notebook_id=sample_notebook.id,
+            source_type=SourceType.URL,
+            title="Snapshot Failure Source",
+            original_url="https://example.com/snapshot-failure",
+            status=SourceStatus.PENDING,
+        )
+        db.add(source)
+        db.flush()
+
+        job = IngestionJob(source_id=source.id, status=IngestionJobStatus.QUEUED)
+        db.add(job)
+        db.commit()
+
+        def fail_ingestion(*_args, **_kwargs):
+            raise IngestionError(
+                "snapshot",
+                "Snapshot generation failed: Snapshot provider returned invalid JSON: "
+                "Expecting value: line 1 column 1 (char 0)",
+            )
+
+        monkeypatch.setattr(worker_main, "run_ingestion_pipeline", fail_ingestion)
+
+        with pytest.raises(IngestionError):
+            await worker_main.ingest_source(
+                {"session_factory": TestingSessionLocal},
+                str(source.id),
+                str(job.id),
+            )
+
+        db.expire_all()
+        refreshed_source = db.query(Source).filter(Source.id == source.id).one()
+        refreshed_job = db.query(IngestionJob).filter(IngestionJob.id == job.id).one()
+
+        assert refreshed_source.status == SourceStatus.FAILED
+        assert refreshed_job.status == IngestionJobStatus.FAILED
+        assert refreshed_source.error_message == "Ingestion failed during snapshot generation."
+        assert refreshed_job.error_message == "Ingestion failed during snapshot generation."
 
 
 @pytest.mark.skipif(

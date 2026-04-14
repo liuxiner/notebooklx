@@ -59,6 +59,10 @@ def db() -> Generator[Session, None, None]:
     except ImportError:
         pass  # Chunking module not yet created
     try:
+        from services.api.modules.snapshots.models import SourceSnapshot  # noqa: F401
+    except ImportError:
+        pass  # Snapshot module may not exist yet
+    try:
         from services.api.modules.chat.models import Message  # noqa: F401
     except ImportError:
         pass  # Chat message storage may not exist yet

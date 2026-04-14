@@ -27,6 +27,23 @@ logger = logging.getLogger(__name__)
 
 
 DEFAULT_PROGRESS = {"step": "completed", "percentage": 100}
+WORKER_LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+WORKER_LOG_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
+
+
+def configure_worker_logging() -> None:
+    """Ensure worker-side ingestion monitor logs are visible at INFO level."""
+    root_logger = logging.getLogger()
+    if not root_logger.handlers:
+        logging.basicConfig(
+            level=logging.INFO,
+            format=WORKER_LOG_FORMAT,
+            datefmt=WORKER_LOG_DATE_FORMAT,
+        )
+    else:
+        root_logger.setLevel(logging.INFO)
+
+    logging.getLogger("services").setLevel(logging.INFO)
 
 
 def ensure_main_thread_event_loop() -> None:
@@ -38,11 +55,19 @@ def ensure_main_thread_event_loop() -> None:
 
 
 ensure_main_thread_event_loop()
+configure_worker_logging()
 
 
 def utcnow() -> datetime:
     """Return a naive UTC timestamp without using deprecated utcnow()."""
     return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def build_user_facing_ingestion_error_message(exc: Exception) -> str:
+    """Translate internal ingestion exceptions into user-facing status text."""
+    from services.api.modules.ingestion.orchestrator import summarize_ingestion_error
+
+    return summarize_ingestion_error(exc)
 
 
 async def run_ingestion_pipeline(
@@ -74,8 +99,12 @@ async def run_ingestion_pipeline(
             progress_callback=update_job_progress,
         )
         return result.to_dict()
-    except Exception as e:
-        logger.error(f"Ingestion pipeline failed for source {source.id}: {e}")
+    except Exception:
+        logger.exception(
+            "Ingestion pipeline failed for source %s job %s",
+            source.id,
+            job.id,
+        )
         raise
 
 
@@ -123,6 +152,7 @@ async def ingest_source(ctx: dict[str, Any], source_id: str, ingestion_job_id: s
         if job is None or source is None:
             raise RuntimeError("Source or ingestion job not found")
 
+        logger.info("Starting ingestion job source=%s job=%s", source.id, job.id)
         job.status = IngestionJobStatus.RUNNING
         job.started_at = utcnow()
         job.error_message = None
@@ -145,21 +175,32 @@ async def ingest_source(ctx: dict[str, Any], source_id: str, ingestion_job_id: s
         job.error_message = None
         source.status = SourceStatus.READY
         source.error_message = None
+        logger.info(
+            "Completed ingestion job source=%s job=%s step=%s chunks=%s embeddings=%s",
+            source.id,
+            job.id,
+            progress.get("step"),
+            progress.get("chunks_created"),
+            progress.get("embeddings_generated"),
+        )
         db.commit()
         return progress
     except Exception as exc:
         db.rollback()
         job = db.query(IngestionJob).filter(IngestionJob.id == job_uuid).first()
         source = db.query(Source).filter(Source.id == source_uuid).first()
+        user_facing_error = build_user_facing_ingestion_error_message(exc)
+
+        logger.exception("Ingestion job failed source=%s job=%s", source_uuid, job_uuid)
 
         if job is not None:
             job.status = IngestionJobStatus.FAILED
-            job.error_message = str(exc)
+            job.error_message = user_facing_error
             job.completed_at = utcnow()
 
         if source is not None:
             source.status = SourceStatus.FAILED
-            source.error_message = str(exc)
+            source.error_message = user_facing_error
 
         db.commit()
         raise

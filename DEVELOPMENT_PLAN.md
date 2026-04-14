@@ -294,6 +294,72 @@ This document outlines the detailed development plan, acceptance criteria, and t
 
 ---
 
+### Feature 2.5A: Source Snapshot & Notebook Content Map Assembly
+
+**Acceptance Criteria:**
+- [x] Ingestion runs a `snapshot` stage immediately after source chunking and before embeddings/indexing (`parse → chunk → snapshot → embed → index`)
+- [ ] Each ready source stores a structured snapshot grounded in its chunks, covering source framework, directory/section outline when present, content snapshot, and 5-15 keywords
+- [x] Snapshot metrics include deterministic content measurements derived from parsed/chunked content, at minimum: `char_length`, `estimated_token_count`, `chunk_count`, `section_count`, `heading_depth_max`, and `keyword_count`
+- [x] Snapshot schema separates deterministic fields from model-generated fields so downstream systems can distinguish measured facts from semantic summaries
+- [x] Snapshot `structure_outline` is stored as typed nodes with stable IDs, labels, depth/level, optional parent path, and supporting chunk refs instead of flat text only
+- [x] Snapshot `content_digest` is stored as structured fields for short overview, covered themes, key assertions or facts, representative passages, and unresolved gaps/weak coverage when present
+- [x] Snapshot output keeps traceable chunk references (chunk IDs plus heading/page/section metadata) so downstream notebook answers remain source-grounded
+- [ ] Notebook-level `notebook-content-map` is assembled from the latest ready-source snapshots and refreshed when sources are added, deleted, or re-ingested
+- [ ] `notebook-content-map` stores typed nodes and edges for notebook themes, source nodes, structural sections, topic clusters, source-to-topic coverage, and scope boundaries
+- [ ] `notebook-content-map` is treated as a routing scaffold rather than a second full notebook dump: soft target `6k-8k` tokens, hard cap `12k` tokens, while still keeping one visible source node per ready source
+- [ ] Per-source contribution to `notebook-content-map` is budgeted and normalized so high-frequency queries remain cheap: keep source identity, 1-3 framework anchors, top themes, and compact keywords before any lower-priority detail
+- [ ] A compact sitemap-style projection can be derived from `notebook-content-map` for query rewriting within a bounded token budget
+- [ ] `NotebookSitemapView` for rewrite stays within a soft target `2k-4k` tokens and hard cap `6k` tokens, leaving room for system prompt, chat history, user query, and future rewrite metadata
+- [ ] If notebook size exceeds budget, compaction drops low-salience keywords, passages, and leaf structure nodes first, but preserves notebook themes, source coverage, and top-level source framework
+- [ ] Snapshot/content-map/sitemap failures are visible in ingestion status and never silently skip the stage
+- [ ] Snapshot and content-map generation is idempotent and versioned when source content changes
+
+**Tasks:**
+1. Define persistence strategy for `SourceSnapshot`, `NotebookContentMap`, and a compact `NotebookSitemapView` projection (dedicated tables or versioned JSON columns) with regeneration metadata
+2. [x] Design a strict `SourceSnapshot` schema with explicit sections for:
+   - `source_identity`: source ID, title, type, parser version, snapshot version
+   - `content_metrics`: char length, estimated tokens, chunk count, section count, heading depth max, coverage ratio
+   - `structure_outline`: typed outline nodes with stable IDs, parent IDs, labels, depth, path, and chunk refs
+   - `content_digest`: short overview, covered themes, key assertions, representative passages, and missing/weakly covered areas
+   - `keywords`: ranked keywords or phrases with weights and supporting chunk refs
+   - `traceability`: representative chunk refs, page/section metadata, and source ranges
+   - Budget guidance: `content_digest.overview <= 120 tokens`, `covered_themes <= 8`, `key_assertions <= 5`, `representative_passages <= 3`, `keywords <= 15`, `structure_outline depth <= 3` for content-map export
+3. [x] Compute deterministic metrics directly from parser/chunker output rather than asking the LLM to infer them
+4. [x] Create the LLM prompt and response validator for semantic snapshot fields, constrained to information present in parsed chunks and metadata
+5. [x] Insert a `snapshot` stage into the ingestion orchestrator immediately after chunking completes and before embeddings/indexing begin
+6. [x] Persist the latest source snapshot and attach chunk-level traceability metadata for downstream summary/framework features
+7. Design the `NotebookContentMap` schema as a typed graph/JSON structure with:
+   - `map_metadata`: notebook ID, version, source count, ready source count, generated_at
+   - `theme_nodes`: top-level notebook themes and subthemes
+   - `source_nodes`: per-source summaries, metrics, and coverage tags
+   - `structure_nodes`: shared sections/framework nodes aggregated from source outlines
+   - `edges`: source-to-theme, theme-to-section, source-to-source overlap, and prerequisite/related relationships when inferable from sources
+   - `scope_hints`: in-scope topics, edge topics, out-of-scope hints, and canonical terminology
+8. Define explicit size-budget policy for `NotebookContentMap` and `NotebookSitemapView`, including per-source export budget, total map hard cap, and overflow compaction order
+9. Implement notebook content-map aggregation from all latest ready-source snapshots, and derive a compact sitemap-style rewrite view from the richer structure
+10. Add budget-aware compaction rules:
+   - keep every ready source represented in the map
+   - preserve notebook themes and top-level source framework anchors
+   - collapse deep/duplicate structure nodes before removing source coverage
+   - trim low-salience keywords and representative passages before removing framework signals
+11. Add regeneration triggers for source add, source delete, source re-ingest, and snapshot/content-map schema version changes
+12. Expose snapshot/content-map access through internal services and notebook-scoped APIs needed by chat, summary, and future notebook overview surfaces
+13. [x] Extend ingestion progress payloads so source status/debug views can show `snapshot` as a first-class pipeline step
+14. Add backend tests for snapshot generation, deterministic metric calculation, content-map aggregation, budget-aware compaction, regeneration triggers, traceability guarantees, and failure handling
+15. Add evaluation fixtures for overview/framework queries such as "这个 notebook 是关于什么的" and "生成 notebook 的知识框架"
+16. Add database migrations and backfill handling for existing ready sources
+
+**Dependency Note:**
+- Builds on Feature 2.2 semantic chunking and Feature 2.5 ingestion orchestration
+- Supersedes the deferred per-source summary placeholder in Feature 2.5 with a structured, source-grounded snapshot artifact
+- Unblocks structured inputs for Feature 4.1 notebook summary, Feature 4.2 key topics, and Feature 6.2A content-map-aware query rewriting
+
+**Verification Standards:**
+- `PYTHONPATH=$(pwd) pytest services/api/tests -k "snapshot or content_map or sitemap or ingestion" -v`
+- Add focused integration coverage for `parse → chunk → snapshot → embed → index` and regeneration on source mutation
+
+---
+
 ## Phase 3: Retrieval & Chat (Week 3)
 
 ### Feature 3.1: Hybrid Retrieval (BM25 + Vector) ✅
@@ -608,9 +674,12 @@ This document outlines the detailed development plan, acceptance criteria, and t
 - [ ] Source rows visualize live embedding progress with elapsed time and chunk counts while ingestion is running
 - [ ] Completed or failed ingestion states retain the latest elapsed time and progress summary for the source row
 - [x] Chat workflow surfaces question-embedding and retrieval timing so users can see how long notebook search preparation took
+- [x] Chat workflow surfaces query-embedding token usage and optional estimated cost, using model-aware embedding pricing when configured
 - [x] Chat workflow shows how long it took to receive the first answer chunk and whether the provider delivered incremental deltas or a single final chunk
 - [x] Chat workflow surfaces retrieval diagnostics, including how many chunks were selected for the active answer
 - [x] Retrieved chunks shown in the UI can be traced back to their original source via source title and chunk/location metadata
+- [x] Chat workflow surfaces token usage and optional estimated cost in the transparency UI, preferring provider-reported usage and falling back to local estimation when usage is unavailable
+- [x] Chat query composer exposes a retrieval top-k control beneath the question input, defaulted to 5 and passed through the stream request
 - [x] Assistant answers stream into a single chat bubble incrementally as LLM deltas arrive instead of appearing only after the stream finishes
 - [x] Stream finalization preserves the same assistant bubble and attaches citations/retrieval metadata without duplicate messages or flicker
 
@@ -620,12 +689,15 @@ This document outlines the detailed development plan, acceptance criteria, and t
 3. Update notebook workspace source rows to render an ingestion lifecycle view with upload-success messaging, elapsed time, and embedding progress details
 4. Add frontend polling/state handling so progress timing and chunk counters update smoothly while a source is embedding
 5. [x] Extend chat stream events to expose chat-stage timing metrics for query embedding, retrieval preparation, time to first answer delta, and stream chunk delivery
-6. [x] Extend chat stream events or final grounded-answer payloads to expose retrieval diagnostics such as retrieved chunk count and per-chunk source metadata
-7. [x] Add a chat timing panel in the UI that renders the latest model, preparation timings, time-to-first-chunk, and stream chunk count for the active answer
-8. [x] Add a retrieval transparency panel in the chat UI that groups retrieved chunks by source and shows the source relationship for each chunk used in the answer flow
-9. [x] Refine assistant streaming state management so the first text delta creates the assistant bubble immediately and subsequent deltas append in place
-10. [x] Preserve partial streamed text during citation binding/finalization and avoid replacing the in-flight assistant message with a second rendered message
-11. [x] Add backend and frontend tests covering chat timing payloads, retrieval transparency rendering, and incremental assistant bubble streaming
+6. [x] Extend chat metrics to expose query-embedding model, token count, and optional estimated cost using model-specific embedding pricing when configured
+7. [x] Extend chat stream events or final grounded-answer payloads to expose retrieval diagnostics such as retrieved chunk count and per-chunk source metadata
+8. [x] Add a chat timing panel in the UI that renders the latest model, preparation timings, time-to-first-chunk, stream chunk count, and embedding/query token costs for the active answer
+9. [x] Add a retrieval transparency panel in the chat UI that groups retrieved chunks by source and shows the source relationship for each chunk used in the answer flow
+10. [x] Refine assistant streaming state management so the first text delta creates the assistant bubble immediately and subsequent deltas append in place
+11. [x] Preserve partial streamed text during citation binding/finalization and avoid replacing the in-flight assistant message with a second rendered message
+12. [x] Add backend and frontend tests covering chat timing payloads, retrieval transparency rendering, and incremental assistant bubble streaming
+13. [x] Extend chat metrics payloads and the transparency UI to show provider token usage, cached-token visibility, and optional estimated cost with an offline-safe local fallback when provider usage is missing
+14. [x] Add a chat query top-k input below the composer, default it to 5, and thread the selected value through stream requests
 
 **Dependency Note:**
 - Builds on existing source upload, source status polling, hybrid retrieval, and notebook chat stream infrastructure
@@ -651,7 +723,7 @@ This document outlines the detailed development plan, acceptance criteria, and t
 2. Design notebook summary prompt template
 3. Implement source completion detection
 4. Create summary generation function
-   - Fetch all source summaries
+   - Fetch notebook content map, sitemap projection, and source snapshots
    - Create combined prompt
    - Call LLM
    - Parse and validate output
@@ -661,6 +733,9 @@ This document outlines the detailed development plan, acceptance criteria, and t
 8. Display summary in UI
 9. Add unit tests
 10. Add database migration
+
+**Dependency Note:**
+- Prefer structured inputs from Feature 2.5A instead of regenerating ad-hoc per-source summaries inside Feature 4.1
 
 ---
 
@@ -933,6 +1008,40 @@ This document outlines the detailed development plan, acceptance criteria, and t
 8. [x] Write unit tests
 9. [x] Add configuration options
 10. [x] Add frontend tests for rewritten-query transparency rendering
+
+---
+
+### Feature 6.2A: Content-Map-Aware Query Rewriting & Intent Routing
+
+**Acceptance Criteria:**
+- [ ] Query rewrite prompt receives a compact notebook-content-map background or sitemap-style projection built from ready-source snapshots
+- [ ] Rewrite input budget reserves room for normal user traffic under a `200K` context window: content-map projection stays under the configured cap and does not crowd out recent chat turns or user query text
+- [ ] Rewriter emits structured `query_type` classification for at least `notebook_overview`, `knowledge_framework`, `fact_lookup`, `comparison`, `evidence_lookup`, and `out_of_scope`
+- [ ] Rewriter emits notebook scope decisions (`in_scope`, `partially_in_scope`, `out_of_scope`) plus matched topics/source clusters used for the decision
+- [ ] Overview/framework-style questions rewrite against notebook-content-map context without losing source-grounded retrieval or citationability
+- [ ] Out-of-scope questions avoid misleading keyword expansion and expose enough metadata for the client to steer the user back to notebook-supported intents
+- [ ] Rewrite transparency payload includes content-map/sitemap version hash, query type, scope decision, and matched content-map nodes used during rewriting
+- [ ] Retrieval and intent-classification quality improves on a dedicated eval set for notebook overview/framework/scope-routing queries
+
+**Tasks:**
+1. Extend the rewrite prompt contract and response schema to accept notebook-content-map background (or its compact sitemap-style projection) and return `query_type`, `scope_decision`, `matched_topics`, `matched_sources`, and matched node IDs
+2. Implement content-map compaction/serialization helpers that fit rewrite token budgets while preserving top-level notebook structure, topic coverage, and scope boundaries
+3. Pass the latest notebook-content-map or rewrite-optimized sitemap view into the rewrite service before retrieval for notebooks with ready sources
+4. Reserve a rewrite prompt budget policy that explicitly accounts for system prompt, recent chat history, user query, and rewrite metadata before admitting content-map background
+5. Define notebook query-type taxonomy and branching rules for overview, framework, evidence, comparison, and out-of-scope intents
+6. Update chat orchestration so overview/framework queries can use content-map-guided retrieval planning while still producing source-grounded answers with citations
+7. Expose new rewrite metadata in the backend transparency payload and update the client contract for future UI support
+8. Add configuration flags for content-map-aware rewriting rollout, fallback behavior, and token budget limits
+9. Add backend tests for query classification, scope routing, matched-topic extraction, budget overflow fallback, and fallback when the notebook has no sitemap yet
+10. Add evaluation cases that measure scope in/out accuracy, overview/framework intent detection, and retrieval improvement with content-map background
+
+**Dependency Note:**
+- Depends on Feature 2.5A notebook content-map generation and existing Feature 6.2 query rewriting infrastructure
+- Should reuse existing transparency UX patterns instead of adding a second rewrite panel
+
+**Verification Standards:**
+- `PYTHONPATH=$(pwd) pytest services/api/tests/test_query_rewriting.py -k "content_map or sitemap or scope or framework" -v`
+- Run query-rewrite evaluation comparing baseline vs content-map-aware routing on notebook overview and scope-boundary prompts
 
 ---
 

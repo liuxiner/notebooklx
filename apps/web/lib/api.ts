@@ -88,10 +88,26 @@ class ApiError extends Error {
   }
 }
 
+function extractErrorMessage(errorData: unknown): string {
+  if (typeof errorData === "string") return errorData;
+  if (errorData && typeof errorData === "object") {
+    const obj = errorData as Record<string, unknown>;
+    if (typeof obj.message === "string") return obj.message;
+    if (typeof obj.detail === "string") return obj.detail;
+    if (obj.detail && typeof obj.detail === "object") {
+      const detail = obj.detail as Record<string, unknown>;
+      if (typeof detail.message === "string") return detail.message;
+    }
+  }
+  return "";
+}
+
 async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    const message = errorData.message || errorData.detail || `HTTP error! status: ${response.status}`;
+    const message =
+      extractErrorMessage(errorData) ||
+      `HTTP error! status: ${response.status}`;
     throw new ApiError(response.status, message);
   }
 

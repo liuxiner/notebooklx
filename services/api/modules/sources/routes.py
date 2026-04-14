@@ -413,11 +413,20 @@ def delete_source(
         try:
             get_object_storage().delete_bytes(source.file_path)
         except StorageError as exc:
-            raise build_error(
-                status.HTTP_500_INTERNAL_SERVER_ERROR,
-                "delete_failed",
-                "Failed to delete source content",
-            ) from exc
+            import logging
+            logging.getLogger(__name__).warning(
+                "Failed to delete storage object %s for source %s: %s",
+                source.file_path, source.id, exc,
+            )
+
+    # Also clean up any snapshot row before the cascade.
+    try:
+        from services.api.modules.snapshots.models import SourceSnapshot
+        db.query(SourceSnapshot).filter(
+            SourceSnapshot.source_id == source.id
+        ).delete(synchronize_session=False)
+    except Exception:
+        pass
 
     db.execute(delete(Source).where(Source.id == source.id))
     db.commit()
