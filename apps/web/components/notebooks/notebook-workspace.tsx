@@ -26,6 +26,7 @@ interface WorkspaceSource extends NotebookSource {
 }
 
 const INGESTION_POLL_INTERVAL_MS = 1500;
+const MAX_BULK_INGESTION_SOURCES = 50;
 
 const statusStyles: Record<SourceStatus, string> = {
   pending: "border-slate-200 bg-slate-100 text-slate-900",
@@ -147,6 +148,7 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSourceDialogOpen, setIsSourceDialogOpen] = useState(false);
   const [isSubmittingSource, setIsSubmittingSource] = useState(false);
+  const [isRetryingIngestion, setIsRetryingIngestion] = useState(false);
   const [trackedIngestionIds, setTrackedIngestionIds] = useState<string[]>([]);
   const [sourcePendingDelete, setSourcePendingDelete] = useState<WorkspaceSource | null>(
     null
@@ -176,6 +178,44 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
       failed: 0,
     }
   );
+  const retryableSources = sources.filter((source) => {
+    const status = getEffectiveStatus(source);
+    return status === "pending" || status === "failed";
+  });
+
+  function chunkSourceIds(sourceIds: string[]): string[][] {
+    if (sourceIds.length <= MAX_BULK_INGESTION_SOURCES) {
+      return [sourceIds];
+    }
+
+    const chunks: string[][] = [];
+
+    for (let index = 0; index < sourceIds.length; index += MAX_BULK_INGESTION_SOURCES) {
+      chunks.push(sourceIds.slice(index, index + MAX_BULK_INGESTION_SOURCES));
+    }
+
+    return chunks;
+  }
+
+  async function enqueueIngestionForSourceIds(sourceIds: string[]) {
+    if (sourceIds.length === 0) {
+      return [] as SourceIngestionStatus[];
+    }
+
+    if (sourceIds.length === 1) {
+      return [await sourcesApi.ingest(sourceIds[0])];
+    }
+
+    const statusResponses: SourceIngestionStatus[] = [];
+    const sourceIdChunks = chunkSourceIds(sourceIds);
+
+    for (const sourceIdChunk of sourceIdChunks) {
+      const chunkStatuses = await sourcesApi.bulkIngest(sourceIdChunk);
+      statusResponses.push(...chunkStatuses);
+    }
+
+    return statusResponses;
+  }
 
   function reconcileTrackedIngestions(nextSources: WorkspaceSource[]) {
     setTrackedIngestionIds((currentIds) =>
@@ -441,10 +481,9 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
       return;
     }
 
-    const statuses =
-      nextSources.length === 1
-        ? [await sourcesApi.ingest(nextSources[0].id)]
-        : await sourcesApi.bulkIngest(nextSources.map((source) => source.id));
+    const statuses = await enqueueIngestionForSourceIds(
+      nextSources.map((source) => source.id)
+    );
 
     const trackedIds = statuses
       .filter((status) => status.job_status !== "failed")
@@ -462,6 +501,48 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
     if (failedStatus) {
       await loadSources({ initial: false }).catch(() => undefined);
       throw new Error(failedStatus.error_message ?? "Failed to enqueue ingestion task.");
+    }
+  }
+
+  async function retryPendingAndFailedSources() {
+    if (retryableSources.length === 0) {
+      return;
+    }
+
+    try {
+      setIsRetryingIngestion(true);
+      setErrorMessage(null);
+
+      const statuses = await enqueueIngestionForSourceIds(
+        retryableSources.map((source) => source.id)
+      );
+
+      const trackedIds = statuses
+        .filter((status) => status.job_status !== "failed")
+        .map((status) => status.source_id);
+
+      if (trackedIds.length > 0) {
+        setTrackedIngestionIds((currentIds) => [
+          ...currentIds,
+          ...trackedIds.filter((sourceId) => !currentIds.includes(sourceId)),
+        ]);
+      }
+
+      const failedStatus = statuses.find((status) => status.job_status === "failed");
+
+      await loadSources({ initial: false, silent: true });
+
+      if (failedStatus) {
+        throw new Error(
+          failedStatus.error_message ?? "Failed to retry ingestion for some sources."
+        );
+      }
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "Failed to retry ingestion."
+      );
+    } finally {
+      setIsRetryingIngestion(false);
     }
   }
 
@@ -519,6 +600,23 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
             </Button>
             <Button
               variant="outline"
+              onClick={() => void retryPendingAndFailedSources()}
+              disabled={
+                isLoading ||
+                isRefreshing ||
+                isSubmittingSource ||
+                isRetryingIngestion ||
+                retryableSources.length === 0
+              }
+              className="w-full xs:w-auto"
+            >
+              <RefreshCw
+                className={`mr-2 h-4 w-4 ${isRetryingIngestion ? "animate-spin" : ""}`}
+              />
+              {isRetryingIngestion ? "Retrying..." : "Retry pending/failed"}
+            </Button>
+            <Button
+              variant="outline"
               onClick={() => void refreshSources()}
               disabled={isLoading || isRefreshing || isSubmittingSource}
               className="w-full xs:w-auto"
@@ -536,6 +634,9 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
               {sourceCounts.total} total
             </span>
             <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-800">
+              {sourceCounts.pending} pending
+            </span>
+            <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-sky-800">
               {sourceCounts.processing} processing
             </span>
             <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-800">

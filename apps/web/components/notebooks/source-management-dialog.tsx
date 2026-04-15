@@ -31,6 +31,20 @@ const modeButtonStyles =
   "rounded-full border px-3 py-1.5 text-sm font-medium transition-colors";
 const MAX_BATCH_UPLOAD_FILES = 50;
 
+function filenameStem(filename: string): string {
+  const trimmed = filename.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  const lastDotIndex = trimmed.lastIndexOf(".");
+  if (lastDotIndex <= 0) {
+    return trimmed;
+  }
+
+  return trimmed.slice(0, lastDotIndex);
+}
+
 function isSupportedUploadFile(file: File): boolean {
   const filename = file.name.toLowerCase();
   return (
@@ -110,7 +124,7 @@ export function SourceManagementDialog({
       return;
     }
 
-    const nextAutoTitle = nextFiles[0].name;
+    const nextAutoTitle = filenameStem(nextFiles[0].name);
     if (!title.trim() || title === lastAutoFilledUploadTitle) {
       setTitle(nextAutoTitle);
     }

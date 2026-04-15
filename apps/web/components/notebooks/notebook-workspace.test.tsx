@@ -416,7 +416,7 @@ describe("NotebookWorkspace", () => {
 
     const pendingUploadSource = {
       ...uploadedPdfSource,
-      title: "brief.pdf",
+      title: "brief",
     };
 
     (sourcesApi.list as jest.Mock)
@@ -529,7 +529,7 @@ describe("NotebookWorkspace", () => {
       });
     });
 
-    expect(within(dialog).getByLabelText("Title")).toHaveValue("brief.pdf");
+    expect(within(dialog).getByLabelText("Title")).toHaveValue("brief");
 
     await act(async () => {
       await user.click(within(dialog).getByRole("button", { name: "Upload source" }));
@@ -538,7 +538,7 @@ describe("NotebookWorkspace", () => {
     await waitFor(() => {
       expect(sourcesApi.upload).toHaveBeenCalledWith("notebook-123", {
         file: pdfFile,
-        title: "brief.pdf",
+        title: "brief",
       });
     });
     expect(sourcesApi.ingest).toHaveBeenCalledWith("source-3");
@@ -685,6 +685,102 @@ describe("NotebookWorkspace", () => {
       expect(statusCalls.get("source-7")).toBeGreaterThanOrEqual(2);
     });
     expect(sourcesApi.getStatus).not.toHaveBeenCalled();
+  });
+
+  it("retries pending and failed sources in bulk", async () => {
+    const user = userEvent.setup();
+    const retryCandidates = [
+      {
+        id: "source-pending",
+        source_type: "pdf",
+        title: "Pending Source",
+        status: "pending",
+        file_size: 1024,
+        created_at: "2026-04-08T10:00:00Z",
+        updated_at: "2026-04-08T10:00:00Z",
+      },
+      {
+        id: "source-failed",
+        source_type: "url",
+        title: "Failed Source",
+        status: "failed",
+        file_size: null,
+        created_at: "2026-04-08T10:05:00Z",
+        updated_at: "2026-04-08T10:05:00Z",
+      },
+      {
+        id: "source-ready",
+        source_type: "text",
+        title: "Ready Source",
+        status: "ready",
+        file_size: 256,
+        created_at: "2026-04-08T10:10:00Z",
+        updated_at: "2026-04-08T10:10:00Z",
+      },
+    ];
+
+    (sourcesApi.list as jest.Mock)
+      .mockResolvedValueOnce(retryCandidates)
+      .mockResolvedValueOnce(retryCandidates.map((source) => ({ ...source, status: "pending" })));
+    (sourcesApi.bulkStatus as jest.Mock).mockResolvedValue({
+      statuses: retryCandidates.map((source) => ({
+        source_id: source.id,
+        status: source.status,
+        job_id: source.status === "ready" ? "job-ready" : null,
+        job_status: source.status === "ready" ? "completed" : null,
+        task_id: source.status === "ready" ? "task-ready" : null,
+        progress: null,
+        error_message: source.status === "failed" ? "Ingestion failed." : null,
+        started_at: null,
+        completed_at: null,
+      })),
+      has_pending_sources: true,
+    });
+    (sourcesApi.bulkIngest as jest.Mock).mockResolvedValue([
+      {
+        source_id: "source-pending",
+        status: "pending",
+        job_id: "job-pending",
+        job_status: "queued",
+        task_id: "task-pending",
+        progress: {
+          message: "Queued for ingestion",
+        },
+        error_message: null,
+        started_at: null,
+        completed_at: null,
+      },
+      {
+        source_id: "source-failed",
+        status: "pending",
+        job_id: "job-failed",
+        job_status: "queued",
+        task_id: "task-failed",
+        progress: {
+          message: "Queued for ingestion",
+        },
+        error_message: null,
+        started_at: null,
+        completed_at: null,
+      },
+    ]);
+
+    render(<NotebookWorkspace notebookId="notebook-123" />);
+
+    expect(await screen.findByText("Pending Source")).toBeInTheDocument();
+    const retryButton = screen.getByRole("button", { name: "Retry pending/failed" });
+    expect(retryButton).toBeEnabled();
+
+    await act(async () => {
+      await user.click(retryButton);
+    });
+
+    expect(sourcesApi.bulkIngest).toHaveBeenCalledWith([
+      "source-pending",
+      "source-failed",
+    ]);
+    expect(sourcesApi.ingest).not.toHaveBeenCalled();
+    expect(sourcesApi.list).toHaveBeenCalledTimes(2);
   });
 
   it("validates URL input and surfaces loading and API errors", async () => {
