@@ -2,9 +2,12 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import userEvent from "@testing-library/user-event";
 
 import { NotebookWorkspace } from "./notebook-workspace";
-import { sourcesApi } from "@/lib/api";
+import { notebooksApi, sourcesApi } from "@/lib/api";
 
 jest.mock("@/lib/api", () => ({
+  notebooksApi: {
+    get: jest.fn(),
+  },
   sourcesApi: {
     list: jest.fn(),
     getSnapshotSummary: jest.fn(),
@@ -181,6 +184,14 @@ describe("NotebookWorkspace", () => {
 
   beforeEach(() => {
     jest.resetAllMocks();
+    (notebooksApi.get as jest.Mock).mockResolvedValue({
+      id: "notebook-123",
+      user_id: "user-1",
+      name: "Quantum Physics Research",
+      description: "Non-local interactions and observer-effect dynamics in relativistic particles.",
+      created_at: "2026-04-01T12:00:00Z",
+      updated_at: "2026-04-01T12:00:00Z",
+    });
     (sourcesApi.list as jest.Mock).mockResolvedValue(existingSources);
     (sourcesApi.getSnapshotSummary as jest.Mock).mockResolvedValue(readySourceSnapshot);
     (sourcesApi.ingest as jest.Mock).mockResolvedValue({
@@ -206,7 +217,7 @@ describe("NotebookWorkspace", () => {
     expect(await screen.findByText("Alpha Research Dossier")).toBeInTheDocument();
 
     await act(async () => {
-      await user.click(screen.getByRole("button", { name: "Add source" }));
+      await user.click(screen.getByRole("button", { name: "ADD SOURCE" }));
     });
 
     const dialog = await screen.findByRole("dialog");
@@ -220,7 +231,7 @@ describe("NotebookWorkspace", () => {
     expect(sourcesApi.getStatus).not.toHaveBeenCalled();
   });
 
-  it("opens a source snapshot preview card for ready sources and closes it on outside click", async () => {
+  it("opens a source snapshot preview card on hover for ready sources and closes it on blur", async () => {
     const user = userEvent.setup();
     const request = deferredPromise<typeof readySourceSnapshot>();
     (sourcesApi.getSnapshotSummary as jest.Mock).mockReturnValueOnce(request.promise);
@@ -230,11 +241,7 @@ describe("NotebookWorkspace", () => {
     expect(await screen.findByText("Launch Risks Memo")).toBeInTheDocument();
 
     await act(async () => {
-      await user.click(
-        screen.getByRole("button", {
-          name: "View source snapshot for Launch Risks Memo",
-        })
-      );
+      await user.hover(screen.getByTestId("source-row-source-2"));
     });
 
     expect(await screen.findByText("Loading snapshot preview...")).toBeInTheDocument();
@@ -257,7 +264,7 @@ describe("NotebookWorkspace", () => {
     expect(screen.getByText("launch readiness")).toBeInTheDocument();
 
     await act(async () => {
-      fireEvent.pointerDown(document.body);
+      await user.unhover(screen.getByTestId("source-row-source-2"));
     });
 
     await waitFor(() => {
@@ -273,11 +280,7 @@ describe("NotebookWorkspace", () => {
     expect(await screen.findByText("Alpha Research Dossier")).toBeInTheDocument();
 
     await act(async () => {
-      await user.click(
-        screen.getByRole("button", {
-          name: "View source snapshot for Alpha Research Dossier",
-        })
-      );
+      await user.hover(screen.getByTestId("source-row-source-1"));
     });
 
     expect(await screen.findByText("Snapshot preview")).toBeInTheDocument();
@@ -300,7 +303,7 @@ describe("NotebookWorkspace", () => {
     expect(await screen.findByText("Alpha Research Dossier")).toBeInTheDocument();
 
     await act(async () => {
-      await user.click(screen.getByRole("button", { name: "Add source" }));
+      await user.click(screen.getByRole("button", { name: "ADD SOURCE" }));
     });
 
     const dialog = await screen.findByRole("dialog");
@@ -337,7 +340,7 @@ describe("NotebookWorkspace", () => {
     expect(await screen.findByText("Alpha Research Dossier")).toBeInTheDocument();
 
     await act(async () => {
-      await user.click(screen.getByRole("button", { name: "Add source" }));
+      await user.click(screen.getByRole("button", { name: "ADD SOURCE" }));
     });
 
     const dialog = await screen.findByRole("dialog");
@@ -375,7 +378,7 @@ describe("NotebookWorkspace", () => {
     expect(await screen.findByText("Alpha Research Dossier")).toBeInTheDocument();
 
     await act(async () => {
-      await user.click(screen.getByRole("button", { name: "Add source" }));
+      await user.click(screen.getByRole("button", { name: "ADD SOURCE" }));
     });
 
     const dialog = await screen.findByRole("dialog");
@@ -516,7 +519,7 @@ describe("NotebookWorkspace", () => {
     expect(await screen.findByText("No sources yet")).toBeInTheDocument();
 
     await act(async () => {
-      await user.click(screen.getByRole("button", { name: "Add source" }));
+      await user.click(screen.getByRole("button", { name: "ADD SOURCE" }));
     });
 
     const dialog = await screen.findByRole("dialog");
@@ -644,7 +647,7 @@ describe("NotebookWorkspace", () => {
     expect(await screen.findByText("No sources yet")).toBeInTheDocument();
 
     await act(async () => {
-      await user.click(screen.getByRole("button", { name: "Add source" }));
+      await user.click(screen.getByRole("button", { name: "ADD SOURCE" }));
     });
 
     const dialog = await screen.findByRole("dialog");
@@ -794,7 +797,7 @@ describe("NotebookWorkspace", () => {
     expect(await screen.findByText("Alpha Research Dossier")).toBeInTheDocument();
 
     await act(async () => {
-      await user.click(screen.getByRole("button", { name: "Add source" }));
+      await user.click(screen.getByRole("button", { name: "ADD SOURCE" }));
     });
 
     const dialog = await screen.findByRole("dialog");
@@ -844,6 +847,14 @@ describe("NotebookWorkspace", () => {
     await act(async () => {
       await user.click(
         within(sourceCard as HTMLElement).getByRole("button", {
+          name: "More actions for Launch Risks Memo",
+        })
+      );
+    });
+
+    await act(async () => {
+      await user.click(
+        screen.getByRole("button", {
           name: "Delete source",
         })
       );
@@ -871,9 +882,13 @@ describe("NotebookWorkspace", () => {
     await act(async () => {
       await user.click(
         within(sourceCard as HTMLElement).getByRole("button", {
-          name: "Delete source",
+          name: "More actions for Launch Risks Memo",
         })
       );
+    });
+
+    await act(async () => {
+      await user.click(screen.getByRole("button", { name: "Delete source" }));
     });
 
     const dialog = await screen.findByRole("dialog");
@@ -906,9 +921,13 @@ describe("NotebookWorkspace", () => {
     await act(async () => {
       await user.click(
         within(sourceCard as HTMLElement).getByRole("button", {
-          name: "Delete source",
+          name: "More actions for Launch Risks Memo",
         })
       );
+    });
+
+    await act(async () => {
+      await user.click(screen.getByRole("button", { name: "Delete source" }));
     });
 
     const dialog = await screen.findByRole("dialog");

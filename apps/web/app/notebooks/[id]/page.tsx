@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, BookOpen, CheckCircle2, Pencil, Settings } from "lucide-react";
 
 import { ChatPanel } from "@/components/chat/chat-panel";
 import { NotebookWorkspace } from "@/components/notebooks/notebook-workspace";
@@ -10,6 +10,35 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { notebooksApi, type Notebook } from "@/lib/api";
+
+function NotebookOverviewCard({ notebook }: { notebook: Notebook }) {
+  return (
+    <Card className="overflow-hidden rounded-2xl border-slate-200 bg-white shadow-sm">
+      <CardHeader className="relative gap-4 px-5 py-5 tablet:px-6">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <CardTitle className="text-3xl font-semibold tracking-tight text-slate-950 tablet:text-4xl">
+              {notebook.name}
+            </CardTitle>
+            <CardDescription className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
+              {notebook.description || "Grounded notebook workspace for source-first research."}
+            </CardDescription>
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-10 w-10 rounded-full text-slate-500 hover:bg-slate-100"
+            disabled
+          >
+            <Pencil className="h-4 w-4" />
+            <span className="sr-only">Edit notebook</span>
+          </Button>
+        </div>
+      </CardHeader>
+    </Card>
+  );
+}
 
 export default function NotebookDetailPage() {
   const params = useParams();
@@ -91,70 +120,75 @@ export default function NotebookDetailPage() {
   }
 
   return (
-    <div className="min-h-screen">
-      <div className="mx-auto max-w-[1440px] px-4 py-6 tablet:py-8">
-        <Button
-          variant="ghost"
-          className="mb-4 w-full justify-start text-slate-700 xs:w-auto"
-          onClick={() => router.push("/notebooks")}
-        >
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Notebooks
-        </Button>
+    <div className="min-h-screen bg-slate-50">
+      {/* Desktop top bar */}
+      <div className="hidden desktop:block sticky top-0 z-40 border-b border-slate-200 bg-white/90 backdrop-blur">
+        <div className="mx-auto flex h-14 max-w-[1400px] items-center gap-6 px-6">
+          <div className="flex items-center gap-2 text-slate-900">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <BookOpen className="h-4 w-4" />
+            </div>
+            <span className="text-sm font-semibold tracking-tight">
+              Internal Knowledge Curator
+            </span>
+          </div>
 
-        <div className="grid gap-6 desktop:grid-cols-[minmax(0,1fr)_minmax(340px,420px)] desktop:items-start">
-          <Card className="order-1 overflow-hidden border-slate-200 bg-white/92 shadow-[0_18px_45px_rgba(15,23,42,0.06)]">
-            <CardHeader className="gap-4 border-b border-slate-200/80 bg-[linear-gradient(180deg,rgba(248,250,252,0.92),rgba(255,255,255,0.98))] tablet:gap-5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
-                Notebook workspace
-              </p>
-              <div className="flex flex-col gap-4 desktop:flex-row desktop:items-start desktop:justify-between">
-                <div className="max-w-2xl">
-                  <CardTitle className="text-3xl xs:text-4xl">{notebook.name}</CardTitle>
-                  <CardDescription className="mt-3 max-w-2xl text-sm leading-7 text-slate-600 xs:text-base">
-                    {notebook.description || "No description yet."}
-                  </CardDescription>
-                </div>
+          <div className="ml-auto flex items-center gap-3">
+            <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full" disabled>
+              <Settings className="h-4 w-4" />
+              <span className="sr-only">Settings</span>
+            </Button>
+          </div>
+        </div>
+      </div>
 
-                <div className="w-full rounded-[1.5rem] border border-sky-200 bg-sky-50 px-4 py-4 shadow-sm desktop:max-w-xs">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-800">
-                    Ready for grounded chat
-                  </p>
-                  <p className="mt-2 text-sm leading-6 text-sky-950">
-                    Ask focused questions below. Every answer stays tied to sources
-                    in this notebook.
-                  </p>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="grid gap-4 text-sm text-muted-foreground tablet:grid-cols-2">
-              <div className="rounded-[1.5rem] border border-border bg-slate-50/80 p-4">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Notebook ID
-                </p>
-                <p className="mt-3 break-all font-mono text-sm leading-6 text-slate-900">
-                  {notebookId}
-                </p>
-              </div>
-              <div className="rounded-[1.5rem] border border-border bg-slate-50/80 p-4">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Trust boundary
-                </p>
-                <p className="mt-3 leading-6 text-slate-700">
-                  Sources define the truth boundary. Upload new material in the
-                  workspace below to expand what this notebook can answer.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+      <div className="mx-auto flex max-w-[1400px]">
+        <main className="flex-1 px-4 py-6 tablet:px-6 desktop:px-10">
+          <div className="mb-4">
+            <Button
+              variant="ghost"
+              className="w-full justify-start text-slate-700 xs:w-auto desktop:text-sm"
+              onClick={() => router.push("/notebooks")}
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to Notebooks
+            </Button>
+          </div>
 
-          <aside className="order-2 desktop:sticky desktop:top-6 desktop:h-[calc(100vh-3rem)]">
-            <ChatPanel notebookId={notebook.id} notebookName={notebook.name} />
-          </aside>
+          <div className="grid gap-6 desktop:grid-cols-[minmax(0,1fr)_minmax(340px,420px)] desktop:items-start">
+            <section className="space-y-6">
+              <NotebookOverviewCard notebook={notebook} />
+              <NotebookWorkspace notebookId={notebook.id} />
+            </section>
 
-          <section className="order-3">
-            <NotebookWorkspace notebookId={notebook.id} />
-          </section>
+            <aside className="desktop:self-start desktop:sticky desktop:top-20">
+              <ChatPanel notebookId={notebook.id} notebookName={notebook.name} variant="scholar" />
+            </aside>
+          </div>
+
+          <div className="h-24 desktop:hidden" />
+        </main>
+      </div>
+
+      {/* Mobile bottom nav */}
+      <div className="desktop:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-slate-200 bg-white">
+        <div className="mx-auto grid max-w-md grid-cols-3 px-6 py-3 text-xs text-slate-500">
+          <button
+            type="button"
+            className="flex flex-col items-center gap-1"
+            onClick={() => router.push("/notebooks")}
+          >
+            <BookOpen className="h-5 w-5" />
+            Notebooks
+          </button>
+          <button type="button" className="flex flex-col items-center gap-1 text-primary">
+            <BookOpen className="h-5 w-5" />
+            Sources
+          </button>
+          <button type="button" className="flex flex-col items-center gap-1" disabled>
+            <Settings className="h-5 w-5" />
+            Settings
+          </button>
         </div>
       </div>
     </div>

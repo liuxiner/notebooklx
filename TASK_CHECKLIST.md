@@ -340,7 +340,7 @@ Quick reference checklist for tracking development progress. Check off items as 
 - ⬜ Architecture docs
 - ⬜ Deployment guide
 - ⬜ User guide
-- ✓ Design system (DESIGN.md) - Run /design-consultation
+- ✓ Design system (apps/web/DESIGN.md) - Run /design-consultation
 
 **Deployment**
 - ⬜ Docker setup

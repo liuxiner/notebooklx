@@ -13,10 +13,10 @@ NotebookLX is a source-grounded notebook knowledge workspace inspired by Google'
 
 ## Design System
 
-For `apps/web`, use `DESIGN.md` as the visual source of truth. It defines the workspace principles, color system, typography, spacing, component patterns, transparency UX, layout patterns, accessibility guidance, and motion constraints.
+For `apps/web`, use `apps/web/DESIGN.md` as the visual source of truth. It defines the workspace principles, color system, typography, spacing, component patterns, transparency UX, layout patterns, accessibility guidance, and motion constraints.
 
 - Prefer updating shared UI primitives and global tokens before applying one-off page styles
-- Keep citations, retrieval transparency, workflow status, and query-rewrite UI aligned with the transparency principles in `DESIGN.md`
+- Keep citations, retrieval transparency, workflow status, and query-rewrite UI aligned with the transparency principles in `apps/web/DESIGN.md`
 - Reserve accent blue for primary actions and links; neutral grays should dominate the workspace
 
 ## Technology Stack
@@ -119,7 +119,7 @@ When implementing features from `DEVELOPMENT_PLAN.md`, follow this strict test-f
    - Cover both happy paths and error cases
    - Backend: Use pytest with fixtures
    - Frontend: Use Jest/Vitest with React Testing Library
-   - Frontend visual or interaction changes should also be checked against `DESIGN.md` before implementation is considered complete
+   - Frontend visual or interaction changes should also be checked against `apps/web/DESIGN.md` before implementation is considered complete
    - Integration: Use pytest with test database
 
 3. **Implement the Feature**

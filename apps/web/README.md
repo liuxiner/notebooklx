@@ -28,18 +28,40 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ## Features Implemented
 
-### ✅ Feature 1.2: Notebook UI (Frontend)
+• Routes / 页面与组件（apps/web/app）
 
-All acceptance criteria met:
-- ✅ Notebook list page shows all user notebooks
-- ✅ Create notebook button opens modal/form
-- ✅ Can create notebook with name (required) and description (optional)
-- ✅ Notebook cards show name, description preview, and created date
-- ✅ Click notebook card navigates to notebook detail page
-- ✅ Edit/delete actions available on notebook cards
-- ✅ Loading states while fetching notebooks
-- ✅ Empty state when no notebooks exist
-- ✅ Responsive design works on mobile and desktop
+  - /：仅做跳转 → redirect("/notebooks")（apps/web/app/page.tsx）
+  - /notebooks：Notebook 列表页（apps/web/app/notebooks/page.tsx）
+      - 功能：加载列表、展示数量；新建/编辑/删除 notebook；点击进入详情
+      - 关键组件：NotebookCard、EmptyState、NotebookFormDialog、DeleteDialog + Button/Spinner + Toast
+  - /notebooks/[id]：Notebook 工作台（apps/web/app/notebooks/[id]/page.tsx）
+      - 布局：左侧“Notebook workspace”信息卡 + Sources 工作区；右侧固定 ChatPanel
+      - 关键组件：NotebookWorkspace（sources 管理/入库/预览/删除）+ ChatPanel（对话与可解释性面板）
+  - /evaluation：Evaluation Dashboard（apps/web/app/evaluation/page.tsx）
+      - 功能：按 notebook / 时间范围 / 指标过滤；查看汇总与 runs 表；创建并运行评测；导出 CSV
+      - 关键组件：EvaluationFilterControls、MetricsOverview、EvaluationRunsTable、CreateEvaluationDialog
+
+• UI 基建（components/ui + layout）
+
+- 全局：ToastProvider 包裹全站（apps/web/app/layout.tsx）
+- 基础 UI：Button/Card/Dialog/Input/Label/Textarea/Spinner/ScrollArea/Checkbox（apps/web/components/ui/*）
+
+核心工作流（Workflow 概括）
+
+- Notebook CRUD：notebooksApi.list/create/update/delete → 列表状态更新 + toast 提示（apps/web/lib/api.ts）
+- Sources 管理与入库（NotebookWorkspace）
+    - 添加来源：上传 PDF/TXT（支持批量≤50）、粘贴文本、URL（SourceManagementDialog）
+    - 入库：对单个 sourcesApi.ingest 或批量 sourcesApi.bulkIngest；用 bulkStatus 轮询（默认 1.5s）直到 ready/failed
+    - 预览：source ready 后拉取 getSnapshotSummary 做快照摘要展示
+    - 删除：sourcesApi.delete
+- Chat（ChatPanel + chat-stream）
+    - 提交问题 + top_k → POST /api/notebooks/{id}/chat/stream（SSE）
+    - 事件流：status/metrics/query_rewrite/retrieval/citations/answer_delta/answer/done/error；UI 同步展示透明度信息（检索分组、引用卡、指标等）
+- Evaluation
+    - 过滤条件变化触发 evaluationApi.list(filters)
+    - 创建评测：选择 notebook + query + 可选 ground truth chunks（ChunkSelector → evaluationApi.getNotebookChunks）→ create 后自动 start
+    - 导出：evaluationApi.exportCsv(filters) 下载 CSV
+
 
 ## Project Structure
 

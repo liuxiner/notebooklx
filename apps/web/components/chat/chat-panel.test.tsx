@@ -114,10 +114,10 @@ describe("ChatPanel", () => {
       await user.click(screen.getByRole("button", { name: "Send" }));
     });
 
-    expect(await screen.findAllByText("AI credits unavailable")).toHaveLength(2);
+    expect((await screen.findAllByText("AI credits unavailable")).length).toBeGreaterThanOrEqual(2);
     expect(
       screen.getAllByText("The AI provider account has no available balance or package quota.")
-    ).toHaveLength(2);
+    ).toHaveLength(3);
     expect(
       screen.getAllByText(
         "Recharge the provider account or switch to another configured model, then try again."
@@ -178,7 +178,9 @@ describe("ChatPanel", () => {
         question: "What is the launch plan?",
       })
     );
-    expect(await screen.findByText("The sources describe a phased launch.")).toBeInTheDocument();
+    expect(
+      (await screen.findAllByText("The sources describe a phased launch.")).length
+    ).toBeGreaterThanOrEqual(1);
   });
 
   it("shows streamed assistant text alongside retrieval diagnostics before the answer finalizes", async () => {
@@ -280,14 +282,44 @@ describe("ChatPanel", () => {
     expect(
       screen.getAllByText("Waiting for the first answer chunk from the model").length
     ).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText("Alpha launches in phases")).toBeInTheDocument();
+    expect(screen.getAllByText("Alpha launches in phases").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Chat timing & usage")).toBeInTheDocument();
     expect(screen.getByText("glm-4.7")).toBeInTheDocument();
-    expect(screen.getByText("6.41s")).toBeInTheDocument();
+    expect(screen.getAllByText("6.41s").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("embedding-3")).toBeInTheDocument();
     expect(screen.getByText("18")).toBeInTheDocument();
     expect(screen.getByText("$0.00036")).toBeInTheDocument();
-    expect(screen.getByText("0.16s")).toBeInTheDocument();
+    expect(screen.getAllByText("0.16s").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("Event timeline")).toBeInTheDocument();
+    expect(screen.getAllByText("Status update").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("Metrics update").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("Retrieval event")).toBeInTheDocument();
+    expect(screen.getByText("Stream delta")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        (_, element) => element?.textContent?.includes('"stage": "embedding_query"') ?? false,
+        { selector: "pre" }
+      )
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        (_, element) =>
+          element?.textContent?.includes('"query_embedding_model": "embedding-3"') ?? false,
+        { selector: "pre" }
+      )
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        (_, element) => element?.textContent?.includes('"source_title": "Alpha Guide"') ?? false,
+        { selector: "pre" }
+      )
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        (_, element) => element?.textContent?.includes('"delta": "Alpha launches in phases"') ?? false,
+        { selector: "pre" }
+      )
+    ).toBeInTheDocument();
     expect(screen.getByText("Retrieved evidence")).toBeInTheDocument();
     expect(screen.getByText("2 chunks from 2 sources were selected before answer generation.")).toBeInTheDocument();
     expect(screen.getByText("Alpha Guide")).toBeInTheDocument();
@@ -310,7 +342,21 @@ describe("ChatPanel", () => {
       ).length
     ).toBeGreaterThanOrEqual(1);
     expect((await screen.findAllByText("50.86s")).length).toBeGreaterThanOrEqual(1);
+    expect(await screen.findByText("Workflow complete")).toBeInTheDocument();
     expect(await screen.findByText("Provider returned a single final stream chunk.")).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        (_, element) =>
+          element?.textContent?.includes('"stream_delivery": "single_chunk"') ?? false,
+        { selector: "pre" }
+      )
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        (_, element) => element?.textContent?.includes('"status": "complete"') ?? false,
+        { selector: "pre" }
+      )
+    ).toBeInTheDocument();
     expect(await screen.findByText("1,245")).toBeInTheDocument();
     expect(await screen.findByText("218")).toBeInTheDocument();
     expect(await screen.findByText("1,463")).toBeInTheDocument();
@@ -321,6 +367,32 @@ describe("ChatPanel", () => {
     expect(
       await screen.findByText("Provider reported 120 cached prompt tokens.")
     ).toBeInTheDocument();
+  });
+
+  it("renders scholar workflow first and keeps advanced diagnostics behind settings", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <ChatPanel
+        notebookId="notebook-123"
+        notebookName="Deep Research Notes"
+        variant="scholar"
+      />
+    );
+
+    expect(screen.getByText("Scholar Query")).toBeInTheDocument();
+    expect(screen.getByText("Curator AI v4.2 active")).toBeInTheDocument();
+    expect(screen.getByText("Process workflow")).toBeInTheDocument();
+    expect(screen.getByText("Event timeline")).toBeInTheDocument();
+    expect(screen.queryByText("Chat timing & usage")).not.toBeInTheDocument();
+
+    await act(async () => {
+      await user.click(
+        screen.getByRole("button", { name: "Toggle advanced diagnostics" })
+      );
+    });
+
+    expect(screen.getByText("Chat timing & usage")).toBeInTheDocument();
   });
 
   it("keeps rewritten-query transparency collapsed until the user expands it", async () => {
@@ -358,7 +430,7 @@ describe("ChatPanel", () => {
       await user.click(screen.getByRole("button", { name: "Send" }));
     });
 
-    expect(await screen.findByText("Query rewrite")).toBeInTheDocument();
+    expect((await screen.findAllByText("Query rewrite")).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByRole("button", { name: "Show rewrite details" })).toBeInTheDocument();
     expect(screen.queryByText("Original query")).not.toBeInTheDocument();
     expect(screen.queryByText("Retrieval searches")).not.toBeInTheDocument();
@@ -415,9 +487,13 @@ describe("ChatPanel", () => {
       await user.click(screen.getByRole("button", { name: "Send" }));
     });
 
-    await screen.findByText(
-      "The sources describe semantic chunking as context-preserving splitting."
-    );
+    expect(
+      (
+        await screen.findAllByText(
+          "The sources describe semantic chunking as context-preserving splitting."
+        )
+      ).length
+    ).toBeGreaterThanOrEqual(1);
     expect(screen.queryByText("Query rewrite")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Show rewrite details" })).not.toBeInTheDocument();
   });
