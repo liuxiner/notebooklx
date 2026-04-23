@@ -128,7 +128,7 @@ Quick reference checklist for tracking development progress. Check off items as 
 - ✓ Reserved generated-assets section
 - ✓ Workspace refresh behavior
 - ✓ Frontend tests
-- ⚡ Source snapshot preview card
+- ✓ Source snapshot preview card
 
 **Source Management UI** ✓
 - ✓ Add-source entry point
@@ -400,3 +400,5 @@ _Use this section for development notes, decisions, and learnings._
 - 2026-04-14: Snapshot ingestion now ranks multiple JSON objects by schema match, so chunk-like blobs no longer win over the final snapshot object; when the LLM payload is still malformed, the pipeline falls back to the heuristic snapshot instead of failing the source.
 - 2026-04-14: Bulk source ingestion/upload now accepts up to 50 items per request with explicit validation; worker concurrency defaults to `INGESTION_MAX_JOBS=4` (configurable) so queued jobs are processed in a controlled way; snapshot LLM calls now run via async thread offloading to avoid blocking the event loop while waiting on provider responses.
 - 2026-04-14: Notebook deletion now removes source-backed resources end-to-end: uploaded objects are deleted, source rows are hard-deleted so cascades clear chunks/snapshots/ingestion jobs, and worker tasks return `cancelled` if the source or notebook disappears mid-flight.
+- 2026-04-21: Shared model budgeting now reads `ZHIPUAI_API_MODEL_MAX_TOKENS` plus global `NOTEBOOKLX_PROMPT_BUDGET_RATIO` from `.env`; snapshot prompt assembly compacts long documents to stay within budget, and shared chat/embedding providers now reject over-budget inputs before making API calls (`embedding-2`/`embedding-3` default to 8K context with the same ratio applied).
+- 2026-04-21: Worker ingestion failures now always persist terminal `failed` status to both the source and ingestion job even if error summarization/imports break; unexpected worker exceptions keep their concrete message so UI polling no longer gets stuck on `processing` while Arq reports failed jobs.
