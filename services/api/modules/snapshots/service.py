@@ -17,7 +17,10 @@ import uuid
 from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy.orm import Session
 
-from services.api.core.ai import BigModelChatProvider
+from services.api.core.ai import (
+    BigModelChatProvider,
+    get_chat_model_prompt_budget_settings,
+)
 from services.api.core.language import infer_language
 from services.api.modules.chunking import ChunkResult, count_tokens
 from services.api.modules.parsers import ParseResult
@@ -28,6 +31,8 @@ from services.api.modules.sources.models import Source
 logger = logging.getLogger(__name__)
 
 SOURCE_SNAPSHOT_SCHEMA_VERSION = "1.0"
+MIN_SNAPSHOT_CHUNK_BUDGET_TOKENS = 256
+MAX_SNAPSHOT_RESERVED_CHUNK_BUDGET_TOKENS = 1536
 MAX_CONTENT_DIGEST_OVERVIEW_TOKENS = 120
 MAX_COVERED_THEMES = 8
 MAX_KEY_ASSERTIONS = 5
@@ -473,6 +478,149 @@ def _build_representative_refs(prepared_chunks: list[PreparedSourceChunk]) -> li
     return refs[:MAX_REPRESENTATIVE_PASSAGES]
 
 
+def _estimate_prompt_tokens(system_prompt: str, user_payload: dict[str, Any]) -> int:
+    """Estimate prompt tokens from the system prompt and JSON user payload."""
+    return count_tokens(system_prompt) + count_tokens(
+        json.dumps(user_payload, ensure_ascii=False)
+    )
+
+
+def _compact_trace_ref_for_prompt(trace_ref: dict[str, Any]) -> dict[str, Any]:
+    compact_ref = {
+        "chunk_id": trace_ref.get("chunk_id"),
+        "page_numbers": list(trace_ref.get("page_numbers", [])),
+        "headings": list(trace_ref.get("headings", []))[:MAX_STRUCTURE_EXPORT_DEPTH],
+    }
+    page_number = trace_ref.get("page_number")
+    if page_number is not None:
+        compact_ref["page_number"] = page_number
+    return compact_ref
+
+
+def _compact_outline_node_for_prompt(node: dict[str, Any]) -> dict[str, Any]:
+    compact_node = {
+        "node_id": node.get("node_id"),
+        "label": node.get("label"),
+        "depth": node.get("depth"),
+        "parent_id": node.get("parent_id"),
+        "path": list(node.get("path", [])),
+    }
+    supporting_chunk_ids = [
+        ref.get("chunk_id")
+        for ref in node.get("chunk_refs", [])[:1]
+        if ref.get("chunk_id")
+    ]
+    if supporting_chunk_ids:
+        compact_node["supporting_chunk_ids"] = supporting_chunk_ids
+    return compact_node
+
+
+def _build_snapshot_prompt_payload(
+    *,
+    language_instruction: str,
+    source_payload: dict[str, Any],
+    prompt_deterministic_snapshot: dict[str, Any],
+    chunk_payload: list[dict[str, Any]],
+) -> dict[str, Any]:
+    return {
+        "language_instruction": language_instruction,
+        "source": source_payload,
+        "deterministic_snapshot": prompt_deterministic_snapshot,
+        "chunks": chunk_payload,
+    }
+
+
+def _build_prompt_deterministic_snapshot(
+    *,
+    deterministic_snapshot: dict[str, Any],
+    system_prompt: str,
+    language_instruction: str,
+    source_payload: dict[str, Any],
+    max_input_tokens: int,
+) -> dict[str, Any]:
+    reserved_chunk_budget = min(
+        MAX_SNAPSHOT_RESERVED_CHUNK_BUDGET_TOKENS,
+        max(MIN_SNAPSHOT_CHUNK_BUDGET_TOKENS, max_input_tokens // 2),
+    )
+    max_deterministic_tokens = max(1, max_input_tokens - reserved_chunk_budget)
+    content_metrics = dict(deterministic_snapshot.get("content_metrics", {}))
+    traceability = deterministic_snapshot.get("traceability", {})
+    prompt_snapshot: dict[str, Any] = {
+        "content_metrics": content_metrics,
+        "structure_outline": [],
+        "traceability": {
+            "representative_chunk_refs": [
+                _compact_trace_ref_for_prompt(ref)
+                for ref in traceability.get("representative_chunk_refs", [])[
+                    :MAX_REPRESENTATIVE_PASSAGES
+                ]
+            ]
+        },
+    }
+
+    compact_outline_nodes = [
+        _compact_outline_node_for_prompt(node)
+        for node in deterministic_snapshot.get("structure_outline", [])
+    ]
+
+    for compact_node in compact_outline_nodes:
+        candidate_snapshot = {
+            **prompt_snapshot,
+            "structure_outline": prompt_snapshot["structure_outline"] + [compact_node],
+        }
+        candidate_payload = _build_snapshot_prompt_payload(
+            language_instruction=language_instruction,
+            source_payload=source_payload,
+            prompt_deterministic_snapshot=candidate_snapshot,
+            chunk_payload=[],
+        )
+        if _estimate_prompt_tokens(system_prompt, candidate_payload) > max_deterministic_tokens:
+            break
+        prompt_snapshot = candidate_snapshot
+
+    return prompt_snapshot
+
+
+def _build_prompt_chunk_payload(chunk: PreparedSourceChunk) -> dict[str, Any]:
+    return {
+        "chunk_id": str(chunk.chunk_id),
+        "chunk_index": chunk.chunk_index,
+        "page_numbers": chunk.page_numbers,
+        "headings": chunk.heading_context,
+        "content": chunk.content[:MAX_LLM_CHUNK_CONTENT_CHARS],
+    }
+
+
+def _iter_prompt_chunk_candidates(
+    prepared_chunks: list[PreparedSourceChunk],
+) -> list[PreparedSourceChunk]:
+    if len(prepared_chunks) <= 1:
+        return list(prepared_chunks)
+
+    anchor_indexes = [
+        0,
+        len(prepared_chunks) - 1,
+        len(prepared_chunks) // 2,
+        len(prepared_chunks) // 4,
+        (len(prepared_chunks) * 3) // 4,
+    ]
+
+    ordered: list[PreparedSourceChunk] = []
+    seen_indexes: set[int] = set()
+    for index in anchor_indexes:
+        if index in seen_indexes or index < 0 or index >= len(prepared_chunks):
+            continue
+        seen_indexes.add(index)
+        ordered.append(prepared_chunks[index])
+
+    for chunk in prepared_chunks:
+        if chunk.chunk_index in seen_indexes:
+            continue
+        ordered.append(chunk)
+
+    return ordered
+
+
 class HeuristicSnapshotSemanticProvider:
     """Fallback provider that derives compact semantic fields without network access."""
 
@@ -586,18 +734,8 @@ Rules:
         prepared_chunks: list[PreparedSourceChunk],
         deterministic_snapshot: dict[str, Any],
     ) -> list[dict[str, str]]:
-        chunk_payload = []
-        for chunk in prepared_chunks:
-            chunk_payload.append(
-                {
-                    "chunk_id": str(chunk.chunk_id),
-                    "chunk_index": chunk.chunk_index,
-                    "page_numbers": chunk.page_numbers,
-                    "headings": chunk.heading_context,
-                    "content": chunk.content[:MAX_LLM_CHUNK_CONTENT_CHARS],
-                }
-            )
-
+        system_prompt = self.SYSTEM_PROMPT.strip()
+        budget_settings = get_chat_model_prompt_budget_settings()
         language = infer_language(parse_result.full_text[:2000])
         if language == "zh":
             language_instruction = "Return all natural-language fields in Simplified Chinese."
@@ -608,27 +746,65 @@ Rules:
                 "Return all natural-language fields in the same language as the source content."
             )
 
+        source_payload = {
+            "source_id": str(source.id),
+            "title": source.title,
+            "source_type": (
+                source.source_type.value
+                if hasattr(source.source_type, "value")
+                else str(source.source_type)
+            ),
+        }
+        prompt_deterministic_snapshot = _build_prompt_deterministic_snapshot(
+            deterministic_snapshot=deterministic_snapshot,
+            system_prompt=system_prompt,
+            language_instruction=language_instruction,
+            source_payload=source_payload,
+            max_input_tokens=budget_settings.max_input_tokens,
+        )
+
+        selected_chunk_payloads: list[dict[str, Any]] = []
+        for chunk in _iter_prompt_chunk_candidates(prepared_chunks):
+            candidate_chunk_payloads = sorted(
+                selected_chunk_payloads + [_build_prompt_chunk_payload(chunk)],
+                key=lambda item: item["chunk_index"],
+            )
+            candidate_payload = _build_snapshot_prompt_payload(
+                language_instruction=language_instruction,
+                source_payload=source_payload,
+                prompt_deterministic_snapshot=prompt_deterministic_snapshot,
+                chunk_payload=candidate_chunk_payloads,
+            )
+            if (
+                _estimate_prompt_tokens(system_prompt, candidate_payload)
+                > budget_settings.max_input_tokens
+            ):
+                continue
+            selected_chunk_payloads = candidate_chunk_payloads
+
+        user_payload = _build_snapshot_prompt_payload(
+            language_instruction=language_instruction,
+            source_payload=source_payload,
+            prompt_deterministic_snapshot=prompt_deterministic_snapshot,
+            chunk_payload=selected_chunk_payloads,
+        )
+        prompt_tokens = _estimate_prompt_tokens(system_prompt, user_payload)
+        logger.info(
+            "Built snapshot prompt for source %s tokens=%s/%s outline_nodes=%s/%s chunks=%s/%s",
+            source.id,
+            prompt_tokens,
+            budget_settings.max_input_tokens,
+            len(prompt_deterministic_snapshot.get("structure_outline", [])),
+            len(deterministic_snapshot.get("structure_outline", [])),
+            len(selected_chunk_payloads),
+            len(prepared_chunks),
+        )
+
         return [
-            {"role": "system", "content": self.SYSTEM_PROMPT.strip()},
+            {"role": "system", "content": system_prompt},
             {
                 "role": "user",
-                "content": json.dumps(
-                    {
-                        "language_instruction": language_instruction,
-                        "source": {
-                            "source_id": str(source.id),
-                            "title": source.title,
-                            "source_type": (
-                                source.source_type.value
-                                if hasattr(source.source_type, "value")
-                                else str(source.source_type)
-                            ),
-                        },
-                        "deterministic_snapshot": deterministic_snapshot,
-                        "chunks": chunk_payload,
-                    },
-                    ensure_ascii=False,
-                ),
+                "content": json.dumps(user_payload, ensure_ascii=False),
             },
         ]
 

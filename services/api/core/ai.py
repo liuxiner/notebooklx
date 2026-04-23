@@ -26,6 +26,8 @@ logger = logging.getLogger(__name__)
 DEFAULT_BIGMODEL_BASE_URL = "https://open.bigmodel.cn/api/paas/v4/"
 DEFAULT_BIGMODEL_CHAT_MODEL = "glm-4"
 DEFAULT_BIGMODEL_EMBEDDING_MODEL = "embedding-2"
+DEFAULT_BIGMODEL_CHAT_MODEL_MAX_TOKENS = 128_000
+DEFAULT_PROMPT_BUDGET_RATIO = 0.8
 
 
 @dataclass(frozen=True)
@@ -38,6 +40,42 @@ class ChatUsage:
     cached_tokens: int | None = None
     usage_source: str = "provider"
     estimated_cost_usd: float | None = None
+
+
+@dataclass(frozen=True)
+class ModelInputBudgetSettings:
+    """Resolved input-budget settings for a model call."""
+
+    model_max_tokens: int
+    prompt_budget_ratio: float
+    max_input_tokens: int
+
+
+class ModelInputLimitError(ValueError):
+    """Raised when a model input exceeds the configured token budget."""
+
+
+def _env_value(*names: str) -> str | None:
+    for name in names:
+        value = os.getenv(name)
+        if value is None or value == "":
+            continue
+        return value
+    return None
+
+
+def _env_int(*names: str, default: int) -> int:
+    value = _env_value(*names)
+    if value is None:
+        return default
+    return int(value)
+
+
+def _env_float(*names: str, default: float) -> float:
+    value = _env_value(*names)
+    if value is None:
+        return default
+    return float(value)
 
 
 def _is_retryable_stream_error(exc: Exception) -> bool:
@@ -196,18 +234,91 @@ def apply_chat_cost_estimate(usage: ChatUsage) -> ChatUsage:
     )
 
 
-def estimate_chat_usage(
-    messages: list[dict[str, Any]],
-    completion_text: str,
-) -> ChatUsage:
-    """Estimate prompt and completion tokens locally when provider usage is absent."""
+def get_model_input_budget_settings(
+    *,
+    model_max_tokens: int | None = None,
+    prompt_budget_ratio: float | None = None,
+) -> ModelInputBudgetSettings:
+    """Resolve a model input budget from env vars or explicit overrides."""
+    resolved_model_max_tokens = (
+        model_max_tokens
+        if model_max_tokens is not None
+        else _env_int(
+            "ZAI_API_MODEL_MAX_TOKENS",
+            "ZHIPUAI_API_MODEL_MAX_TOKENS",
+            "OPENAI_MODEL_MAX_TOKENS",
+            default=DEFAULT_BIGMODEL_CHAT_MODEL_MAX_TOKENS,
+        )
+    )
+    resolved_prompt_budget_ratio = (
+        prompt_budget_ratio
+        if prompt_budget_ratio is not None
+        else _env_float(
+            "NOTEBOOKLX_PROMPT_BUDGET_RATIO",
+            "PROMPT_BUDGET_RATIO",
+            default=DEFAULT_PROMPT_BUDGET_RATIO,
+        )
+    )
+
+    if resolved_model_max_tokens <= 0:
+        raise ValueError("Model max tokens must be greater than 0")
+    if resolved_prompt_budget_ratio <= 0 or resolved_prompt_budget_ratio > 1:
+        raise ValueError("Prompt budget ratio must be within (0, 1]")
+
+    return ModelInputBudgetSettings(
+        model_max_tokens=resolved_model_max_tokens,
+        prompt_budget_ratio=resolved_prompt_budget_ratio,
+        max_input_tokens=max(1, int(resolved_model_max_tokens * resolved_prompt_budget_ratio)),
+    )
+
+
+def get_chat_model_prompt_budget_settings(
+    *,
+    model_max_tokens: int | None = None,
+    prompt_budget_ratio: float | None = None,
+) -> ModelInputBudgetSettings:
+    """Compatibility wrapper for chat prompt budget resolution."""
+    return get_model_input_budget_settings(
+        model_max_tokens=model_max_tokens,
+        prompt_budget_ratio=prompt_budget_ratio,
+    )
+
+
+def estimate_message_tokens(messages: list[dict[str, Any]]) -> int:
+    """Estimate the token count for a chat message list."""
     prompt_parts: list[str] = []
     for message in messages:
         role = str(message.get("role", "user")).strip() or "user"
         content = _extract_text_content(message.get("content", ""))
         prompt_parts.append(f"{role}\n{content}".strip())
+    return count_tokens("\n\n".join(part for part in prompt_parts if part))
 
-    prompt_tokens = count_tokens("\n\n".join(part for part in prompt_parts if part))
+
+def ensure_messages_within_budget(
+    messages: list[dict[str, Any]],
+    *,
+    settings: ModelInputBudgetSettings | None = None,
+    model_name: str | None = None,
+) -> int:
+    """Raise when chat messages exceed the configured input budget."""
+    resolved_settings = settings or get_model_input_budget_settings()
+    prompt_tokens = estimate_message_tokens(messages)
+    if prompt_tokens > resolved_settings.max_input_tokens:
+        model_label = model_name or "chat model"
+        raise ModelInputLimitError(
+            f"Input for {model_label} exceeds the configured input budget: "
+            f"{prompt_tokens} tokens > {resolved_settings.max_input_tokens} "
+            f"(max={resolved_settings.model_max_tokens}, ratio={resolved_settings.prompt_budget_ratio})."
+        )
+    return prompt_tokens
+
+
+def estimate_chat_usage(
+    messages: list[dict[str, Any]],
+    completion_text: str,
+) -> ChatUsage:
+    """Estimate prompt and completion tokens locally when provider usage is absent."""
+    prompt_tokens = estimate_message_tokens(messages)
     completion_tokens = count_tokens(completion_text)
     return apply_chat_cost_estimate(
         ChatUsage(
@@ -404,7 +515,11 @@ class BigModelChatProvider:
     def chat(self, messages: list[dict[str, Any]], **kwargs: Any) -> str:
         """Create a chat completion and return the first text response."""
         start_time = time.monotonic()
-        logger.info(f"[CHAT] Calling LLM with {len(messages)} messages, model: {self._model}")
+        prompt_tokens = ensure_messages_within_budget(messages, model_name=self._model)
+        logger.info(
+            f"[CHAT] Calling LLM with {len(messages)} messages, "
+            f"model: {self._model}, prompt_tokens={prompt_tokens}"
+        )
         self._last_usage = None
 
         try:
@@ -436,7 +551,11 @@ class BigModelChatProvider:
     def chat_stream(self, messages: list[dict[str, Any]], **kwargs: Any):
         """Create a streaming chat completion and yield text deltas."""
         start_time = time.monotonic()
-        logger.info(f"[CHAT] Starting streaming LLM call with {len(messages)} messages, model: {self._model}")
+        prompt_tokens = ensure_messages_within_budget(messages, model_name=self._model)
+        logger.info(
+            f"[CHAT] Starting streaming LLM call with {len(messages)} messages, "
+            f"model: {self._model}, prompt_tokens={prompt_tokens}"
+        )
         yielded_text = False
         self._last_usage = None
 

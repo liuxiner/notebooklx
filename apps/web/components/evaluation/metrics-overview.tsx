@@ -1,127 +1,104 @@
 /**
  * Metrics Overview component.
  *
- * Displays summary cards for key evaluation metrics.
+ * Displays prominent metric cards for the evaluation dashboard.
+ * Shows 3 primary metrics matching the design:
+ * - Accuracy (faithfulness)
+ * - Retrieval (recall@10)
+ * - Citation Quality (citation support rate)
  *
  * Feature 6.3: Evaluation Dashboard
  */
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Activity, Target, CheckCircle, AlertCircle } from "lucide-react";
+import {
+  BarChart3,
+  Target,
+  ShieldCheck,
+} from "lucide-react";
 
 interface MetricsOverviewProps {
   summary: Record<string, number>;
 }
 
-const METRIC_CONFIG = {
-  recall_at_5: {
-    label: "Recall@5",
-    description: "Relevant chunks in top 5",
-    icon: Target,
-    color: "text-blue-600",
-    bgColor: "bg-blue-50",
-    format: (v: number) => `${(v * 100).toFixed(1)}%`,
-  },
-  recall_at_10: {
-    label: "Recall@10",
-    description: "Relevant chunks in top 10",
-    icon: Target,
-    color: "text-blue-600",
-    bgColor: "bg-blue-50",
-    format: (v: number) => `${(v * 100).toFixed(1)}%`,
-  },
-  mrr: {
-    label: "MRR",
-    description: "Mean Reciprocal Rank",
-    icon: Activity,
-    color: "text-purple-600",
-    bgColor: "bg-purple-50",
-    format: (v: number) => v.toFixed(3),
-  },
-  citation_support_rate: {
-    label: "Citation Support",
-    description: "Supported citations",
-    icon: CheckCircle,
-    color: "text-green-600",
-    bgColor: "bg-green-50",
-    format: (v: number) => `${(v * 100).toFixed(1)}%`,
-  },
-  wrong_citation_rate: {
-    label: "Wrong Citations",
-    description: "Incorrect citations",
-    icon: AlertCircle,
-    color: "text-red-600",
-    bgColor: "bg-red-50",
-    format: (v: number) => `${(v * 100).toFixed(1)}%`,
-  },
-  groundedness: {
-    label: "Groundedness",
-    description: "Answer from sources",
-    icon: CheckCircle,
-    color: "text-emerald-600",
-    bgColor: "bg-emerald-50",
-    format: (v: number) => `${(v * 100).toFixed(1)}%`,
-  },
-  completeness: {
-    label: "Completeness",
-    description: "Answer coverage",
-    icon: Activity,
-    color: "text-indigo-600",
-    bgColor: "bg-indigo-50",
-    format: (v: number) => `${(v * 100).toFixed(1)}%`,
-  },
-  faithfulness: {
-    label: "Faithfulness",
-    description: "No contradictions",
-    icon: CheckCircle,
-    color: "text-teal-600",
-    bgColor: "bg-teal-50",
-    format: (v: number) => `${(v * 100).toFixed(1)}%`,
-  },
-};
+interface MetricCard {
+  label: string;
+  value: string;
+  sublabel: string;
+  color: string;
+  bgColor: string;
+  icon: typeof BarChart3;
+}
+
+function formatPercent(v: number): string {
+  return `${(v * 100).toFixed(1)}%`;
+}
 
 export default function MetricsOverview({ summary }: MetricsOverviewProps) {
-  const availableMetrics = Object.keys(METRIC_CONFIG).filter(
-    (key) => summary[key] !== undefined
-  );
+  const faithfulness = summary.faithfulness;
+  const recall10 = summary.recall_at_10;
+  const citationSupport = summary.citation_support_rate;
 
-  if (availableMetrics.length === 0) {
-    return (
-      <Card>
-        <CardContent className="pt-6">
-          <p className="text-center text-slate-500">
-            No metrics available yet. Run evaluations to see metric summaries.
-          </p>
-        </CardContent>
-      </Card>
-    );
-  }
+  const cards: MetricCard[] = [
+    {
+      label: "Accuracy",
+      value: faithfulness !== undefined ? formatPercent(faithfulness) : "--",
+      sublabel: "Faithfulness score",
+      color: "text-emerald-600",
+      bgColor: "bg-emerald-50",
+      icon: ShieldCheck,
+    },
+    {
+      label: "Retrieval",
+      value: recall10 !== undefined ? formatPercent(recall10) : "--",
+      sublabel: "Recall@10 rate",
+      color: "text-blue-600",
+      bgColor: "bg-blue-50",
+      icon: Target,
+    },
+    {
+      label: "Citation Quality",
+      value: citationSupport !== undefined ? formatPercent(citationSupport) : "--",
+      sublabel: "Support rate",
+      color: "text-violet-600",
+      bgColor: "bg-violet-50",
+      icon: BarChart3,
+    },
+  ];
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-      {availableMetrics.map((metricKey) => {
-        const config = METRIC_CONFIG[metricKey as keyof typeof METRIC_CONFIG];
-        const value = summary[metricKey];
-        const Icon = config.icon;
-
+    <div className="grid grid-cols-1 tablet:grid-cols-3 gap-4">
+      {cards.map((card) => {
+        const Icon = card.icon;
         return (
-          <Card key={metricKey} className="hover:shadow-md transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-slate-600">
-                {config.label}
-              </CardTitle>
-              <div className={`p-2 rounded-lg ${config.bgColor}`}>
-                <Icon className={`h-4 w-4 ${config.color}`} />
+          <div
+            key={card.label}
+            className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
+          >
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  {card.label}
+                </p>
+                <p className={`mt-2 text-3xl font-bold ${card.color}`}>
+                  {card.value}
+                </p>
+                <p className="mt-1 text-xs text-slate-500">{card.sublabel}</p>
               </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-slate-900">
-                {config.format(value)}
+              <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${card.bgColor}`}>
+                <Icon className={`h-5 w-5 ${card.color}`} />
               </div>
-              <p className="text-xs text-slate-500 mt-1">
-                {config.description}
-              </p>
-            </CardContent>
-          </Card>
+            </div>
+
+            {/* Mini bar chart placeholder */}
+            <div className="mt-4 flex h-8 items-end gap-[3px]">
+              {[40, 65, 50, 80, 55, 70, 90, 60, 75, 85, 65, 70].map((h, i) => (
+                <div
+                  key={i}
+                  className={`flex-1 rounded-sm ${card.bgColor} opacity-60`}
+                  style={{ height: `${h}%` }}
+                />
+              ))}
+            </div>
+          </div>
         );
       })}
     </div>

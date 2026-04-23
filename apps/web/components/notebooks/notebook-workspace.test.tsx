@@ -290,6 +290,76 @@ describe("NotebookWorkspace", () => {
     expect(sourcesApi.getSnapshotSummary).not.toHaveBeenCalled();
   });
 
+  it("does not open another row snapshot while a source menu is open", async () => {
+    const user = userEvent.setup();
+
+    render(<NotebookWorkspace notebookId="notebook-123" />);
+
+    expect(await screen.findByText("Alpha Research Dossier")).toBeInTheDocument();
+
+    await act(async () => {
+      await user.click(screen.getByRole("button", { name: "More actions for Alpha Research Dossier" }));
+    });
+
+    expect(screen.getByRole("button", { name: "Preview snapshot" })).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.mouseEnter(screen.getByTestId("source-row-source-2"));
+    });
+
+    expect(sourcesApi.getSnapshotSummary).not.toHaveBeenCalled();
+    expect(screen.queryByText("Loading snapshot preview...")).not.toBeInTheDocument();
+  });
+
+  it("keeps source actions accessible when the snapshot preview is already open", async () => {
+    const user = userEvent.setup();
+
+    render(<NotebookWorkspace notebookId="notebook-123" />);
+
+    expect(await screen.findByText("Launch Risks Memo")).toBeInTheDocument();
+
+    await act(async () => {
+      await user.hover(screen.getByTestId("source-row-source-2"));
+    });
+
+    expect(await screen.findByText("Snapshot preview")).toBeInTheDocument();
+
+    await act(async () => {
+      await user.click(screen.getByRole("button", { name: "More actions for Launch Risks Memo" }));
+    });
+
+    expect(screen.getByRole("button", { name: "Preview snapshot" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Delete source" })).toBeInTheDocument();
+
+    await act(async () => {
+      await user.click(screen.getByRole("button", { name: "Delete source" }));
+    });
+
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("closes the source action menu when clicking outside the portal", async () => {
+    const user = userEvent.setup();
+
+    render(<NotebookWorkspace notebookId="notebook-123" />);
+
+    expect(await screen.findByText("Alpha Research Dossier")).toBeInTheDocument();
+
+    await act(async () => {
+      await user.click(screen.getByRole("button", { name: "More actions for Alpha Research Dossier" }));
+    });
+
+    expect(screen.getByRole("button", { name: "Preview snapshot" })).toBeInTheDocument();
+
+    act(() => {
+      fireEvent.pointerDown(document.body);
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: "Preview snapshot" })).not.toBeInTheDocument();
+    });
+  });
+
   it("creates a URL source and refreshes the source list in place", async () => {
     const user = userEvent.setup();
 

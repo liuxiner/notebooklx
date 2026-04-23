@@ -166,30 +166,8 @@ export default function NotebookDetailPage() {
             </aside>
           </div>
 
-          <div className="h-24 desktop:hidden" />
+          <div className="h-28 desktop:hidden" />
         </main>
-      </div>
-
-      {/* Mobile bottom nav */}
-      <div className="desktop:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-slate-200 bg-white">
-        <div className="mx-auto grid max-w-md grid-cols-3 px-6 py-3 text-xs text-slate-500">
-          <button
-            type="button"
-            className="flex flex-col items-center gap-1"
-            onClick={() => router.push("/notebooks")}
-          >
-            <BookOpen className="h-5 w-5" />
-            Notebooks
-          </button>
-          <button type="button" className="flex flex-col items-center gap-1 text-primary">
-            <BookOpen className="h-5 w-5" />
-            Sources
-          </button>
-          <button type="button" className="flex flex-col items-center gap-1" disabled>
-            <Settings className="h-5 w-5" />
-            Settings
-          </button>
-        </div>
       </div>
     </div>
   );

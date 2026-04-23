@@ -838,6 +838,118 @@ class TestWorkerFailureMessages:
         assert refreshed_job.error_message == "Ingestion failed during snapshot generation."
 
     @pytest.mark.asyncio
+    async def test_ingest_source_marks_failed_when_error_summary_fails(
+        self,
+        db,
+        sample_notebook,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        """
+        AC: Worker failure state persists even when error summarization also breaks.
+        """
+        from services.api.modules.ingestion.models import IngestionJob, IngestionJobStatus
+        from services.api.modules.sources.models import Source, SourceStatus, SourceType
+        from services.api.tests.conftest import TestingSessionLocal
+        from services.worker import main as worker_main
+
+        source = Source(
+            notebook_id=sample_notebook.id,
+            source_type=SourceType.URL,
+            title="Import Failure Source",
+            original_url="https://example.com/import-failure",
+            status=SourceStatus.PENDING,
+        )
+        db.add(source)
+        db.flush()
+
+        job = IngestionJob(source_id=source.id, status=IngestionJobStatus.QUEUED)
+        db.add(job)
+        db.commit()
+
+        import_error = ImportError(
+            "cannot import name 'ModelInputLimitError' from 'services.api.core.ai'"
+        )
+
+        def fail_ingestion(*_args, **_kwargs):
+            raise import_error
+
+        def fail_error_summary(_exc: Exception) -> str:
+            raise import_error
+
+        monkeypatch.setattr(worker_main, "run_ingestion_pipeline", fail_ingestion)
+        monkeypatch.setattr(
+            worker_main,
+            "build_user_facing_ingestion_error_message",
+            fail_error_summary,
+        )
+
+        with pytest.raises(ImportError, match="ModelInputLimitError"):
+            await worker_main.ingest_source(
+                {"session_factory": TestingSessionLocal},
+                str(source.id),
+                str(job.id),
+            )
+
+        db.expire_all()
+        refreshed_source = db.query(Source).filter(Source.id == source.id).one()
+        refreshed_job = db.query(IngestionJob).filter(IngestionJob.id == job.id).one()
+
+        assert refreshed_source.status == SourceStatus.FAILED
+        assert refreshed_job.status == IngestionJobStatus.FAILED
+        assert "ModelInputLimitError" in refreshed_source.error_message
+        assert refreshed_job.error_message == refreshed_source.error_message
+
+    @pytest.mark.asyncio
+    async def test_ingest_source_persists_unexpected_exception_message(
+        self,
+        db,
+        sample_notebook,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        """
+        AC: Unexpected ingestion failures still persist a useful message.
+        """
+        from services.api.modules.ingestion.models import IngestionJob, IngestionJobStatus
+        from services.api.modules.sources.models import Source, SourceStatus, SourceType
+        from services.api.tests.conftest import TestingSessionLocal
+        from services.worker import main as worker_main
+
+        source = Source(
+            notebook_id=sample_notebook.id,
+            source_type=SourceType.URL,
+            title="Generic Failure Source",
+            original_url="https://example.com/generic-failure",
+            status=SourceStatus.PENDING,
+        )
+        db.add(source)
+        db.flush()
+
+        job = IngestionJob(source_id=source.id, status=IngestionJobStatus.QUEUED)
+        db.add(job)
+        db.commit()
+
+        def fail_ingestion(*_args, **_kwargs):
+            raise RuntimeError("parser crashed")
+
+        monkeypatch.setattr(worker_main, "run_ingestion_pipeline", fail_ingestion)
+
+        with pytest.raises(RuntimeError, match="parser crashed"):
+            await worker_main.ingest_source(
+                {"session_factory": TestingSessionLocal},
+                str(source.id),
+                str(job.id),
+            )
+
+        db.expire_all()
+        refreshed_source = db.query(Source).filter(Source.id == source.id).one()
+        refreshed_job = db.query(IngestionJob).filter(IngestionJob.id == job.id).one()
+
+        assert refreshed_source.status == SourceStatus.FAILED
+        assert refreshed_job.status == IngestionJobStatus.FAILED
+        assert refreshed_source.error_message == "parser crashed"
+        assert refreshed_job.error_message == "parser crashed"
+
+    @pytest.mark.asyncio
     async def test_ingest_source_returns_cancelled_when_deleted_mid_flight(
         self,
         db,

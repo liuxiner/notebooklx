@@ -13,7 +13,13 @@ import logging
 from abc import ABC, abstractmethod
 from typing import List, Optional
 
-from services.api.core.ai import build_openai_compatible_client, get_ai_client_settings
+from services.api.core.ai import (
+    ModelInputLimitError,
+    build_openai_compatible_client,
+    get_ai_client_settings,
+    get_model_input_budget_settings,
+)
+from services.api.modules.chunking import count_tokens
 from services.api.modules.embeddings.utils import normalize_embedding
 
 logger = logging.getLogger(__name__)
@@ -175,6 +181,10 @@ class BigModelEmbeddingProvider(EmbeddingProvider):
         "embedding-2": 1024,
         "embedding-3": 2048,
     }
+    MODEL_MAX_TOKENS = {
+        "embedding-2": 8_000,
+        "embedding-3": 8_000,
+    }
 
     def __init__(
         self,
@@ -245,6 +255,9 @@ class BigModelEmbeddingProvider(EmbeddingProvider):
 
         # Determine dimension from model
         self._dimension = self.MODEL_DIMENSIONS.get(self._model, 1024)
+        self._max_input_tokens = get_model_input_budget_settings(
+            model_max_tokens=self.MODEL_MAX_TOKENS.get(self._model, 8_000),
+        ).max_input_tokens
         self._max_retries = resolved_max_retries
         self._base_backoff_seconds = resolved_backoff_seconds
         self._requests_per_minute = (
@@ -298,6 +311,14 @@ class BigModelEmbeddingProvider(EmbeddingProvider):
         """
         Call the embeddings API with retry/backoff and client-side throttling.
         """
+        for text in texts:
+            token_count = count_tokens(text)
+            if token_count > self._max_input_tokens:
+                raise ModelInputLimitError(
+                    f"Input for {self._model} exceeds the configured input budget: "
+                    f"{token_count} tokens > {self._max_input_tokens}."
+                )
+
         client = self._get_client()
 
         for attempt in range(self._max_retries + 1):

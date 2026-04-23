@@ -231,7 +231,7 @@ describe("EvaluationDashboard", () => {
 
     const filterSelect = await screen.findByLabelText("Notebook filter");
 
-    expect(within(filterSelect).getByRole("option", { name: "All notebooks" })).toBeInTheDocument();
+    expect(within(filterSelect).getByRole("option", { name: "All Research Notebooks" })).toBeInTheDocument();
     expect(within(filterSelect).getByRole("option", { name: "Alpha Notebook" })).toBeInTheDocument();
     expect(within(filterSelect).getByRole("option", { name: "Beta Notebook" })).toBeInTheDocument();
 
@@ -249,10 +249,12 @@ describe("EvaluationDashboard", () => {
 
     render(<EvaluationDashboard />);
 
-    expect(await screen.findByText("Pending query")).toBeInTheDocument();
+    expect((await screen.findAllByText("Pending query")).length).toBeGreaterThan(0);
 
+    // There are two "Create Test" buttons (desktop top bar + mobile), pick the first
+    const createButtons = screen.getAllByRole("button", { name: "Create Test" });
     await act(async () => {
-      await user.click(screen.getByRole("button", { name: "Create Test" }));
+      await user.click(createButtons[0]);
     });
 
     const dialog = await screen.findByRole("dialog");
@@ -293,10 +295,12 @@ describe("EvaluationDashboard", () => {
 
     render(<EvaluationDashboard />);
 
-    await screen.findByText("Pending query");
+    await screen.findAllByText("Pending query");
 
+    // There are two "Create Test" buttons (desktop top bar + mobile), pick the first
+    const createButtons = screen.getAllByRole("button", { name: "Create Test" });
     await act(async () => {
-      await user.click(screen.getByRole("button", { name: "Create Test" }));
+      await user.click(createButtons[0]);
     });
 
     const dialog = await screen.findByRole("dialog");
@@ -349,8 +353,10 @@ describe("EvaluationDashboard", () => {
     const filterSelect = await screen.findByLabelText("Notebook filter");
     expect(filterSelect).toBeDisabled();
 
+    // There are two "Create Test" buttons (desktop top bar + mobile), pick the first
+    const createButtons = screen.getAllByRole("button", { name: "Create Test" });
     await act(async () => {
-      await user.click(screen.getByRole("button", { name: "Create Test" }));
+      await user.click(createButtons[0]);
     });
 
     const dialog = await screen.findByRole("dialog");
@@ -363,10 +369,12 @@ describe("EvaluationDashboard", () => {
 
     render(<EvaluationDashboard />);
 
-    expect(await screen.findByText("Pending query")).toBeInTheDocument();
+    expect((await screen.findAllByText("Pending query")).length).toBeGreaterThan(0);
 
+    // Both desktop table and mobile cards render Start/Retry buttons in jsdom
+    const startButtons = screen.getAllByRole("button", { name: "Start evaluation" });
     await act(async () => {
-      await user.click(screen.getByRole("button", { name: "Start Pending query" }));
+      await user.click(startButtons[0]);
     });
 
     await waitFor(() => {
@@ -374,7 +382,8 @@ describe("EvaluationDashboard", () => {
     });
 
     await act(async () => {
-      await user.click(screen.getByRole("button", { name: "Retry Failed query" }));
+      const retryButtons = screen.getAllByRole("button", { name: "Retry evaluation" });
+      await user.click(retryButtons[0]);
     });
 
     await waitFor(() => {

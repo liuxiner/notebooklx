@@ -42,6 +42,9 @@ interface WorkspaceSource extends NotebookSource {
 
 const INGESTION_POLL_INTERVAL_MS = 1500;
 const MAX_BULK_INGESTION_SOURCES = 50;
+const SOURCE_MENU_WIDTH_PX = 176;
+const SOURCE_MENU_MARGIN_PX = 8;
+const SOURCE_MENU_OFFSET_PX = 8;
 
 const sourceTypeLabels: Record<SourceType, string> = {
   pdf: "PDF",
@@ -171,7 +174,14 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
   const snapshotCloseTimeoutRef = useRef<number | null>(null);
   const [snapshotPosition, setSnapshotPosition] = useState<{ top: number; left: number } | null>(null);
   const sourcesListRef = useRef<HTMLDivElement | null>(null);
+  const sourceMenuButtonRefs = useRef(new Map<string, HTMLButtonElement>());
+  const sourceMenuRef = useRef<HTMLDivElement | null>(null);
   const [openMenuSourceId, setOpenMenuSourceId] = useState<string | null>(null);
+  const [sourceMenuPosition, setSourceMenuPosition] = useState<{
+    top: number;
+    left: number;
+    width: number;
+  } | null>(null);
   const sourceCounts = sources.reduce(
     (counts, source) => {
       counts.total += 1;
@@ -385,11 +395,14 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
         return;
       }
 
-      const menuRoot = document.querySelector(`[data-source-menu-root="${openMenuSourceId}"]`);
+      const menuButton = openMenuSourceId ? sourceMenuButtonRefs.current.get(openMenuSourceId) : undefined;
+      const menuRoot = sourceMenuRef.current;
 
-      if (menuRoot && !menuRoot.contains(event.target)) {
-        setOpenMenuSourceId(null);
+      if (menuButton?.contains(event.target) || menuRoot?.contains(event.target)) {
+        return;
       }
+
+      setOpenMenuSourceId(null);
     }
 
     function handleKeyDown(event: KeyboardEvent) {
@@ -408,11 +421,67 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
   }, [openMenuSourceId]);
 
   useEffect(() => {
+    if (!openMenuSourceId) {
+      setSourceMenuPosition(null);
+      return;
+    }
+
+    function recalculate() {
+      const menuButton = openMenuSourceId ? sourceMenuButtonRefs.current.get(openMenuSourceId) : undefined;
+      if (!menuButton || !menuButton.isConnected) {
+        setOpenMenuSourceId(null);
+        return;
+      }
+
+      const rect = menuButton.getBoundingClientRect();
+      const menuHeight = sourceMenuRef.current?.offsetHeight ?? 156;
+      const width = Math.min(SOURCE_MENU_WIDTH_PX, window.innerWidth - SOURCE_MENU_MARGIN_PX * 2);
+
+      let top = rect.bottom + SOURCE_MENU_OFFSET_PX;
+      let left = rect.right - width;
+
+      if (top + menuHeight > window.innerHeight - SOURCE_MENU_MARGIN_PX) {
+        top = rect.top - menuHeight - SOURCE_MENU_OFFSET_PX;
+      }
+      if (top < SOURCE_MENU_MARGIN_PX) {
+        top = SOURCE_MENU_MARGIN_PX;
+      }
+      if (left < SOURCE_MENU_MARGIN_PX) {
+        left = SOURCE_MENU_MARGIN_PX;
+      }
+      if (left + width > window.innerWidth - SOURCE_MENU_MARGIN_PX) {
+        left = window.innerWidth - SOURCE_MENU_MARGIN_PX - width;
+      }
+
+      setSourceMenuPosition({ top, left, width });
+    }
+
+    recalculate();
+
+    const container = sourcesListRef.current;
+    container?.addEventListener("scroll", recalculate);
+    window.addEventListener("resize", recalculate);
+    window.addEventListener("scroll", recalculate, true);
+
+    return () => {
+      container?.removeEventListener("scroll", recalculate);
+      window.removeEventListener("resize", recalculate);
+      window.removeEventListener("scroll", recalculate, true);
+    };
+  }, [openMenuSourceId]);
+
+  useEffect(() => {
     if (activeSnapshotSourceId && !sources.some((source) => source.id === activeSnapshotSourceId)) {
       setActiveSnapshotSourceId(null);
       setPinnedSnapshotSourceId(null);
     }
   }, [activeSnapshotSourceId, sources]);
+
+  useEffect(() => {
+    if (openMenuSourceId && !sources.some((source) => source.id === openMenuSourceId)) {
+      setOpenMenuSourceId(null);
+    }
+  }, [openMenuSourceId, sources]);
 
   useEffect(() => {
     return () => {
@@ -693,6 +762,7 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
   const activeSnapshotSource = activeSnapshotSourceId
     ? sources.find((s) => s.id === activeSnapshotSourceId) ?? null
     : null;
+  const openMenuSource = openMenuSourceId ? sources.find((source) => source.id === openMenuSourceId) ?? null : null;
 
   return (
     <div className="space-y-6">
@@ -798,6 +868,9 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
                     }`}
                     onMouseEnter={() => {
                       cancelScheduledSnapshotClose();
+                      if (openMenuSourceId && openMenuSourceId !== source.id) {
+                        return;
+                      }
                       if (pinnedSnapshotSourceId && pinnedSnapshotSourceId !== source.id) {
                         return;
                       }
@@ -853,63 +926,26 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
                             </div>
 
                             <div className="flex shrink-0 items-center gap-1">
-                              <div className="relative" data-source-menu-root={source.id}>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-7 w-7 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-                                  aria-label={`More actions for ${source.title}`}
-                                  onClick={() => toggleSourceMenu(source.id)}
-                                >
-                                  <MoreVertical className="h-4 w-4" />
-                                  <span className="sr-only">{`View source snapshot for ${source.title}`}</span>
-                                </Button>
+                              <Button
+                                ref={(node) => {
+                                  if (node) {
+                                    sourceMenuButtonRefs.current.set(source.id, node);
+                                    return;
+                                  }
 
-                                {menuOpen ? (
-                                  <div className="absolute right-0 top-9 z-20 w-44 rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
-                                    <button
-                                      type="button"
-                                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-50"
-                                      onClick={() => {
-                                        setOpenMenuSourceId(null);
-                                        setPinnedSnapshotSourceId(source.id);
-                                        void openSnapshotPreview(source);
-                                      }}
-                                    >
-                                      <Eye className="h-4 w-4" />
-                                      Preview snapshot
-                                    </button>
-
-                                    {status === "pending" || status === "failed" ? (
-                                      <button
-                                        type="button"
-                                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-50"
-                                        onClick={() => {
-                                          setOpenMenuSourceId(null);
-                                          void retrySingleSource(source.id);
-                                        }}
-                                      >
-                                        <RefreshCw className="h-4 w-4" />
-                                        Retry source
-                                      </button>
-                                    ) : null}
-
-                                    <button
-                                      type="button"
-                                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-rose-700 transition hover:bg-rose-50"
-                                      onClick={() => {
-                                        setOpenMenuSourceId(null);
-                                        setDeleteErrorMessage(null);
-                                        setSourcePendingDelete(source);
-                                      }}
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                      Delete source
-                                    </button>
-                                  </div>
-                                ) : null}
-                              </div>
+                                  sourceMenuButtonRefs.current.delete(source.id);
+                                }}
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                                aria-label={`More actions for ${source.title}`}
+                                aria-expanded={menuOpen}
+                                onClick={() => toggleSourceMenu(source.id)}
+                              >
+                                <MoreVertical className="h-4 w-4" />
+                                <span className="sr-only">{`View source snapshot for ${source.title}`}</span>
+                              </Button>
                             </div>
                           </div>
 
@@ -1024,6 +1060,71 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
           </CardHeader>
         </Card>
       </div>
+
+      {openMenuSource && sourceMenuPosition
+        ? createPortal(
+            <div
+              ref={sourceMenuRef}
+              style={{
+                position: "fixed",
+                top: sourceMenuPosition.top,
+                left: sourceMenuPosition.left,
+                width: sourceMenuPosition.width,
+                zIndex: 60,
+              }}
+              className="max-w-[calc(100vw-1rem)] rounded-xl border border-slate-200 bg-white p-1 shadow-lg"
+            >
+              <button
+                type="button"
+                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-50"
+                onClick={() => {
+                  setOpenMenuSourceId(null);
+                  setPinnedSnapshotSourceId(openMenuSource.id);
+                  void openSnapshotPreview(openMenuSource);
+                }}
+              >
+                <Eye className="h-4 w-4" />
+                Preview snapshot
+              </button>
+
+              {(() => {
+                const status = getEffectiveStatus(openMenuSource);
+
+                if (status !== "pending" && status !== "failed") {
+                  return null;
+                }
+
+                return (
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-50"
+                    onClick={() => {
+                      setOpenMenuSourceId(null);
+                      void retrySingleSource(openMenuSource.id);
+                    }}
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    Retry source
+                  </button>
+                );
+              })()}
+
+              <button
+                type="button"
+                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-rose-700 transition hover:bg-rose-50"
+                onClick={() => {
+                  setOpenMenuSourceId(null);
+                  setDeleteErrorMessage(null);
+                  setSourcePendingDelete(openMenuSource);
+                }}
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete source
+              </button>
+            </div>,
+            document.body,
+          )
+        : null}
 
       {activeSnapshotSource && snapshotPosition
         ? createPortal(

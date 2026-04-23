@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { ChatPanel } from "./chat-panel";
@@ -12,9 +12,23 @@ jest.mock("@/lib/chat-stream", () => {
   };
 });
 
+function setViewportWidth(width: number) {
+  Object.defineProperty(window, "innerWidth", {
+    configurable: true,
+    writable: true,
+    value: width,
+  });
+  window.dispatchEvent(new Event("resize"));
+}
+
 describe("ChatPanel", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
   beforeEach(() => {
-    jest.clearAllMocks();
+    jest.resetAllMocks();
+    setViewportWidth(1440);
   });
 
   it("defaults retrieval top-k to 5 and passes it into chat streaming", async () => {
@@ -369,7 +383,7 @@ describe("ChatPanel", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders scholar workflow first and keeps advanced diagnostics behind settings", async () => {
+  it("renders scholar workflow with expandable node details", async () => {
     const user = userEvent.setup();
 
     render(
@@ -380,19 +394,135 @@ describe("ChatPanel", () => {
       />
     );
 
-    expect(screen.getByText("Scholar Query")).toBeInTheDocument();
-    expect(screen.getByText("Curator AI v4.2 active")).toBeInTheDocument();
+    expect(screen.getByText("Start Query")).toBeInTheDocument();
     expect(screen.getByText("Process workflow")).toBeInTheDocument();
-    expect(screen.getByText("Event timeline")).toBeInTheDocument();
-    expect(screen.queryByText("Chat timing & usage")).not.toBeInTheDocument();
+    expect(screen.getByText("Embedding Query")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Settings" })).toBeInTheDocument();
+    expect(screen.queryByText("Query Rewrite")).not.toBeInTheDocument();
+    expect(screen.queryByText("Duration")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Show workflow details" })).toBeInTheDocument();
 
     await act(async () => {
-      await user.click(
-        screen.getByRole("button", { name: "Toggle advanced diagnostics" })
-      );
+      await user.click(screen.getByRole("button", { name: "Show workflow details" }));
     });
 
-    expect(screen.getByText("Chat timing & usage")).toBeInTheDocument();
+    expect(screen.getByText("Duration")).toBeInTheDocument();
+    expect(screen.getByText("Cost")).toBeInTheDocument();
+  });
+
+  it("updates scholar retrieval top-k through the settings dialog before sending", async () => {
+    const user = userEvent.setup();
+
+    (streamNotebookChat as jest.Mock).mockResolvedValueOnce(undefined);
+
+    render(
+      <ChatPanel
+        notebookId="notebook-123"
+        notebookName="Deep Research Notes"
+        variant="scholar"
+      />
+    );
+
+    await act(async () => {
+      await user.click(screen.getByRole("button", { name: "Settings" }));
+    });
+
+    const dialog = screen.getByRole("dialog", { name: "Retrieval settings" });
+    expect(dialog).toBeInTheDocument();
+
+    await act(async () => {
+      await user.clear(within(dialog).getByLabelText("Top-K"));
+      await user.type(within(dialog).getByLabelText("Top-K"), "8");
+      await user.click(screen.getByRole("button", { name: "Apply" }));
+    });
+
+    expect(screen.queryByRole("dialog", { name: "Retrieval settings" })).not.toBeInTheDocument();
+
+    await act(async () => {
+      await user.type(screen.getByPlaceholderText("Ask your scholarship..."), "Which sections matter most?");
+      await user.click(screen.getByRole("button", { name: "Send" }));
+    });
+
+    expect(streamNotebookChat).toHaveBeenCalledWith(
+      expect.objectContaining({
+        notebookId: "notebook-123",
+        question: "Which sections matter most?",
+        topK: 8,
+      })
+    );
+  });
+
+  it("opens the scholar chat in a mobile bottom sheet", async () => {
+    const user = userEvent.setup();
+
+    setViewportWidth(390);
+
+    render(
+      <ChatPanel
+        notebookId="notebook-123"
+        notebookName="Deep Research Notes"
+        variant="scholar"
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Open chat assistant" })).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("Ask your scholarship...")).not.toBeInTheDocument();
+
+    await act(async () => {
+      await user.click(screen.getByRole("button", { name: "Open chat assistant" }));
+    });
+
+    expect(await screen.findByPlaceholderText("Ask your scholarship...")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Close chat assistant" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Settings" })).toBeInTheDocument();
+  });
+
+  it("updates scholar retrieval top-k from the mobile sheet settings dialog", async () => {
+    const user = userEvent.setup();
+
+    setViewportWidth(390);
+    (streamNotebookChat as jest.Mock).mockResolvedValueOnce(undefined);
+
+    render(
+      <ChatPanel
+        notebookId="notebook-123"
+        notebookName="Deep Research Notes"
+        variant="scholar"
+      />
+    );
+
+    await act(async () => {
+      await user.click(screen.getByRole("button", { name: "Open chat assistant" }));
+    });
+
+    await act(async () => {
+      await user.click(screen.getByRole("button", { name: "Settings" }));
+    });
+
+    const dialog = screen.getByRole("dialog", { name: "Retrieval settings" });
+    expect(dialog).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.change(within(dialog).getByLabelText("Top-K"), { target: { value: "11" } });
+      await user.click(within(dialog).getByRole("button", { name: "Apply" }));
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "Retrieval settings" })).not.toBeInTheDocument();
+    });
+
+    await act(async () => {
+      await user.type(screen.getByPlaceholderText("Ask your scholarship..."), "Map the strongest evidence");
+      await user.click(screen.getByRole("button", { name: "Send" }));
+    });
+
+    expect(streamNotebookChat).toHaveBeenCalledWith(
+      expect.objectContaining({
+        notebookId: "notebook-123",
+        question: "Map the strongest evidence",
+        topK: 11,
+      })
+    );
   });
 
   it("keeps rewritten-query transparency collapsed until the user expands it", async () => {
@@ -430,8 +560,7 @@ describe("ChatPanel", () => {
       await user.click(screen.getByRole("button", { name: "Send" }));
     });
 
-    expect((await screen.findAllByText("Query rewrite")).length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByRole("button", { name: "Show rewrite details" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Show rewrite details" })).toBeInTheDocument();
     expect(screen.queryByText("Original query")).not.toBeInTheDocument();
     expect(screen.queryByText("Retrieval searches")).not.toBeInTheDocument();
 
@@ -489,12 +618,79 @@ describe("ChatPanel", () => {
 
     expect(
       (
-        await screen.findAllByText(
-          "The sources describe semantic chunking as context-preserving splitting."
-        )
+        await screen.findAllByText(/The sources describe semantic chunking as context-preserving splitting\./i)
       ).length
     ).toBeGreaterThanOrEqual(1);
     expect(screen.queryByText("Query rewrite")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Show rewrite details" })).not.toBeInTheDocument();
+  });
+
+  it("uses a modal citation preview on mobile scholar chat", async () => {
+    const user = userEvent.setup();
+    setViewportWidth(390);
+
+    (streamNotebookChat as jest.Mock).mockImplementationOnce(
+      async ({ onCitations, onAnswer, onDone }) => {
+        onCitations?.({
+          citations: [
+            {
+              citation_index: 1,
+              chunk_id: "chunk-1",
+              source_id: "source-1",
+              source_title: "Alpha Guide",
+              page: "12",
+              quote: "Alpha launches in phases.",
+              content: "Alpha launches in phases with an initial pilot and a review checkpoint.",
+              score: 0.95,
+            },
+          ],
+          citation_indices: [1],
+          missing_citation_indices: [],
+        });
+        onAnswer?.({
+          answer: "Alpha launches in phases [1].",
+          raw_answer: "Alpha launches in phases [1].",
+        });
+        onDone?.({ status: "complete" });
+      }
+    );
+
+    render(
+      <ChatPanel
+        notebookId="notebook-123"
+        notebookName="Deep Research Notes"
+        variant="scholar"
+      />
+    );
+
+    await act(async () => {
+      await user.click(screen.getByRole("button", { name: "Open chat assistant" }));
+    });
+
+    const textarea = await screen.findByPlaceholderText("Ask your scholarship...");
+    await act(async () => {
+      await user.type(textarea, "What evidence supports the launch?");
+      await user.click(screen.getByRole("button", { name: "Send" }));
+    });
+
+    const citationMarker = await screen.findByRole("button", { name: "Open citation 1" });
+
+    await act(async () => {
+      await user.click(citationMarker);
+    });
+
+    const preview = await screen.findByRole("dialog", { name: "Citation 1 preview" });
+    expect(within(preview).getByText("Alpha Guide")).toBeInTheDocument();
+    expect(within(preview).getByText("Alpha launches in phases.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Close citation preview overlay" })).not.toBeInTheDocument();
+
+    // Close the mobile modal via Escape key (mobile sheet has no close button)
+    await act(async () => {
+      await user.keyboard("{Escape}");
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "Citation 1 preview" })).not.toBeInTheDocument();
+    });
   });
 });

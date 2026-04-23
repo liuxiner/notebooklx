@@ -98,6 +98,19 @@ class TestAIClientSettings:
         assert settings.chat_model == DEFAULT_BIGMODEL_CHAT_MODEL
         assert settings.embedding_model == DEFAULT_BIGMODEL_EMBEDDING_MODEL
 
+    def test_chat_budget_settings_read_environment_configuration(self, monkeypatch):
+        """Chat prompt budget settings should resolve from generic env vars."""
+        from services.api.core.ai import get_chat_model_prompt_budget_settings
+
+        monkeypatch.setenv("ZHIPUAI_API_MODEL_MAX_TOKENS", "128000")
+        monkeypatch.setenv("NOTEBOOKLX_PROMPT_BUDGET_RATIO", "0.8")
+
+        settings = get_chat_model_prompt_budget_settings()
+
+        assert settings.model_max_tokens == 128000
+        assert settings.prompt_budget_ratio == 0.8
+        assert settings.max_input_tokens == 102400
+
 
 class TestOpenAICompatibleClientFactory:
     """Test client construction against the OpenAI-compatible SDK."""
@@ -325,3 +338,24 @@ class TestBigModelChatProvider:
                 temperature=0.3,
             ),
         ]
+
+    def test_chat_provider_rejects_messages_over_budget(self, monkeypatch):
+        """Chat calls should fail fast when the prompt exceeds the configured budget."""
+        from services.api.core.ai import BigModelChatProvider, ModelInputLimitError
+
+        monkeypatch.setenv("ZHIPUAI_API_MODEL_MAX_TOKENS", "10")
+        monkeypatch.setenv("NOTEBOOKLX_PROMPT_BUDGET_RATIO", "0.5")
+
+        mock_client = MagicMock()
+
+        with patch(
+            "services.api.core.ai.build_openai_compatible_client",
+            return_value=mock_client,
+        ):
+            provider = BigModelChatProvider(api_key="test-key", model="glm-4")
+            with pytest.raises(ModelInputLimitError, match="exceeds the configured input budget"):
+                provider.chat(
+                    [{"role": "user", "content": "one two three four five six seven eight nine ten"}]
+                )
+
+        mock_client.chat.completions.create.assert_not_called()

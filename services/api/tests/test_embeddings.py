@@ -846,6 +846,29 @@ class TestBigModelEmbeddingProvider:
         assert mock_client.embeddings.create.call_count == 2
         mock_sleep.assert_called_once_with(pytest.approx(0.9))
 
+    def test_bigmodel_provider_rejects_texts_over_model_budget(self, monkeypatch):
+        """Embedding calls should fail fast when a text exceeds the model input budget."""
+        from services.api.modules.embeddings import BigModelEmbeddingProvider
+        from services.api.core.ai import ModelInputLimitError
+
+        monkeypatch.setenv("NOTEBOOKLX_PROMPT_BUDGET_RATIO", "0.8")
+
+        mock_client = MagicMock()
+
+        with patch(
+            "services.api.modules.embeddings.providers.build_openai_compatible_client",
+            return_value=mock_client,
+        ), patch(
+            "services.api.modules.embeddings.providers.count_tokens",
+            return_value=7000,
+        ):
+            provider = BigModelEmbeddingProvider(api_key="test-key", model="embedding-2")
+
+            with pytest.raises(ModelInputLimitError, match="embedding-2"):
+                provider.embed_many(["too long for embedding budget"])
+
+        mock_client.embeddings.create.assert_not_called()
+
 
 class TestEmbeddingServiceWithBigModel:
     """Test EmbeddingService integration with BigModelEmbeddingProvider."""

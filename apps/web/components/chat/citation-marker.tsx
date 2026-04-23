@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 interface CitationMarkerProps {
   index: number;
   isActive?: boolean;
-  onSelect?: (index: number) => void;
+  onSelect?: (index: number, target?: HTMLButtonElement) => void;
 }
 
 export function CitationMarker({
@@ -18,7 +18,7 @@ export function CitationMarker({
       type="button"
       aria-label={`Open citation ${index}`}
       aria-pressed={isActive}
-      onClick={() => onSelect?.(index)}
+      onClick={(event) => onSelect?.(index, event.currentTarget)}
       className={cn(
         "inline-flex h-6 min-w-6 items-center justify-center rounded-md border px-1.5 align-baseline font-mono text-[11px] font-semibold leading-none transition-colors focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/10 focus-visible:ring-offset-0",
         isActive

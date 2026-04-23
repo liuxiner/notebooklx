@@ -79,6 +79,12 @@ def _is_sqlite_locked_error(exc: Exception) -> bool:
     return "database is locked" in str(exc).lower()
 
 
+def _fallback_ingestion_error_message(exc: Exception) -> str:
+    """Return a best-effort message when step-aware summarization is unavailable."""
+    message = str(exc).strip()
+    return message or "Ingestion failed."
+
+
 async def _commit_with_retry(db: Session, *, operation: str) -> None:
     """Commit a session with bounded retries for transient SQLite write locks."""
     for attempt in range(1, SQLITE_COMMIT_RETRY_ATTEMPTS + 1):
@@ -103,9 +109,24 @@ async def _commit_with_retry(db: Session, *, operation: str) -> None:
 
 def build_user_facing_ingestion_error_message(exc: Exception) -> str:
     """Translate internal ingestion exceptions into user-facing status text."""
-    from services.api.modules.ingestion.orchestrator import summarize_ingestion_error
+    fallback_message = _fallback_ingestion_error_message(exc)
 
-    return summarize_ingestion_error(exc)
+    try:
+        from services.api.modules.ingestion.orchestrator import summarize_ingestion_error
+    except Exception:
+        logger.exception("Failed to import ingestion error summarizer")
+        return fallback_message
+
+    try:
+        user_facing_message = summarize_ingestion_error(exc)
+    except Exception:
+        logger.exception("Failed to summarize ingestion error")
+        return fallback_message
+
+    if user_facing_message == "Ingestion failed.":
+        return fallback_message
+
+    return user_facing_message
 
 
 def load_active_source_and_job(
@@ -292,7 +313,15 @@ async def ingest_source(ctx: dict[str, Any], source_id: str, ingestion_job_id: s
             source_id=source_uuid,
             job_id=job_uuid,
         )
-        user_facing_error = build_user_facing_ingestion_error_message(exc)
+        try:
+            user_facing_error = build_user_facing_ingestion_error_message(exc)
+        except Exception:
+            logger.exception(
+                "Failed to derive user-facing ingestion error source=%s job=%s",
+                source_uuid,
+                job_uuid,
+            )
+            user_facing_error = _fallback_ingestion_error_message(exc)
 
         if user_facing_error == "Ingestion was cancelled." and source is None and job is None:
             logger.info(

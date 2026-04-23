@@ -1,6 +1,6 @@
 "use client";
 
-import { CitationMarker } from "@/components/chat/citation-marker";
+import { MarkdownWithCitations } from "@/components/chat/markdown-with-citations";
 import { Spinner } from "@/components/ui/spinner";
 import type {
   ChatCitation,
@@ -27,42 +27,6 @@ interface MessageBubbleProps {
   message: ChatMessage;
   activeCitationIndex?: number | null;
   onCitationSelect?: (index: number) => void;
-}
-
-function renderAssistantContent(
-  content: string,
-  citations: ChatCitation[],
-  activeCitationIndex: number | null | undefined,
-  onCitationSelect?: (index: number) => void
-) {
-  const citationIndexSet = new Set(citations.map((citation) => citation.citation_index));
-  const segments = content.split(/(\[\d+\])/g).filter(Boolean);
-
-  return (
-    <div className="whitespace-pre-wrap text-sm leading-6">
-      {segments.map((segment, index) => {
-        const match = /^\[(\d+)\]$/.exec(segment);
-
-        if (!match) {
-          return <span key={`${segment}-${index}`}>{segment}</span>;
-        }
-
-        const citationIndex = Number(match[1]);
-        if (!citationIndexSet.has(citationIndex)) {
-          return <span key={`${segment}-${index}`}>{segment}</span>;
-        }
-
-        return (
-          <CitationMarker
-            key={`${segment}-${index}`}
-            index={citationIndex}
-            isActive={activeCitationIndex === citationIndex}
-            onSelect={onCitationSelect}
-          />
-        );
-      })}
-    </div>
-  );
 }
 
 export function MessageBubble({
@@ -123,12 +87,13 @@ export function MessageBubble({
             <p className="whitespace-pre-wrap text-sm leading-6">{message.content}</p>
           ) : (
             <div className="flex items-end gap-1">
-              {renderAssistantContent(
-                message.content,
-                message.citations,
-                activeCitationIndex,
-                onCitationSelect
-              )}
+              <MarkdownWithCitations
+                content={message.content}
+                citations={message.citations}
+                activeCitationIndex={activeCitationIndex}
+                onCitationSelect={onCitationSelect}
+                className="text-sm leading-6"
+              />
               {showStatus ? (
                 <span
                   aria-hidden="true"

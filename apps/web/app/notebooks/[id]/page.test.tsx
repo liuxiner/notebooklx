@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import NotebookDetailPage from "./page";
@@ -33,6 +33,15 @@ jest.mock("@/lib/api", () => ({
 jest.mock("@/lib/chat-stream", () => ({
   streamNotebookChat: jest.fn(),
 }));
+
+function setViewportWidth(width: number) {
+  Object.defineProperty(window, "innerWidth", {
+    configurable: true,
+    writable: true,
+    value: width,
+  });
+  window.dispatchEvent(new Event("resize"));
+}
 
 const mockNotebook: Notebook = {
   id: "notebook-123",
@@ -159,6 +168,7 @@ function mockBulkStatuses() {
 describe("NotebookDetailPage", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    setViewportWidth(1440);
     (notebooksApi.get as jest.Mock).mockResolvedValue(mockNotebook);
     (sourcesApi.list as jest.Mock).mockResolvedValue(mockSources);
     mockBulkStatuses();
@@ -168,13 +178,10 @@ describe("NotebookDetailPage", () => {
     render(<NotebookDetailPage />);
 
     expect(await screen.findByText("Deep Research Notes")).toBeInTheDocument();
-    const addSourceButtons = await screen.findAllByRole("button", { name: "Add Source" });
+    const addSourceButtons = await screen.findAllByRole("button", { name: "ADD SOURCE" });
     expect(addSourceButtons.length).toBeGreaterThan(0);
-    const chatHeading = screen.getByRole("heading", { name: "Scholar Query" });
+    const chatHeading = screen.getByRole("heading", { name: "Start Query" });
     expect(chatHeading).toBeInTheDocument();
-    expect(
-      screen.getByText("Curator AI v4.2 active")
-    ).toBeInTheDocument();
     expect(
       screen.getByPlaceholderText("Ask your scholarship...")
     ).toBeInTheDocument();
@@ -187,9 +194,9 @@ describe("NotebookDetailPage", () => {
     expect(screen.getByText("Launch Risks Memo")).toBeInTheDocument();
     expect(screen.getByText("Queued Interview Notes")).toBeInTheDocument();
     expect(screen.getByText("Customer Insights Brief")).toBeInTheDocument();
-    expect(screen.getByText("Ready for grounded chat")).toBeInTheDocument();
-    expect(screen.getByText("Notebook ID")).toBeInTheDocument();
-    expect(screen.getByText("Trust boundary")).toBeInTheDocument();
+    expect(screen.getByText("Sources")).toBeInTheDocument();
+    expect(screen.getByText("4 total")).toBeInTheDocument();
+    expect(screen.getByText("1 ready")).toBeInTheDocument();
     expect(screen.getByText("PDF")).toBeInTheDocument();
     expect(screen.getByText("URL")).toBeInTheDocument();
     expect(screen.getByText("TEXT")).toBeInTheDocument();
@@ -197,8 +204,10 @@ describe("NotebookDetailPage", () => {
     expect(screen.getAllByText("Pending").length).toBeGreaterThan(0);
     expect(screen.getByText("Processing")).toBeInTheDocument();
     expect(screen.getByText("Failed")).toBeInTheDocument();
-    expect(screen.getByText("Notebook summary")).toBeInTheDocument();
-    expect(screen.getByText("Generated assets")).toBeInTheDocument();
+    expect(screen.getByText("Notebook Summary")).toBeInTheDocument();
+    expect(screen.getByText("Key insights and overview")).toBeInTheDocument();
+    expect(screen.getByText("Generated Assets")).toBeInTheDocument();
+    expect(screen.getByText("Derived content")).toBeInTheDocument();
   });
 
   it("shows an empty state when the notebook has no sources", async () => {
@@ -225,7 +234,7 @@ describe("NotebookDetailPage", () => {
     expect(await screen.findByText("Sources API unavailable")).toBeInTheDocument();
 
     await act(async () => {
-      await user.click(screen.getByRole("button", { name: "Refresh" }));
+      await user.click(screen.getByRole("button", { name: "Refresh sources" }));
     });
 
     expect(await screen.findByText("Alpha Research Dossier")).toBeInTheDocument();
@@ -283,7 +292,7 @@ describe("NotebookDetailPage", () => {
     expect(
       screen.getAllByText("What do the sources say about Alpha?").length
     ).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText("Working through notebook sources")).toBeInTheDocument();
+    expect(screen.getByText("Process workflow")).toBeInTheDocument();
     expect(
       screen.getAllByText("Waiting for the first answer chunk from the model").length
     ).toBeGreaterThanOrEqual(2);
@@ -309,7 +318,9 @@ describe("NotebookDetailPage", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText("Grounded answer ready")).toBeInTheDocument();
+      expect(
+        screen.getAllByText("Alpha launch preparation is documented in the sources.").length
+      ).toBeGreaterThanOrEqual(1);
     });
     expect(Element.prototype.scrollIntoView).toHaveBeenCalled();
   });
@@ -387,9 +398,9 @@ describe("NotebookDetailPage", () => {
       await user.click(screen.getByRole("button", { name: "Send" }));
     });
 
-    expect(
-      await screen.findByRole("heading", { name: "Sources used in this answer" })
-    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByRole("heading", { name: "Sources used in this answer" })).not.toBeInTheDocument();
+    });
 
     const firstMarker = screen.getByRole("button", { name: "Open citation 1" });
     const secondMarker = screen.getByRole("button", { name: "Open citation 2" });
@@ -397,24 +408,47 @@ describe("NotebookDetailPage", () => {
     expect(firstMarker).toBeInTheDocument();
     expect(secondMarker).toBeInTheDocument();
 
-    expect(screen.getAllByText("Alpha Guide")).toHaveLength(2);
-    expect(screen.getAllByText("Beta Brief")).toHaveLength(1);
-    expect(screen.getAllByText("Alpha launch planning starts in Q2.")).toHaveLength(2);
-    expect(screen.getAllByText("Page 12")).toHaveLength(2);
-    expect(screen.getAllByText("Score 0.95")).toHaveLength(2);
-    expect(
-      screen.getByRole("button", { name: "View citation 1 from Alpha Guide" })
-    ).toHaveAttribute("aria-pressed", "true");
-
     await act(async () => {
-      await user.click(secondMarker);
+      await user.click(firstMarker);
     });
 
-    expect(screen.getAllByText("Beta mitigates the logistics risk.")).toHaveLength(2);
-    expect(screen.getAllByText("Page 4")).toHaveLength(2);
-    expect(screen.getAllByText("Score 0.82")).toHaveLength(2);
-    expect(
-      screen.getByRole("button", { name: "View citation 2 from Beta Brief" })
-    ).toHaveAttribute("aria-pressed", "true");
+    const firstPreview = await screen.findByRole("dialog", { name: "Citation 1 preview" });
+    expect(within(firstPreview).getByText("Alpha Guide")).toBeInTheDocument();
+    expect(within(firstPreview).getByText("Alpha launch planning starts in Q2.")).toBeInTheDocument();
+    expect(within(firstPreview).getAllByText("Page 12").length).toBeGreaterThanOrEqual(1);
+    expect(within(firstPreview).getAllByText("Score 0.95").length).toBeGreaterThanOrEqual(1);
+    expect(document.body.style.overflow).toBe("hidden");
+    expect(screen.getByRole("button", { name: "Close citation preview overlay" })).toBeInTheDocument();
+
+    // Close the first preview via Escape key
+    await act(async () => {
+      fireEvent.keyDown(document, { key: "Escape" });
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "Citation 1 preview" })).not.toBeInTheDocument();
+    });
+
+    // Re-query markers after re-render (they may have been recreated)
+    const freshSecondMarker = screen.getByRole("button", { name: "Open citation 2" });
+
+    await act(async () => {
+      fireEvent.click(freshSecondMarker);
+    });
+
+    const secondPreview = await screen.findByRole("dialog", { name: "Citation 2 preview" });
+    expect(within(secondPreview).getByText("Beta Brief")).toBeInTheDocument();
+    expect(within(secondPreview).getByText("Beta mitigates the logistics risk.")).toBeInTheDocument();
+    expect(within(secondPreview).getAllByText("Page 4").length).toBeGreaterThanOrEqual(1);
+    expect(within(secondPreview).getAllByText("Score 0.82").length).toBeGreaterThanOrEqual(1);
+
+    await act(async () => {
+      fireEvent.keyDown(document, { key: "Escape" });
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "Citation 2 preview" })).not.toBeInTheDocument();
+    });
+    expect(document.body.style.overflow).toBe("");
   });
 });
