@@ -183,7 +183,7 @@ notebooklx/
         ▼
   向量嵌入 (Embedding)
    ├── 批量生成 (32-100 chunks/call)
-   ├── 1536 维向量 (text-embedding-3-small)
+   ├── embedding-2 (1024维) 或 embedding-3 (2048维)
    └── 指数退避重试 + 成本追踪
         │
         ▼
@@ -414,7 +414,7 @@ final_results = rrf_fuse(bm25_results, vector_results, k=60)
 
   3. 列类型通过 SQLAlchemy 自定义类型映射
 
-  文件：services/api/core/vector.py — EmbeddingVector 类型在 PostgreSQL 上映射到 VECTOR(1536)，在 SQLite 上退化为 JSON。
+  文件：services/api/core/vector.py — EmbeddingVector 类型在 PostgreSQL 上映射到 VECTOR，维度由模型决定（embedding-2: 1024, embedding-3: 2048），在 SQLite 上退化为 JSON。
 
   **总结**
   ┌───────────┬───────────────────────────────────────────────────────┐
@@ -587,7 +587,7 @@ Notebook ──────────────────────┐
   ├── Source                   │
   │     │ 1:N                  │
   │     ├── SourceChunk        │
-  │     │     (vector: 1536d)  │
+  │     │     (vector: 1024d/2048d)  │
   │     └── SourceSnapshot     │
   │                            │
   ├── Message ◄──────┐        │

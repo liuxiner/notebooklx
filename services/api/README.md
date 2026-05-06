@@ -382,7 +382,7 @@ ORDER BY distance LIMIT 5;
 |---------|---------------|
 | **2.1 Parsers** | Check logs for "Parsed source ... N pages" |
 | **2.2 Chunking** | Query `source_chunks` table, verify 300-800 tokens per chunk |
-| **2.3 Embeddings** | Verify `embedding` column is populated (1536 dimensions) |
+| **2.3 Embeddings** | Verify `embedding` column is populated (dimension depends on model: embedding-2 → 1024, embedding-3 → 2048) |
 | **2.4 Vector Index** | Run `EXPLAIN ANALYZE` on vector search query, should be <200ms |
 | **2.5 Workflow** | Source status changes: `pending → processing → ready` |
 

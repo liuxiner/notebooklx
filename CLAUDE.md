@@ -463,7 +463,7 @@ Development priority:
 - All tables include `created_at` and `updated_at` timestamps
 - Use **JSONB** for flexible metadata storage
 - Index all foreign keys and common query patterns
-- Use **pgvector** extension for embeddings (vector(1536) for text-embedding-3-small)
+- Use **pgvector** extension for embeddings (dimension depends on model: embedding-2 → 1024, embedding-3 → 2048)
 - Create **HNSW indexes** on embedding columns for performance
 
 ### API Standards
@@ -502,7 +502,7 @@ Development priority:
 - **Tokenizer**: Use tiktoken for OpenAI models
 
 ### Embedding Generation
-- **Model**: text-embedding-3-small (1536 dimensions) or equivalent
+- **Model**: embedding-2 (1024 dimensions, default) or embedding-3 (2048 dimensions)
 - **Batch size**: 32-100 chunks per API call
 - **Rate limiting**: Implement exponential backoff
 - **Cost tracking**: Log token usage for monitoring
@@ -693,10 +693,10 @@ MINIO_ENDPOINT=localhost:9000
 MINIO_ACCESS_KEY=minioadmin
 MINIO_SECRET_KEY=minioadmin
 
-# LLM API
-OPENAI_API_KEY=sk-...
-EMBEDDING_MODEL=text-embedding-3-small
-CHAT_MODEL=gpt-4o-mini
+# LLM API (ZhipuAI / OpenAI-compatible)
+ZHIPUAI_API_KEY=your-key
+ZHIPUAI_API_EMBEDDING_MODEL_ID=embedding-2
+ZHIPUAI_API_MODEL_ID=glm-4
 
 # Auth
 JWT_SECRET=random-secret-key

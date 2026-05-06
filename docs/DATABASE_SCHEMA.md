@@ -109,7 +109,7 @@ CREATE TABLE source_chunks (
     chunk_index INTEGER NOT NULL, -- order within source
     content TEXT NOT NULL,
     token_count INTEGER,
-    embedding VECTOR(1536), -- dimension depends on model (1536 for text-embedding-3-small)
+    embedding VECTOR(1024), -- dimension depends on model (embedding-2: 1024, embedding-3: 2048)
     metadata JSONB, -- {page, heading, char_start, char_end, section}
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
