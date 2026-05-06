@@ -379,6 +379,59 @@ vector_results = vector_search(query_embedding, notebook_id)
 final_results = rrf_fuse(bm25_results, vector_results, k=60)
 ```
 
+`HNSW` 是通过 PostgreSQL 的 pgvector 扩展实现的，不需要额外引入 Python 包。具体来说：
+
+  实现方式：pgvector 扩展 + SQL DDL
+
+  1. 启用扩展 + 创建 `HNSW` 索引（Alembic 迁移）
+
+  文件：`services/api/alembic/versions/a7c9d2e1f4b6_enable_pgvector_for_source_chunks.py`
+
+```sql
+  -- 启用 pgvector 扩展
+  CREATE EXTENSION IF NOT EXISTS vector;
+
+  -- 创建 HNSW 索引
+  CREATE INDEX IF NOT EXISTS idx_source_chunks_embedding_hnsw
+  ON source_chunks
+  USING hnsw (embedding vector_cosine_ops)
+  WITH (m = 16, ef_construction = 64);
+```
+
+  参数说明：
+  - m = 16：每层最大连接数，影响召回率和内存的平衡
+  - ef_construction = 64：构建时的候选队列大小，影响索引质量
+  - vector_cosine_ops：使用余弦距离
+
+  2. 查询时用 pgvector 的 <=> 算子
+
+  文件：services/api/modules/retrieval/service.py:135
+
+  # 余弦相似度 = 1 - 余弦距离
+  text("1 - (embedding <=> :query)::float").label("score")
+
+  HNSW 索引会自动加速这个 <=> 查询，不需要在查询中显式指定使用索引。
+
+  3. 列类型通过 SQLAlchemy 自定义类型映射
+
+  文件：services/api/core/vector.py — EmbeddingVector 类型在 PostgreSQL 上映射到 VECTOR(1536)，在 SQLite 上退化为 JSON。
+
+  **总结**
+  ┌───────────┬───────────────────────────────────────────────────────┐
+  │   层面    │                       实现方式                        │
+  ├───────────┼───────────────────────────────────────────────────────┤
+  │ 存储引擎  │ PostgreSQL + pgvector 扩展（CREATE EXTENSION vector） │
+  ├───────────┼───────────────────────────────────────────────────────┤
+  │ 索引类型  │ HNSW（SQL USING hnsw）                                │
+  ├───────────┼───────────────────────────────────────────────────────┤
+  │ 距离度量  │ 余弦距离（vector_cosine_ops，<=> 算子）               │
+  ├───────────┼───────────────────────────────────────────────────────┤
+  │ Python 端 │ 无额外包，纯 SQL DDL + SQLAlchemy 自定义类型          │
+  ├───────────┼───────────────────────────────────────────────────────┤
+  │ 本地开发  │ SQLite 无 HNSW，退化为 numpy 手动计算余弦相似度       │
+  └───────────┴───────────────────────────────────────────────────────┘
+核心就是：PostgreSQL 装个 pgvector 扩展，然后一条 CREATE INDEX ... USING hnsw 的 SQL 就完成了，不需要引入 faiss、milvus 之类的独立向量数据库或 Python 包。
+
 **关键点：始终限定在 `notebook_id` 范围内**，跨笔记本检索是 v2 特性。
 
 ### 5.2 查询改写系统
